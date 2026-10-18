@@ -3,5 +3,10 @@ services:
     build: .
     image: openthings:poc
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    # Exposed on the tailnet by DockTail (https://github.com/marvinvr/docktail)
+    # as https://openthings.<tailnet>.ts.net. No published host ports.
+    labels:
+      - "docktail.service.enable=true"
+      - "docktail.service.name=openthings"
+      - "docktail.service.port=8080"
+      - "docktail.service.service-port=443"

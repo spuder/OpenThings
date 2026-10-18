@@ -81,12 +81,12 @@ To start over with the demo data, run **Reset demo data** from the command palet
 ## Self-hosting the proof of concept
 
 ```sh
-docker compose up -d --build     # http://<host>:8080
+docker compose up -d --build
 ```
 
-The image is a static build served by nginx. Until the sync server exists, **each browser keeps its own data** in IndexedDB, so hosting it centrally gives every device the same app but not the same tasks. Use **Export JSON backup** (`Ctrl/⌘ ⇧ E`) to save a copy.
+`compose.yaml` carries [DockTail](https://github.com/marvinvr/docktail) labels, so with DockTail running on the host the app appears at `https://openthings.<tailnet>.ts.net` with no published ports. Without DockTail, add `ports: ["8080:8080"]`.
 
-On a tailnet, `tailscale serve --bg 8080` puts it behind HTTPS, which the installable app (PWA) and clipboard features will need later.
+The image is a static build served by nginx. Until the sync server exists, **each browser keeps its own data** in IndexedDB, so hosting it centrally gives every device the same app but not the same tasks. Use **Export JSON backup** (`Ctrl/⌘ ⇧ E`) to save a copy.
 
 ## Roadmap
 

@@ -42,20 +42,39 @@ export function upcomingReminders(tasks: Task[], now: number): UpcomingReminder[
 
 class Notifier {
   permission = $state<NotifyPermission>(currentPermission());
-  /** Service worker registration, when supported (needed for notifications on Android and iOS). */
-  private registration: ServiceWorkerRegistration | null = null;
+  /** Service worker state; mobile browsers can only show notifications through an active worker. */
+  worker = $state<'unsupported' | 'insecure' | 'registering' | 'active' | 'failed'>('registering');
+  /** Last delivery error, shown in Settings for troubleshooting. */
+  lastError = $state<string | null>(null);
 
   async init(onOpenTask: (id: string) => void) {
     this.permission = currentPermission();
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !isSecureContext) return;
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return void (this.worker = 'unsupported');
+    if (!isSecureContext) return void (this.worker = 'insecure');
     try {
-      this.registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.register('/sw.js');
       navigator.serviceWorker.addEventListener('message', (e) => {
         if (e.data?.type === 'openthings:open-task') onOpenTask(e.data.taskId);
       });
-    } catch {
-      this.registration = null;
+      await this.activeRegistration();
+    } catch (e) {
+      this.worker = 'failed';
+      this.lastError = `Service worker: ${(e as Error).message}`;
     }
+  }
+
+  /**
+   * The registration once its worker is active. `register()` resolves before activation, and
+   * showNotification() on a not-yet-active registration fails, which is what broke mobile.
+   */
+  private async activeRegistration(timeoutMs = 4000): Promise<ServiceWorkerRegistration | null> {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !isSecureContext) return null;
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    this.worker = reg?.active ? 'active' : 'failed';
+    return reg?.active ? reg : null;
   }
 
   /** Must be called from a user gesture (click). */
@@ -65,26 +84,33 @@ class Notifier {
     return this.permission;
   }
 
-  /** Show a system notification. Returns false if notifications aren't allowed. */
+  /** Show a system notification. Returns false (and sets lastError) when it couldn't be shown. */
   async show(title: string, body: string, taskId?: string): Promise<boolean> {
     this.permission = currentPermission();
-    if (this.permission !== 'granted') return false;
+    if (this.permission !== 'granted') {
+      this.lastError = this.permission === 'unsupported' ? 'This browser has no notification support here' : `Permission is "${this.permission}"`;
+      return false;
+    }
     const options: NotificationOptions = {
       body,
-      tag: taskId ? `reminder-${taskId}` : undefined,
+      tag: taskId ? `reminder-${taskId}` : `openthings-${Date.now()}`,
       data: { taskId },
       icon: '/icon-192.png',
       badge: '/icon-192.png',
     };
     try {
-      if (this.registration) {
-        await this.registration.showNotification(title, options);
+      const reg = await this.activeRegistration();
+      if (reg) {
+        await reg.showNotification(title, options);
       } else {
+        // Desktop browsers allow the constructor; mobile browsers throw ("Illegal constructor").
         const n = new Notification(title, options);
         n.onclick = () => window.focus();
       }
+      this.lastError = null;
       return true;
-    } catch {
+    } catch (e) {
+      this.lastError = (e as Error).message || String(e);
       return false;
     }
   }

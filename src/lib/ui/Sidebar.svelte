@@ -4,6 +4,14 @@
   import Icon from './Icon.svelte';
   import ProgressPie from './ProgressPie.svelte';
   import { openListMenu, prompt } from '../commands';
+  import { fly } from 'svelte/transition';
+
+  let newListOpen = $state(false);
+  function newList(kind: 'project' | 'area') {
+    newListOpen = false;
+    if (kind === 'project') prompt('New project', (name) => store.go({ kind: 'project', id: store.addProject(name) }));
+    else prompt('New area of responsibility', (name) => store.go({ kind: 'area', id: store.addArea(name) }));
+  }
 
   const menu = (e: Event, kind: 'area' | 'project', id: string) => {
     e.preventDefault();
@@ -33,6 +41,8 @@
   const looseProjects = $derived(store.projects.filter((p) => !p.area_id && !p.completed_at));
   const projectsIn = (areaId: string) => store.projects.filter((p) => p.area_id === areaId && !p.completed_at);
 </script>
+
+<svelte:window onkeydown={(e) => { if (newListOpen && e.key === 'Escape') { e.stopPropagation(); newListOpen = false; } }} />
 
 <nav class="sidebar" class:open={store.sidebarOpen} aria-label="Lists">
   <div class="scroll">
@@ -88,9 +98,26 @@
   </div>
 
   <footer>
-    <button class="foot" onclick={() => prompt('New project', (name) => store.go({ kind: 'project', id: store.addProject(name) }))} title="New project (⇧N)">
-      <Icon name="plus" size={16} /> New List
-    </button>
+    <div class="newlist">
+      <button class="foot" onclick={() => (newListOpen = !newListOpen)} aria-expanded={newListOpen} aria-haspopup="menu" title="New project or area">
+        <Icon name="plus" size={16} /> New List
+      </button>
+      {#if newListOpen}
+        <div class="nl-scrim" onclick={() => (newListOpen = false)} onkeydown={() => {}} role="presentation"></div>
+        <div class="nl-menu" role="menu" transition:fly={{ y: 6, duration: 140 }}>
+          <button role="menuitem" onclick={() => newList('project')}>
+            <ProgressPie value={0} size={18} />
+            <span><strong>New Project</strong><small>Something with a finish line, broken into to-dos</small></span>
+            <kbd>⇧N</kbd>
+          </button>
+          <button role="menuitem" onclick={() => newList('area')}>
+            <Icon name="area" size={18} />
+            <span><strong>New Area</strong><small>An ongoing responsibility, like Home or Health</small></span>
+            <kbd>⇧A</kbd>
+          </button>
+        </div>
+      {/if}
+    </div>
     <span class="grow"></span>
     <button class="icon-btn" class:on={store.view.kind === 'settings'} onclick={() => store.go({ kind: 'settings' })} title="Settings (Ctrl/⌘ ,)" aria-label="Settings">
       <Icon name="gear" size={16} />
@@ -192,6 +219,53 @@
   }
   .grow {
     flex: 1;
+  }
+  .newlist {
+    position: relative;
+  }
+  .nl-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+  }
+  .nl-menu {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 31;
+    width: 270px;
+    background: var(--card);
+    border-radius: 11px;
+    box-shadow: var(--card-shadow), 0 0 0 1px var(--line);
+    padding: 6px;
+    display: grid;
+    gap: 2px;
+  }
+  .nl-menu button {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+  .nl-menu button:hover,
+  .nl-menu button:focus-visible {
+    background: var(--select);
+    outline: none;
+  }
+  .nl-menu span {
+    flex: 1;
+    display: grid;
+    gap: 1px;
+  }
+  .nl-menu strong {
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+  .nl-menu small {
+    font-size: 11.5px;
+    color: var(--text-3);
   }
   .has-menu {
     position: relative;

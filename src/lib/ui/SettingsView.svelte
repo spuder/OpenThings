@@ -39,10 +39,23 @@
   const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent);
   const standalone = typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone)').matches;
 
-  async function testNotification() {
+  let testMsg = $state<{ ok: boolean; text: string } | null>(null);
+  let countdown = $state(0);
+
+  async function testNotification(delaySec = 0) {
     if (notifier.permission === 'default') await notifier.request();
+    testMsg = null;
+    if (delaySec) {
+      countdown = delaySec;
+      const iv = setInterval(() => (countdown = Math.max(0, countdown - 1)), 1000);
+      await new Promise((r) => setTimeout(r, delaySec * 1000));
+      clearInterval(iv);
+      countdown = 0;
+    }
     const ok = await notifier.show('OpenThings', 'Notifications are working.');
-    if (!ok) store.notify(notifier.permission === 'denied' ? 'Notifications are blocked in browser settings' : 'Notifications not available here');
+    testMsg = ok
+      ? { ok: true, text: 'Sent. If nothing appeared, check Focus / Do Not Disturb and the app’s notification settings on your device.' }
+      : { ok: false, text: `Couldn't show it: ${notifier.lastError ?? 'unknown error'}` };
   }
 
   const permissionText: Record<string, string> = {
@@ -151,8 +164,23 @@ curl '${base}/api/v1/tasks?view=today'`);
       {#if notifier.permission === 'default'}
         <button class="btn primary" onclick={() => notifier.request()}>Allow notifications</button>
       {/if}
-      <button class="btn" onclick={testNotification} disabled={notifier.permission === 'unsupported' || notifier.permission === 'denied'}>Send test notification</button>
+      <button class="btn" onclick={() => testNotification()} disabled={notifier.permission === 'unsupported' || notifier.permission === 'denied'}>Send test notification</button>
+      <button class="btn" onclick={() => testNotification(10)} disabled={countdown > 0 || notifier.permission === 'unsupported' || notifier.permission === 'denied'}>
+        {countdown ? `Sending in ${countdown}s…` : 'Test in 10 seconds'}
+      </button>
     </div>
+    {#if testMsg}<p class="result" class:ok={testMsg.ok}>{testMsg.text}</p>{/if}
+    <dl>
+      <dt>Permission</dt>
+      <dd>{notifier.permission}</dd>
+      <dt>Service worker</dt>
+      <dd>{notifier.worker}</dd>
+      <dt>Installed app</dt>
+      <dd>{standalone ? 'yes' : 'no (browser tab)'}</dd>
+      <dt>Secure (HTTPS)</dt>
+      <dd>{typeof isSecureContext !== 'undefined' && isSecureContext ? 'yes' : 'no — notifications need HTTPS'}</dd>
+      {#if notifier.lastError}<dt>Last error</dt><dd class="err">{notifier.lastError}</dd>{/if}
+    </dl>
     {#if upcoming.length}
       <ul class="upcoming">
         {#each upcoming.slice(0, 5) as r (r.taskId)}
@@ -162,6 +190,7 @@ curl '${base}/api/v1/tasks?view=today'`);
     {/if}
     <p class="note">
       For now reminders fire while OpenThings is open (any tab, or the installed app); ones missed while it was closed fire when you open it.
+      Phones pause web apps in the background, so on a phone reminders only fire while the app is on screen — some systems don't show a banner for the app you're currently using; “Test in 10 seconds” lets you switch away first.
       Reminders that arrive with the app closed will come from the sync server (Web Push) and the native apps.
       {#if isIOS && !standalone}On iPhone, add OpenThings to your Home Screen first (Share → Add to Home Screen); Safari only allows notifications for installed web apps.{/if}
     </p>
@@ -360,6 +389,9 @@ curl '${base}/api/v1/tasks?view=today'`);
     border-radius: 10px;
     padding: 2px 9px;
     white-space: nowrap;
+  }
+  .err {
+    color: var(--deadline);
   }
   .pill.ok {
     color: var(--logbook);

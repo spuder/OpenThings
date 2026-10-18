@@ -1,0 +1,32 @@
+# Maintainer: Spencer Owen <owenspencer at gmail dot com>
+#
+# Installs the prebuilt OpenThings desktop binary from a GitHub release
+# (openthings-<version>-linux-x86_64.tar.gz, built on Arch by .github/workflows/desktop.yml).
+# Before publishing to the AUR: bump pkgver, run `updpkgsums`, then `makepkg --printsrcinfo > .SRCINFO`.
+pkgname=openthings-bin
+_pkgname=openthings
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Self-hosted, local-first task manager with a calm, keyboard-first design (prebuilt)'
+arch=('x86_64')
+url='https://github.com/spuder/OpenThings'
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'hicolor-icon-theme' 'glibc' 'gcc-libs')
+optdepends=('notification-daemon: reminder notifications (mako, dunst, swaync, …)'
+            'xdg-utils: open openthings:// links')
+provides=('openthings')
+conflicts=('openthings')
+options=('!strip' '!debug')
+source_x86_64=("$_pkgname-$pkgver-linux-x86_64.tar.gz::https://github.com/spuder/OpenThings/releases/download/v$pkgver/$_pkgname-$pkgver-linux-x86_64.tar.gz")
+# Replace with the real checksum (updpkgsums) once the v$pkgver release exists.
+sha256sums_x86_64=('SKIP')
+
+package() {
+  cd "$srcdir/$_pkgname-$pkgver"
+  install -Dm755 openthings "$pkgdir/usr/bin/openthings"
+  install -Dm644 openthings.desktop "$pkgdir/usr/share/applications/openthings.desktop"
+  for size in 32 128 256 512; do
+    install -Dm644 "icons/${size}.png" "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/openthings.png"
+  done
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

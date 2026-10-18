@@ -6,6 +6,8 @@
   import CodeBlock from './CodeBlock.svelte';
   import { notifier, upcomingReminders } from '../reminders.svelte';
   import { reminderLabel } from '../parse';
+  import { isDesktop } from '../native/desktop';
+  import DesktopSettings from '../native/DesktopSettings.svelte';
   import { theme, type ThemePref } from '../theme.svelte';
   import { isTouch } from '../env';
   const themes: [ThemePref, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
@@ -262,6 +264,8 @@ curl '${base}/api/v1/tasks?view=today'`);
     {/if}
     <p class="note">System follows your device's light/dark setting. Choices are saved on this device only.</p>
   </section>
+
+  {#if isDesktop}<DesktopSettings />{/if}
 
   <section>
     <h2>Sounds</h2>

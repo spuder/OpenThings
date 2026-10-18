@@ -46,8 +46,18 @@ class Notifier {
   worker = $state<'unsupported' | 'insecure' | 'registering' | 'active' | 'failed'>('registering');
   /** Last delivery error, shown in Settings for troubleshooting. */
   lastError = $state<string | null>(null);
+  /**
+   * Native delivery set by a desktop/mobile shell (see src/lib/native/desktop.ts). When present,
+   * notifications go through it instead of the web Notification API and no service worker is used.
+   */
+  native: ((title: string, body: string, taskId?: string) => Promise<void>) | null = null;
 
   async init(onOpenTask: (id: string) => void) {
+    if (this.native) {
+      this.permission = 'granted';
+      this.worker = 'unsupported';
+      return;
+    }
     this.permission = currentPermission();
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return void (this.worker = 'unsupported');
     if (!isSecureContext) return void (this.worker = 'insecure');
@@ -80,6 +90,7 @@ class Notifier {
 
   /** Must be called from a user gesture (click). */
   async request(): Promise<NotifyPermission> {
+    if (this.native) return (this.permission = 'granted');
     if (typeof Notification === 'undefined') return (this.permission = 'unsupported');
     this.permission = (await Notification.requestPermission()) as NotifyPermission;
     return this.permission;
@@ -87,6 +98,16 @@ class Notifier {
 
   /** Show a system notification. Returns false (and sets lastError) when it couldn't be shown. */
   async show(title: string, body: string, taskId?: string): Promise<boolean> {
+    if (this.native) {
+      try {
+        await this.native(title, body, taskId);
+        this.lastError = null;
+        return true;
+      } catch (e) {
+        this.lastError = (e as Error).message || String(e);
+        return false;
+      }
+    }
     this.permission = currentPermission();
     if (this.permission !== 'granted') {
       this.lastError = this.permission === 'unsupported' ? 'This browser has no notification support here' : `Permission is "${this.permission}"`;

@@ -4,6 +4,12 @@
   import { parseQuickAdd, type TokenKind } from '../parse';
   import { relLabel } from '../dates';
 
+  /**
+   * Set by the desktop app's floating quick-add window (src/lib/native/QuickAddWindow.svelte):
+   * the text is handed to the main window, which adds it through the store. Default: add here.
+   */
+  let { native = null }: { native?: { submit(text: string, keepOpen: boolean): void; close(): void } | null } = $props();
+
   let value = $state(store.quickAddPrefill);
   let input: HTMLInputElement | undefined = $state();
   let added = $state(0);
@@ -12,6 +18,7 @@
 
   const contextLabel = $derived.by(() => {
     if (parsed.project || parsed.when || parsed.dump) return null;
+    if (native) return 'Inbox';
     const v = store.view;
     switch (v.kind) {
       case 'today': return 'Today';
@@ -36,7 +43,8 @@
 
   function submit(keepOpen: boolean) {
     if (!parsed.title) return;
-    store.addParsed(parsed);
+    if (native) native.submit(value, keepOpen);
+    else store.addParsed(parsed);
     added++;
     value = keepOpen ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : '') : '';
     if (!keepOpen) close();
@@ -44,6 +52,7 @@
 
   function close() {
     (document.activeElement as HTMLElement | null)?.blur();
+    if (native) return native.close();
     store.overlay = null;
   }
 
@@ -81,8 +90,8 @@
   };
 </script>
 
-<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
-<div class="panel" transition:fly={{ y: -10, duration: 180 }} role="dialog" aria-label="Quick add" aria-modal="true">
+{#if !native}<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>{/if}
+<div class="panel" class:native transition:fly={{ y: -10, duration: 180 }} role="dialog" aria-label="Quick add" aria-modal="true">
   <input
     bind:this={input}
     bind:value
@@ -130,6 +139,15 @@
     box-shadow: var(--card-shadow), 0 0 0 1px var(--line);
     z-index: 21;
     padding: 14px 16px 10px;
+  }
+  /* Desktop quick-add window: the panel is the whole (frameless) window. */
+  .panel.native {
+    position: static;
+    width: 100%;
+    transform: none;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 100vh;
   }
   input {
     width: 100%;

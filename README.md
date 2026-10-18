@@ -78,12 +78,25 @@ npm run build
 
 To start over with the demo data, run **Reset demo data** from the command palette.
 
+## Self-hosting the proof of concept
+
+```sh
+docker compose up -d --build     # http://<host>:8080
+```
+
+The image is a static build served by nginx. Until the sync server exists, **each browser keeps its own data** in IndexedDB, so hosting it centrally gives every device the same app but not the same tasks. Use **Export JSON backup** (`Ctrl/⌘ ⇧ E`) to save a copy.
+
+On a tailnet, `tailscale serve --bg 8080` puts it behind HTTPS, which the installable app (PWA) and clipboard features will need later.
+
 ## Roadmap
 
-1. Sync server: TypeScript on Bun, SQLite, Docker on Tailscale; clients push and pull the op log.
-2. Desktop: Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
-3. Mobile: Capacitor iOS and Android, plus native widgets, Shortcuts and share sheet.
-4. CalDAV timeboxing, Things 3 import, HTTP API and CLI.
+1. **Sync server:** TypeScript on Bun, SQLite, one Docker container on Tailscale. Serves this web app, and clients push and pull the op log. Replaces the nginx image.
+2. **REST API** on the server: tasks, projects, areas, habits, brain dump, time entries. Quick add accepts the same syntax as the app.
+3. **MCP server** on the same container, so AI assistants can read and manage tasks (list Today, add with quick-add syntax, complete, move, start timers). It's a thin layer over the REST API and goes through the same op log.
+4. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
+5. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
+6. **Mobile:** Capacitor iOS and Android, plus native widgets, Shortcuts and share sheet.
+7. Things 3 import, CLI.
 
 ## License
 

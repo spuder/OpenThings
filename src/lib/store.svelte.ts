@@ -23,6 +23,7 @@ import { seed } from './seed';
 import { sync } from './sync/engine.svelte';
 import { installBridge } from './sync/bridge';
 import { isTouch } from './env';
+import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 
@@ -150,11 +151,20 @@ class Store {
     sync.onRemoteChanges = () => this.load();
     sync.init();
     installBridge(sync, () => upcomingReminders(this.tasks, Date.now()));
+    if (isNativeShell()) {
+      // iOS/Android (Capacitor): OS notifications, widgets snapshot, share/Shortcuts import. Not loaded on the web.
+      try {
+        const native = await import('./native/capacitor.svelte');
+        await native.startNative(this);
+      } catch (e) {
+        console.error('Native shell init failed', e);
+      }
+    }
     void notifier.init((id) => this.reveal(id));
     const fromNotification = new URLSearchParams(location.search).get('task');
     if (fromNotification) {
       history.replaceState(null, '', location.pathname);
-      queueMicrotask(() => this.reveal(fromNotification));
+      this.reveal(fromNotification);
     }
     const open = this.timeEntries.find((e) => e.end_at === null);
     if (open) this.tracking = { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) };
@@ -635,7 +645,9 @@ class Store {
     for (const t of due) db.update('tasks', t.id, { reminder_sent_at: sentAt });
     this.load();
     sound.playReminder();
-    if (due.length <= 3) {
+    if (notifier.osDelivers) {
+      // Native shells: the OS already showed these (scheduled ahead of time), so only chime and toast.
+    } else if (due.length <= 3) {
       for (const t of due) void notifier.show(t.title, `Reminder · ${reminderLabel(t.reminder_at!, this.day)}`, t.id);
     } else {
       void notifier.show(`${due.length} reminders`, due.map((t) => t.title).join(', '));
@@ -643,8 +655,25 @@ class Store {
     this.notify(due.length === 1 ? `⏰ ${due[0].title}` : `⏰ ${due.length} reminders`);
   }
 
+  /** A reveal requested before the first view was shown (notification tap that launched the app). */
+  private pendingReveal: ID | null = null;
+  private started = false;
+
+  /** Show the first screen after init(): Today, or the task a notification / widget asked for. */
+  start() {
+    this.go({ kind: 'today' });
+    this.started = true;
+    const id = this.pendingReveal;
+    this.pendingReveal = null;
+    if (id) this.reveal(id);
+  }
+
   /** Jump to the list that shows a task, then select and open it (used by notification clicks). */
   reveal(id: ID) {
+    if (!this.started) {
+      this.pendingReveal = id;
+      return;
+    }
     const t = this.task(id);
     if (!t) return;
     let v: ViewKey = { kind: 'inbox' };

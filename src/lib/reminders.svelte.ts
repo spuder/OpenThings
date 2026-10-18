@@ -40,14 +40,35 @@ export function upcomingReminders(tasks: Task[], now: number): UpcomingReminder[
     .map((t) => ({ taskId: t.id, title: t.title, at: t.reminder_at! }));
 }
 
+/** Native shells (Capacitor) deliver notifications through the OS instead of the service worker. */
+export interface NativeNotifier {
+  permission(): Promise<NotifyPermission>;
+  request(): Promise<NotifyPermission>;
+  show(title: string, body: string, taskId?: string): Promise<void>;
+}
+
 class Notifier {
   permission = $state<NotifyPermission>(currentPermission());
   /** Service worker state; mobile browsers can only show notifications through an active worker. */
-  worker = $state<'unsupported' | 'insecure' | 'registering' | 'active' | 'failed'>('registering');
+  worker = $state<'unsupported' | 'insecure' | 'registering' | 'active' | 'failed' | 'native'>('registering');
+  private native: NativeNotifier | null = null;
+
+  /** True when the OS schedules reminder notifications itself (native shells), so the app must not show them again. */
+  get osDelivers(): boolean {
+    return this.native !== null;
+  }
+
+  /** Called by the native shell module; from then on permission, request and show go through it. */
+  useNative(n: NativeNotifier) {
+    this.native = n;
+    this.worker = 'native';
+    void n.permission().then((p) => (this.permission = p));
+  }
   /** Last delivery error, shown in Settings for troubleshooting. */
   lastError = $state<string | null>(null);
 
   async init(onOpenTask: (id: string) => void) {
+    if (this.native) return;
     this.permission = currentPermission();
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return void (this.worker = 'unsupported');
     if (!isSecureContext) return void (this.worker = 'insecure');
@@ -80,6 +101,7 @@ class Notifier {
 
   /** Must be called from a user gesture (click). */
   async request(): Promise<NotifyPermission> {
+    if (this.native) return (this.permission = await this.native.request());
     if (typeof Notification === 'undefined') return (this.permission = 'unsupported');
     this.permission = (await Notification.requestPermission()) as NotifyPermission;
     return this.permission;
@@ -87,6 +109,21 @@ class Notifier {
 
   /** Show a system notification. Returns false (and sets lastError) when it couldn't be shown. */
   async show(title: string, body: string, taskId?: string): Promise<boolean> {
+    if (this.native) {
+      try {
+        this.permission = await this.native.permission();
+        if (this.permission !== 'granted') {
+          this.lastError = `Permission is "${this.permission}"`;
+          return false;
+        }
+        await this.native.show(title, body, taskId);
+        this.lastError = null;
+        return true;
+      } catch (e) {
+        this.lastError = (e as Error).message || String(e);
+        return false;
+      }
+    }
     this.permission = currentPermission();
     if (this.permission !== 'granted') {
       this.lastError = this.permission === 'unsupported' ? 'This browser has no notification support here' : `Permission is "${this.permission}"`;

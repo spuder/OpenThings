@@ -1,0 +1,70 @@
+name: iOS
+
+# Proves the Capacitor iOS app, the widget extension and the share extension compile.
+# Builds for the Simulator without code signing; running on a device needs Xcode on a Mac (docs/ios.md).
+on:
+  push:
+    branches: [ios-app]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Xcode version
+        run: |
+          # Capacitor 8 needs Xcode 26+. Pick the newest installed Xcode.
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx cap sync ios
+
+      - name: Resolve Swift packages
+        working-directory: ios/App
+        run: xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App
+
+      - name: Build app + extensions (Simulator)
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild.log | grep -E '(error|warning: .*OpenThings|BUILD SUCCEEDED|BUILD FAILED|\*\* )' || true
+          grep -q 'BUILD SUCCEEDED' xcodebuild.log
+
+      - name: Check extensions are embedded
+        run: |
+          APP=ios/App/build/Build/Products/Debug-iphonesimulator/App.app
+          ls "$APP/PlugIns"
+          test -d "$APP/PlugIns/OpenThingsWidgets.appex"
+          test -d "$APP/PlugIns/OpenThingsShare.appex"
+          test -f "$APP/public/index.html"
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ios/App/xcodebuild.log

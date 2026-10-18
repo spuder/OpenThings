@@ -20,7 +20,7 @@
   import BottomBar from './lib/ui/BottomBar.svelte';
   import QuickFind from './lib/ui/QuickFind.svelte';
 
-  store.init().then(() => store.go({ kind: 'today' }));
+  store.init().then(() => store.start());
 
   const v = $derived(store.view);
   const iconName = $derived(v.kind === 'project' ? '' : v.kind);

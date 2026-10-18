@@ -54,8 +54,9 @@
   color-scheme: light;
 }
 
+/* Dark palette: follows the system unless the user picked Light or Dark in Settings (data-theme on <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #1d1e21;
     --sidebar: #17181a;
     --sidebar-hover: #24252a;
@@ -78,6 +79,29 @@
     --paper-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.4);
     color-scheme: dark;
   }
+}
+:root[data-theme='dark'] {
+  --bg: #1d1e21;
+  --sidebar: #17181a;
+  --sidebar-hover: #24252a;
+  --sidebar-active: #2c2e34;
+  --text: #ececef;
+  --text-2: #9b9ba3;
+  --text-3: #67676f;
+  --line: #2a2b30;
+  --line-strong: #3a3b42;
+  --accent: #5b8ff9;
+  --accent-soft: rgba(91, 143, 249, 0.16);
+  --select: rgba(91, 143, 249, 0.14);
+  --card: #26272c;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --chip: #2e2f35;
+  --paper: #2a2722;
+  --paper-line: #3b3a3a;
+  --paper-margin: #6b3d38;
+  --paper-ink: #e9dfc8;
+  --paper-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
 }
 
 * {

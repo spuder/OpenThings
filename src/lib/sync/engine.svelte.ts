@@ -19,8 +19,16 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(url, { ...init, signal: ctrl.signal, headers: { 'content-type': 'application/json', ...init?.headers } });
-    if (!res.ok) throw new Error(`Server responded ${res.status}`);
-    return (await res.json()) as T;
+    const type = res.headers.get('content-type') ?? '';
+    if (!type.includes('json')) {
+      // Usually the address serves a web page (e.g. this app's own static container) rather than the API.
+      throw new Error(res.ok ? 'No OpenThings sync server at this address (it returned a web page)' : `Server responded ${res.status}`);
+    }
+    const body = (await res.json().catch(() => {
+      throw new Error('The server sent a response that is not valid JSON');
+    })) as T & { error?: string };
+    if (!res.ok) throw new Error(body.error ?? `Server responded ${res.status}`);
+    return body;
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw new Error('Timed out reaching the server');
     if (e instanceof TypeError) throw new Error("Can't reach the server");

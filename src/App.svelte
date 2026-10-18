@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fade, fly } from 'svelte/transition';
   import { store } from './lib/store.svelte';
-  import { handleKey } from './lib/commands';
+  import { handleKey, openListMenu } from './lib/commands';
   import { formatDuration, longLabel } from './lib/dates';
   import Sidebar from './lib/ui/Sidebar.svelte';
   import TaskList from './lib/ui/TaskList.svelte';
@@ -16,6 +16,7 @@
   import SyncBadge from './lib/ui/SyncBadge.svelte';
   import SettingsView from './lib/ui/SettingsView.svelte';
   import TrashView from './lib/ui/TrashView.svelte';
+  import FocusView from './lib/ui/FocusView.svelte';
 
   store.init().then(() => store.go({ kind: 'today' }));
 
@@ -55,7 +56,12 @@
             ◷ {formatDuration(store.pomodoro.endsAt - store.now)}
           </button>
         {/if}
-        {#if store.tracking && trackedTask}
+        {#if store.focus && store.overlay !== 'focus'}
+          <button class="pill focus-pill" class:brk={store.focus.phase === 'break'} onclick={() => (store.overlay = 'focus')} title="Back to focus (F)" transition:fade>
+            {store.focus.phase === 'work' ? 'Focus' : 'Break'} {formatDuration(store.focusRemaining())}{store.focus.endsAt ? '' : ' · paused'}
+          </button>
+        {/if}
+        {#if store.tracking && trackedTask && !store.focus}
           <button class="pill live" onclick={() => store.stopTracking()} title="Stop timer (⇧X)" transition:fade>
             <span class="dot"></span>{trackedTask.title} · {formatDuration(store.now - store.tracking.start)}
           </button>
@@ -77,6 +83,9 @@
               {/if}
               <h1>{store.viewTitle}</h1>
               {#if v.kind === 'today'}<span class="date">{longLabel(store.day)}</span>{/if}
+              {#if v.kind === 'area' || v.kind === 'project'}
+                <button class="head-more" onclick={() => openListMenu({ kind: v.kind as 'area' | 'project', id: (v as { id: string }).id })} title="Rename, move, delete (⇧L)" aria-label="List actions">⋯</button>
+              {/if}
             </header>
             {#if project?.notes}<p class="notes">{project.notes}</p>{/if}
 
@@ -113,6 +122,7 @@
   {#if store.overlay === 'quickadd'}<QuickAdd />{/if}
   {#if store.overlay === 'palette'}<Palette />{/if}
   {#if store.overlay === 'help'}<Help />{/if}
+  {#if store.overlay === 'focus'}<FocusView />{/if}
 
   {#if store.toast}
     {#key store.toast.id}
@@ -157,6 +167,15 @@
     text-overflow: ellipsis;
   }
   .pill.live {
+    color: var(--logbook);
+    background: color-mix(in srgb, var(--logbook) 12%, transparent);
+  }
+  .pill.focus-pill {
+    color: var(--deadline);
+    background: color-mix(in srgb, var(--deadline) 12%, transparent);
+    font-variant-numeric: tabular-nums;
+  }
+  .pill.focus-pill.brk {
     color: var(--logbook);
     background: color-mix(in srgb, var(--logbook) 12%, transparent);
   }
@@ -220,6 +239,18 @@
     margin-left: 4px;
     align-self: flex-end;
     padding-bottom: 5px;
+  }
+  .head-more {
+    margin-left: auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--text-2);
+  }
+  .head-more:hover {
+    background: var(--chip);
   }
   .notes {
     color: var(--text-2);

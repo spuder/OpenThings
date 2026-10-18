@@ -182,6 +182,7 @@
           <button class:on={task.urgent} onclick={() => store.toggleUrgent(task.id)} title="Urgent ({key('task.urgent')})">U</button>
           <button class:on={task.important} onclick={() => store.toggleImportant(task.id)} title="Important ({key('task.important')})">I</button>
           <button class:on={tracking} onclick={() => store.toggleTracking(task.id)} title="Timer ({key('time.track')})"><Icon name="clock" size={15} /></button>
+          <button onclick={(e) => { e.stopPropagation(); store.openFocus(task.id); }} title="Focus mode ({key('time.focus')})">F</button>
           <button class="done-btn" onclick={(e) => { e.stopPropagation(); store.expandedId = null; }}>Done</button>
         </div>
       </div>

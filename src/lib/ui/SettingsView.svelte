@@ -6,6 +6,8 @@
   import CodeBlock from './CodeBlock.svelte';
   import { notifier, upcomingReminders } from '../reminders.svelte';
   import { reminderLabel } from '../parse';
+  import { theme, type ThemePref } from '../theme.svelte';
+  const themes: [ThemePref, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
   let url = $state(sync.serverUrl ?? '');
   let testing = $state(false);
@@ -213,6 +215,19 @@ curl '${base}/api/v1/tasks?view=today'`);
   </section>
 
   <section>
+    <header>
+      <h2>Appearance</h2>
+      <kbd title="Toggle dark mode">⇧D</kbd>
+    </header>
+    <div class="segmented" role="radiogroup" aria-label="Theme">
+      {#each themes as [value, label]}
+        <button role="radio" aria-checked={theme.pref === value} class:on={theme.pref === value} onclick={() => theme.set(value)}>{label}</button>
+      {/each}
+    </div>
+    <p class="note">System follows your device's light/dark setting. This choice is saved on this device only.</p>
+  </section>
+
+  <section>
     <h2>Sounds</h2>
     <label class="toggle">
       <input type="checkbox" checked={!store.muted} onchange={() => store.toggleMute()} />
@@ -395,6 +410,26 @@ curl '${base}/api/v1/tasks?view=today'`);
   .upcoming .when {
     color: var(--habits);
     white-space: nowrap;
+  }
+  .segmented {
+    display: inline-flex;
+    background: var(--chip);
+    border-radius: 9px;
+    padding: 3px;
+    gap: 2px;
+    margin-top: 4px;
+  }
+  .segmented button {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 16px;
+    border-radius: 7px;
+    color: var(--text-2);
+  }
+  .segmented button.on {
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   }
   .toggle {
     display: flex;

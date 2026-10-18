@@ -21,9 +21,12 @@ Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
 - **Habits** with a 21-day grid (7 on phones) and streaks. Optional **challenges** of a fixed length: 30, 60, 75 days or any number, with day count, missed days and end date. Press `C` on a habit, or name it `Cold shower 75d`.
 - **Matrix:** Eisenhower quadrants from urgent / important flags.
-- **Time tracking** per task and a 25-minute Pomodoro.
+- **Focus mode:** select a to-do and press `F` for a full-screen Pomodoro (15/25/50 min) with breaks, session count, its checklist and a Complete button. It keeps running if you close it; a pill in the header takes you back.
+- **Time tracking** per task.
 - **Completion chimes**, synthesized in the browser (toggle with ⇧M).
 - **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. Settings shows permission and upcoming reminders.
+- **Areas and projects** can be renamed, moved or deleted from the ⋯ button or right-click in the sidebar (or `⇧L`).
+- **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
 - **Sync status** on every screen, and a **Settings** page: sync setup (see [docs/sync.md](docs/sync.md)), notifications, and the planned REST API and MCP endpoints with ready-to-copy config.
 - **Mobile:** responsive layout, list drawer, tap to open tasks, larger touch targets, installable as a home-screen app.
@@ -65,7 +68,10 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop ^i`
 | `M` | Move to list |
 | `#` | Tag |
 | `U` / `I` | Urgent / important |
-| `P` / `⇧P` | Timer / Pomodoro |
+| `F` | Focus mode (Pomodoro on the selected to-do) |
+| `P` / `⇧P` | Timer / quick Pomodoro |
+| `⇧L` | Rename / move / delete the current area or project |
+| `⇧D` | Toggle dark mode |
 | `Alt+↑` / `Alt+↓` | Reorder |
 | `⌫` | Move to Trash |
 | `Alt+0` / `G X` | Trash (`⇧R` restore) |

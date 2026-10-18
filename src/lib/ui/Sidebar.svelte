@@ -3,7 +3,13 @@
   import type { ViewKey } from '../types';
   import Icon from './Icon.svelte';
   import ProgressPie from './ProgressPie.svelte';
-  import { prompt } from '../commands';
+  import { openListMenu, prompt } from '../commands';
+
+  const menu = (e: Event, kind: 'area' | 'project', id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openListMenu({ kind, id });
+  };
 
   const top: { v: ViewKey; label: string; icon: string; count?: boolean }[][] = [
     [{ v: { kind: 'inbox' }, label: 'Inbox', icon: 'inbox', count: true }],
@@ -48,11 +54,12 @@
     {#if looseProjects.length}
       <ul>
         {#each looseProjects as p (p.id)}
-          <li>
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })}>
+          <li class="has-menu">
+            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
+            <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
           </li>
         {/each}
       </ul>
@@ -60,18 +67,20 @@
 
     {#each store.areas as a (a.id)}
       <ul class="area">
-        <li>
-          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })}>
+        <li class="has-menu">
+          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
             <Icon name="area" />
             <span class="label">{a.name}</span>
           </button>
+          <button class="more" onclick={(e) => menu(e, 'area', a.id)} aria-label={`Actions for ${a.name}`} title="Rename, new project, delete">⋯</button>
         </li>
         {#each projectsIn(a.id) as p (p.id)}
-          <li>
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })}>
+          <li class="has-menu">
+            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
+            <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
           </li>
         {/each}
       </ul>
@@ -183,6 +192,40 @@
   }
   .grow {
     flex: 1;
+  }
+  .has-menu {
+    position: relative;
+  }
+  .has-menu .row {
+    padding-right: 30px;
+  }
+  .more {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    color: var(--text-2);
+    font-size: 15px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .has-menu:hover .more,
+  .more:focus-visible {
+    opacity: 1;
+  }
+  .more:hover {
+    background: var(--sidebar-active);
+  }
+  @media (hover: none) {
+    .more {
+      opacity: 0.7;
+      width: 34px;
+      height: 34px;
+    }
   }
   .icon-btn.on {
     background: var(--sidebar-active);

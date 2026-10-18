@@ -14,6 +14,13 @@
   }
 
   let q = $state('');
+  // A menu item can open another palette step (e.g. "Rename…"); start each step fresh.
+  $effect(() => {
+    const m = store.paletteMode;
+    q = m.kind === 'prompt' ? (m.initial ?? '') : '';
+    input?.focus();
+    if (m.kind === 'prompt' && m.initial) queueMicrotask(() => input?.select());
+  });
   let index = $state(0);
   let input: HTMLInputElement | undefined = $state();
 
@@ -141,6 +148,8 @@
         if (task.reminder_at) out.push({ label: 'Remove reminder', run: set(null) });
         return out;
       }
+      case 'choose':
+        return mode.options.filter((o) => fuzzy(`${o.label} ${o.hint ?? ''}`, q));
       case 'prompt':
         return [];
     }
@@ -161,6 +170,7 @@
       case 'tag': return 'Tag name…';
       case 'challenge': return 'Challenge length in days (e.g. 75)…';
       case 'reminder': return 'Remind me… 6pm, in 30m, fri 9am';
+      case 'choose': return mode.label;
       case 'prompt': return mode.placeholder ?? mode.label;
     }
   });
@@ -204,7 +214,7 @@
 
 <div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
 <div class="panel" transition:fly={{ y: -10, duration: 160 }} role="dialog" aria-modal="true" aria-label={placeholder}>
-  {#if mode.kind === 'prompt'}<div class="label">{mode.label}</div>{/if}
+  {#if mode.kind === 'prompt' || mode.kind === 'choose'}<div class="label">{mode.label}</div>{/if}
   <input bind:this={input} bind:value={q} onkeydown={onKey} {placeholder} spellcheck="false" aria-label={placeholder} />
   {#if items.length}
     <ul role="listbox">

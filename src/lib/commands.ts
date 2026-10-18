@@ -4,6 +4,7 @@
  * so a shortcut exists for everything the UI can do.
  */
 import { store } from './store.svelte';
+import { theme } from './theme.svelte';
 import type { ViewKey } from './types';
 
 export interface Command {
@@ -38,8 +39,8 @@ function openPalette(kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | '
   store.overlay = 'palette';
 }
 
-export function prompt(label: string, onSubmit: (v: string) => void, placeholder?: string) {
-  store.paletteMode = { kind: 'prompt', label, placeholder, onSubmit };
+export function prompt(label: string, onSubmit: (v: string) => void, placeholder?: string, initial?: string) {
+  store.paletteMode = { kind: 'prompt', label, placeholder, initial, onSubmit };
   store.overlay = 'palette';
 }
 
@@ -50,6 +51,59 @@ function moveSelection(delta: number) {
   const next = i < 0 ? (delta > 0 ? 0 : list.length - 1) : Math.max(0, Math.min(list.length - 1, i + delta));
   store.selectedId = list[next];
   if (store.expandedId && store.expandedId !== list[next]) store.expandedId = null;
+}
+
+/** Rename / move / delete menu for an area or project, shown in the palette. */
+export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
+  if (target.kind === 'area') {
+    const a = store.areas.find((x) => x.id === target.id);
+    if (!a) return;
+    store.paletteMode = {
+      kind: 'choose',
+      label: a.name,
+      options: [
+        { label: 'Rename…', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
+        { label: 'New project in this area…', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
+        {
+          label: 'Delete area',
+          hint: 'projects are kept, its to-dos go to the Inbox',
+          run: () => confirm(`Delete the area “${a.name}”? Its projects are kept and its to-dos move to the Inbox.`) && store.deleteArea(a.id),
+        },
+      ],
+    };
+  } else {
+    const p = store.projects.find((x) => x.id === target.id);
+    if (!p) return;
+    store.paletteMode = {
+      kind: 'choose',
+      label: p.name,
+      options: [
+        { label: 'Rename…', run: () => prompt('Rename project', (n) => store.renameProject(p.id, n), p.name, p.name) },
+        {
+          label: 'Move to area…',
+          run: () => {
+            store.paletteMode = {
+              kind: 'choose',
+              label: `Move “${p.name}” to`,
+              options: [
+                { label: 'No area', run: () => store.moveProject(p.id, null) },
+                ...store.areas.map((a) => ({ label: a.name, hint: a.id === p.area_id ? 'current' : undefined, run: () => store.moveProject(p.id, a.id) })),
+              ],
+            };
+            store.overlay = 'palette';
+          },
+        },
+        { label: 'New heading…', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
+        { label: 'Complete project', run: () => store.completeProject(p.id) },
+        {
+          label: 'Delete project',
+          hint: 'its to-dos go to the Trash',
+          run: () => confirm(`Delete the project “${p.name}”? Its to-dos move to the Trash for 30 days.`) && store.deleteProject(p.id),
+        },
+      ],
+    };
+  }
+  store.overlay = 'palette';
 }
 
 const nav = (title: string, v: ViewKey, n: number, letter: string): Command => ({
@@ -198,11 +252,36 @@ export const commands: Command[] = [
   { id: 'trash.empty', title: 'Empty Trash', group: 'Trash', keys: [], when: () => store.trashed.length > 0, run: () => confirm(`Permanently delete ${store.trashed.length} to-dos?`) && store.emptyTrash() },
 
   { id: 'time.track', title: 'Start / stop timer', group: 'Time', keys: ['p'], when: hasTask, run: withTask((id) => store.toggleTracking(id)) },
+  {
+    id: 'time.focus',
+    title: 'Focus on this to-do (Pomodoro)',
+    group: 'Time',
+    keys: ['f'],
+    when: () => hasTask() || !!store.focus,
+    run: () => {
+      const t = sel();
+      if (t) store.openFocus(t.id);
+      else if (store.focus) store.overlay = 'focus';
+    },
+  },
   { id: 'time.pomodoro', title: 'Start Pomodoro (25 min)', group: 'Time', keys: ['shift+p'], run: () => (store.pomodoro ? store.cancelPomodoro() : store.startPomodoro(sel()?.id ?? null)) },
   { id: 'time.stop', title: 'Stop timer', group: 'Time', keys: ['shift+x'], when: () => !!store.tracking, run: () => store.stopTracking() },
 
+  {
+    id: 'list.menu',
+    title: 'List actions (rename, delete…)',
+    group: 'App',
+    keys: ['shift+l'],
+    when: () => store.view.kind === 'area' || store.view.kind === 'project',
+    run: () => {
+      const v = store.view;
+      if (v.kind === 'area') openListMenu({ kind: 'area', id: v.id });
+      if (v.kind === 'project') openListMenu({ kind: 'project', id: v.id });
+    },
+  },
   { id: 'app.palette', title: 'Command palette', group: 'App', keys: ['mod+k', 'mod+shift+p', ':'], run: () => openPalette('commands'), hidden: true },
   { id: 'app.help', title: 'Keyboard shortcuts', group: 'App', keys: ['?'], run: () => (store.overlay = store.overlay === 'help' ? null : 'help') },
+  { id: 'app.theme', title: 'Toggle dark mode', group: 'App', keys: ['shift+d'], run: () => { theme.toggle(); store.notify(theme.isDark ? 'Dark mode' : 'Light mode'); } },
   { id: 'app.mute', title: 'Toggle sounds', group: 'App', keys: ['shift+m'], run: () => store.toggleMute() },
   { id: 'app.export', title: 'Export JSON backup', group: 'App', keys: ['mod+shift+e'], run: () => store.exportJson() },
   { id: 'app.reset', title: 'Reset demo data', group: 'App', keys: [], run: () => void store.resetDemo() },

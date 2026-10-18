@@ -35,11 +35,25 @@ export interface Group {
   items: Task[];
 }
 
-export type Overlay = null | 'quickadd' | 'palette' | 'help';
+export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus';
+
+export interface FocusSession {
+  taskId: ID;
+  phase: 'work' | 'break';
+  /** Length of the current phase in minutes. */
+  minutes: number;
+  /** Wall-clock end while running; null while paused or not started. */
+  endsAt: number | null;
+  /** Time left while paused. */
+  remainingMs: number;
+  /** Completed work sessions in this sitting. */
+  sessions: number;
+}
 
 export type PaletteMode =
   | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder' }
-  | { kind: 'prompt'; label: string; placeholder?: string; onSubmit: (value: string) => void };
+  | { kind: 'prompt'; label: string; placeholder?: string; initial?: string; onSubmit: (value: string) => void }
+  | { kind: 'choose'; label: string; options: { label: string; hint?: string; run: () => void }[] };
 
 export const TRASH_DAYS = 30;
 
@@ -91,6 +105,9 @@ class Store {
   /** Running time tracking. */
   tracking = $state<{ entryId: ID; taskId: ID; start: number } | null>(null);
   pomodoro = $state<{ endsAt: number; taskId: ID | null } | null>(null);
+  /** Focus mode (F): a Pomodoro bound to one to-do. Keeps running when the focus screen is closed. */
+  focus = $state<FocusSession | null>(null);
+  focusWorkMinutes = $state(25);
 
   // ---------- lifecycle ----------
 
@@ -122,6 +139,7 @@ class Store {
     this.now = Date.now();
     const d = todayFn();
     if (d !== this.day) this.day = d;
+    if (this.focus?.endsAt && this.now >= this.focus.endsAt) this.finishFocusPhase();
     if (this.pomodoro && this.now >= this.pomodoro.endsAt) {
       this.pomodoro = null;
       sound.playBell();
@@ -627,7 +645,11 @@ class Store {
 
   restoreTask(id: ID) {
     const idx = this.selectable.indexOf(id);
-    db.update('tasks', id, { deleted_at: null });
+    const t = this.trashed.find((x) => x.id === id);
+    // If its project or area was deleted meanwhile, restore to the Inbox.
+    const orphan =
+      (t?.project_id && !this.projects.some((p) => p.id === t.project_id)) || (t?.area_id && !this.areas.some((a) => a.id === t.area_id));
+    db.update('tasks', id, orphan ? { deleted_at: null, project_id: null, area_id: null, heading_id: null } : { deleted_at: null });
     this.load();
     if (this.view.kind === 'trash') this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
     this.notify('Restored');
@@ -702,6 +724,44 @@ class Store {
     this.dumpSectionId(name);
     this.load();
   }
+  renameArea(id: ID, name: string) {
+    db.update('areas', id, { name });
+    this.load();
+  }
+
+  renameProject(id: ID, name: string) {
+    db.update('projects', id, { name });
+    this.load();
+  }
+
+  moveProject(id: ID, areaId: ID | null) {
+    db.update('projects', id, { area_id: areaId });
+    this.load();
+  }
+
+  /** Delete an area. Its projects stay (without an area); its loose to-dos move to the Inbox. */
+  deleteArea(id: ID) {
+    for (const p of this.projects.filter((p) => p.area_id === id)) db.update('projects', p.id, { area_id: null });
+    for (const t of db.all<Task>('SELECT * FROM tasks WHERE area_id = ?', [id])) db.update('tasks', t.id, { area_id: null });
+    db.remove('areas', id);
+    this.load();
+    if (this.view.kind === 'area' && this.view.id === id) this.go({ kind: 'inbox' });
+    this.notify('Area deleted');
+  }
+
+  /** Delete a project. Its open and completed to-dos go to the Trash (restorable for 30 days). */
+  deleteProject(id: ID) {
+    const now = new Date().toISOString();
+    for (const t of db.all<Task>('SELECT * FROM tasks WHERE project_id = ? AND deleted_at IS NULL', [id])) {
+      db.update('tasks', t.id, { deleted_at: now });
+    }
+    for (const h of this.headings.filter((h) => h.project_id === id)) db.remove('headings', h.id);
+    db.remove('projects', id);
+    this.load();
+    if (this.view.kind === 'project' && this.view.id === id) this.go({ kind: 'inbox' });
+    this.notify('Project deleted — its to-dos are in the Trash');
+  }
+
   completeProject(id: ID) {
     const p = this.projects.find((x) => x.id === id);
     if (!p) return;
@@ -787,6 +847,97 @@ class Store {
   }
   cancelPomodoro() {
     this.pomodoro = null;
+  }
+
+  // ---------- focus mode ----------
+
+  focusRemaining(): number {
+    const f = this.focus;
+    if (!f) return 0;
+    return f.endsAt ? Math.max(0, f.endsAt - this.now) : f.remainingMs;
+  }
+
+  openFocus(taskId: ID) {
+    if (this.focus?.taskId !== taskId) {
+      if (this.focus?.endsAt && this.focus.phase === 'work') this.stopTracking();
+      const ms = this.focusWorkMinutes * 60_000;
+      this.focus = { taskId, phase: 'work', minutes: this.focusWorkMinutes, endsAt: null, remainingMs: ms, sessions: 0 };
+    }
+    this.expandedId = null;
+    this.overlay = 'focus';
+  }
+
+  closeFocus() {
+    this.overlay = null;
+    // A timer that never started has nothing to keep.
+    if (this.focus && !this.focus.endsAt && this.focus.remainingMs === this.focus.minutes * 60_000 && this.focus.sessions === 0) this.focus = null;
+  }
+
+  endFocus() {
+    if (this.focus?.endsAt && this.focus.phase === 'work') this.stopTracking();
+    this.focus = null;
+    this.overlay = null;
+  }
+
+  focusToggle() {
+    const f = this.focus;
+    if (!f) return;
+    if (f.endsAt) {
+      f.remainingMs = Math.max(0, f.endsAt - Date.now());
+      f.endsAt = null;
+      if (f.phase === 'work') this.stopTracking();
+    } else {
+      f.endsAt = Date.now() + f.remainingMs;
+      if (f.phase === 'work' && this.tracking?.taskId !== f.taskId) this.startTracking(f.taskId);
+    }
+  }
+
+  focusReset() {
+    const f = this.focus;
+    if (!f) return;
+    if (f.endsAt && f.phase === 'work') this.stopTracking();
+    f.endsAt = null;
+    f.remainingMs = f.minutes * 60_000;
+  }
+
+  focusSetMinutes(min: number) {
+    const f = this.focus;
+    if (!f) return;
+    if (f.phase === 'work') this.focusWorkMinutes = min;
+    const running = !!f.endsAt;
+    f.minutes = min;
+    f.remainingMs = min * 60_000;
+    f.endsAt = running ? Date.now() + f.remainingMs : null;
+  }
+
+  /** Skip to the next phase (work → break, break → work) without waiting. */
+  focusSkip() {
+    if (this.focus) this.finishFocusPhase(true);
+  }
+
+  private finishFocusPhase(skipped = false) {
+    const f = this.focus;
+    if (!f) return;
+    const task = this.task(f.taskId);
+    if (f.phase === 'work') {
+      this.stopTracking();
+      if (!skipped) f.sessions++;
+      // Every 4th session earns a long break.
+      const brk = f.sessions > 0 && f.sessions % 4 === 0 ? 15 : 5;
+      Object.assign(f, { phase: 'break', minutes: brk, endsAt: null, remainingMs: brk * 60_000 });
+      if (!skipped) {
+        sound.playBell();
+        void notifier.show('Focus session done', `${task?.title ?? 'Task'} · take a ${brk}-minute break`, f.taskId);
+        this.notify(`Session ${f.sessions} done — ${brk}-minute break`);
+      }
+    } else {
+      Object.assign(f, { phase: 'work', minutes: this.focusWorkMinutes, endsAt: null, remainingMs: this.focusWorkMinutes * 60_000 });
+      if (!skipped) {
+        sound.playReminder();
+        void notifier.show('Break over', `Back to: ${task?.title ?? 'your task'}`, f.taskId);
+        this.notify('Break over');
+      }
+    }
   }
 
   // ---------- misc ----------

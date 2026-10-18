@@ -61,6 +61,18 @@ jobs:
           test -d "$APP/PlugIns/OpenThingsWidgets.appex"
           test -d "$APP/PlugIns/OpenThingsShare.appex"
           test -f "$APP/public/index.html"
+          # Identifiers come from ios/App/Config/OpenThings.xcconfig; make sure they expanded.
+          for P in "$APP" "$APP/PlugIns/OpenThingsWidgets.appex" "$APP/PlugIns/OpenThingsShare.appex"; do
+            ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$P/Info.plist")
+            GROUP=$(/usr/libexec/PlistBuddy -c 'Print :OTAppGroup' "$P/Info.plist")
+            echo "$ID  $GROUP"
+            case "$ID$GROUP" in *'$('*|'') echo "unexpanded build setting in $P"; exit 1;; esac
+          done
+
+      - name: Swift warnings in OpenThings sources
+        if: always()
+        working-directory: ios/App
+        run: grep -E '/(App|Shared|OpenThingsWidgets|OpenThingsShare)/[^ ]+\.swift:[0-9]+:[0-9]+: warning' xcodebuild.log | sort -u || echo "none"
 
       - name: Upload build log
         if: failure()

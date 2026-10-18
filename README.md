@@ -23,6 +23,7 @@
   <a href="#features">Features</a> ·
   <a href="#roadmap">Roadmap</a> ·
   <a href="docs/sync.md">Sync protocol</a> ·
+  <a href="docs/ios.md">iOS app</a> ·
   <a href="AGENTS.md">Contributing</a> ·
   <a href="https://github.com/spuder/OpenThings/issues">Issues</a>
 </p>
@@ -41,7 +42,7 @@
   <img src="docs/screenshots/today.png" alt="OpenThings Today view" width="860">
 </p>
 
-> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives in your browser (SQLite in IndexedDB); the sync client is built, the sync server and native apps are not yet.
+> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives in your browser (SQLite in IndexedDB); the sync client is built, the sync server is not yet. An **iOS app** (Capacitor, with widgets, share sheet and Shortcuts) builds in CI and is awaiting device testing; see [iOS app](#ios-app).
 >
 > Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently and not affiliated with either. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
 
@@ -61,7 +62,7 @@
 - **Focus mode:** select a to-do and press `F` for a full-screen Pomodoro (15/25/50 min) with breaks, session count, its checklist and a Complete button. It keeps running if you close it; a pill in the header takes you back.
 - **Time tracking** per task.
 - **Completion chimes**, synthesized in the browser (toggle with ⇧M).
-- **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. Settings shows permission and upcoming reminders.
+- **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. In the [iOS app](#ios-app) they are scheduled with the system and arrive even when the app is closed. Settings shows permission and upcoming reminders.
 - **Areas and projects** can be renamed, moved or deleted from the ⋯ button or right-click in the sidebar (or `⇧L`).
 - **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
@@ -133,6 +134,20 @@ npm run build
 
 To start over with the demo data, run **Reset demo data** from the command palette.
 
+## iOS app
+
+The iPhone/iPad app is this same web app in a [Capacitor](https://capacitorjs.com) shell, plus native pieces: reminders scheduled as iOS notifications (they arrive with the app closed), Home and Lock Screen widgets (Today, sync status), a Share Sheet extension (to Inbox or Brain Dump), and Shortcuts/Siri actions (**Add To-Do** with quick-add syntax, **Open Today**). Data stays on the device. Architecture and a device test checklist: [docs/ios.md](docs/ios.md).
+
+To run it on your iPhone you need a Mac with Xcode 26+ (widgets, share sheet and Shortcuts also need a paid Apple Developer account for the App Group):
+
+```sh
+npm ci && npm run build && npx cap sync ios
+echo 'DEVELOPMENT_TEAM = ABCDE12345' > ios/App/Config/OpenThings.local.xcconfig   # your team id
+npx cap open ios
+```
+
+In Xcode, check *Signing & Capabilities* on the **App**, **OpenThingsWidgets** and **OpenThingsShare** targets (team set, App Group `group.io.github.spuder.openthings` registered), pick your iPhone and press Run. Bundle id, App Group and URL scheme live in one file, `ios/App/Config/OpenThings.xcconfig` (override them in `OpenThings.local.xcconfig`, which is not committed). After web changes: `npm run build && npx cap sync ios`.
+
 ## Self-hosting
 
 Images are published to GHCR by GitHub Actions on every push to `main` (`latest`, `sha-<short>`) and on `v*` tags (`1.2.3`, `1.2`), for `linux/amd64` and `linux/arm64`.
@@ -153,7 +168,7 @@ The image is a static build served by nginx. Until the sync server exists, **eac
 3. **MCP server** on the same container, so AI assistants can read and manage tasks (list Today, add with quick-add syntax, complete, move, start timers). It's a thin layer over the REST API and goes through the same op log.
 4. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
 5. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
-6. **Mobile:** Capacitor iOS and Android, plus native widgets, Shortcuts and share sheet.
+6. **Mobile:** iOS app with widgets, Shortcuts and share sheet: built, in device testing ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup.
 7. Things 3 import, CLI.
 
 ## License

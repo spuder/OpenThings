@@ -1,10 +1,11 @@
+# Deploy OpenThings from GHCR, exposed on the tailnet by DockTail
+# (https://github.com/marvinvr/docktail) at https://openthings.<tailnet>.ts.net.
+# No host ports are published. To build locally instead: docker build -t openthings .
 services:
   openthings:
-    build: .
-    image: openthings:poc
+    image: ghcr.io/spuder/openthings:latest
+    pull_policy: always
     restart: unless-stopped
-    # Exposed on the tailnet by DockTail (https://github.com/marvinvr/docktail)
-    # as https://openthings.<tailnet>.ts.net. No published host ports.
     labels:
       - "docktail.service.enable=true"
       - "docktail.service.name=openthings"

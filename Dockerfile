@@ -2,7 +2,7 @@
 # Data lives in each browser (SQLite in IndexedDB) until the sync server exists;
 # that server will replace nginx and serve these same files plus /api and /mcp.
 
-FROM node:22-alpine AS build
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci

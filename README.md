@@ -68,6 +68,8 @@
 - **Sync status** on every screen, and a **Settings** page: sync setup (see [docs/sync.md](docs/sync.md)), notifications, and the planned REST API and MCP endpoints with ready-to-copy config.
 - **Mobile:** responsive layout, list drawer, tap to open tasks, larger touch targets, installable as a home-screen app.
 - **Quick add** with short syntax (below), from anywhere with `Q`.
+- **Quick Find** (`/` or `Ctrl/⌘ F`): recent lists with counts, then search lists, projects, areas, `#tags` and to-dos as you type.
+- **Bottom toolbar** with New to-do, When, Move and Quick Find; hide the sidebar with `Ctrl/⌘ /`.
 - **Command palette** (`Ctrl/⌘ K`) and a shortcut sheet (`?`).
 - **Local-first data:** SQLite (WASM) with an op log of every change, ready for a sync server. JSON export.
 - Light and dark mode.
@@ -114,6 +116,8 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop ^i`
 | `Alt+0` / `G X` | Trash (`⇧R` restore) |
 | `C` | Habit challenge length |
 | `Ctrl/⌘ ,` | Settings |
+| `/` or `Ctrl/⌘ F` | Quick Find |
+| `Ctrl/⌘ /` | Show / hide sidebar |
 | `Ctrl/⌘ K` | Command palette |
 | `?` | All shortcuts |
 

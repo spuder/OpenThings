@@ -83,6 +83,17 @@
   {:else if name === 'bell'}
     <path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.5 1.5H4z" />
     <path d="M8.3 17a1.8 1.8 0 0 0 3.4 0" />
+  {:else if name === 'tag'}
+    <path d="M3.5 10.2V4.5a1 1 0 0 1 1-1h5.7l6.3 6.3a1.2 1.2 0 0 1 0 1.7l-4.8 4.8a1.2 1.2 0 0 1-1.7 0z" />
+    <circle cx="7" cy="7" r="1.2" fill={color} stroke="none" />
+  {:else if name === 'calendar'}
+    <rect x="3" y="4" width="14" height="13" rx="2.5" />
+    <path d="M3 8h14M7 2.5v3M13 2.5v3M6.5 11h1M9.5 11h1M12.5 11h1M6.5 14h1M9.5 14h1" />
+  {:else if name === 'arrow'}
+    <path d="M3.5 10h12.5M11.5 5.5 16 10l-4.5 4.5" />
+  {:else if name === 'sidebar'}
+    <rect x="2.5" y="3.5" width="15" height="13" rx="2.5" />
+    <path d="M8 3.5v13" />
   {:else if name === 'cloud'}
     <path d="M6 15.5h8.5a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 5.3 9.6 3 3 0 0 0 6 15.5z" />
   {:else if name === 'search'}

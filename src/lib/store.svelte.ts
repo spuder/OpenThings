@@ -35,7 +35,7 @@ export interface Group {
   items: Task[];
 }
 
-export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus';
+export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find';
 
 export interface FocusSession {
   taskId: ID;
@@ -56,6 +56,15 @@ export type PaletteMode =
   | { kind: 'choose'; label: string; options: { label: string; hint?: string; run: () => void }[] };
 
 export const TRASH_DAYS = 30;
+
+function loadRecent(): ViewKey[] {
+  try {
+    const v = JSON.parse(localStorage.getItem('openthings.recent') ?? '[]');
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
 
 /** Move a reminder by the number of days between two schedule dates, keeping its time of day. */
 function shiftReminder(iso: string, fromDay: string, toDay: string): string {
@@ -97,6 +106,27 @@ class Store {
   overlay = $state<Overlay>(null);
   /** Off-canvas list drawer on narrow screens. */
   sidebarOpen = $state(false);
+  /** Sidebar hidden on wide screens (Ctrl/⌘ /). Per device. */
+  sidebarHidden = $state((() => {
+    try {
+      return localStorage.getItem('openthings.sidebarHidden') === '1';
+    } catch {
+      return false;
+    }
+  })());
+
+  toggleSidebar() {
+    if (typeof matchMedia !== 'undefined' && matchMedia('(max-width: 760px)').matches) {
+      this.sidebarOpen = !this.sidebarOpen;
+      return;
+    }
+    this.sidebarHidden = !this.sidebarHidden;
+    try {
+      localStorage.setItem('openthings.sidebarHidden', this.sidebarHidden ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }
   paletteMode = $state<PaletteMode>({ kind: 'commands' });
   quickAddPrefill = $state('');
   toast = $state<{ text: string; id: number } | null>(null);
@@ -209,8 +239,20 @@ class Store {
 
   // ---------- navigation ----------
 
+  /** Recently visited lists, newest first (Quick Find shows these before you type). Per device. */
+  recentViews = $state<ViewKey[]>(loadRecent());
+
   go(v: ViewKey) {
     this.view = v;
+    if (v.kind !== 'settings') {
+      const key = JSON.stringify(v);
+      this.recentViews = [v, ...this.recentViews.filter((r) => JSON.stringify(r) !== key)].slice(0, 6);
+      try {
+        localStorage.setItem('openthings.recent', JSON.stringify(this.recentViews));
+      } catch {
+        /* ignore */
+      }
+    }
     this.sidebarOpen = false;
     this.keep.clear();
     this.expandedId = null;
@@ -236,6 +278,7 @@ class Store {
       case 'habits': return 'Habits';
       case 'matrix': return 'Matrix';
       case 'trash': return 'Trash';
+      case 'tag': return `#${this.tags.find((t) => t.id === v.id)?.name ?? 'tag'}`;
       case 'settings': return 'Settings';
       case 'project': return this.projects.find((p) => p.id === v.id)?.name ?? 'Project';
       case 'area': return this.areas.find((a) => a.id === v.id)?.name ?? 'Area';
@@ -337,6 +380,11 @@ class Store {
         return [];
       case 'trash':
         return [];
+      case 'tag': {
+        const ids = new Set(this.taskTags.filter((tt) => tt.tag_id === v.id).map((tt) => tt.task_id));
+        const items = ts.filter((t) => ids.has(t.id) && (t.completed_at === null || keep.has(t.id))).sort((a, b) => a.sort - b.sort);
+        return this.groupByContainer(items);
+      }
     }
   }
 
@@ -377,6 +425,17 @@ class Store {
       }
       case 'dump': return V.dump(ts, none, this.now).length;
       case 'trash': return this.trashed.length;
+      case 'area': {
+        const projIds = new Set(this.projects.filter((p) => p.area_id === v.id).map((p) => p.id));
+        return ts.filter((t) => !t.completed_at && !t.dump && (t.area_id === v.id || (t.project_id && projIds.has(t.project_id)))).length;
+      }
+      case 'anytime': return V.anytime(ts, this.day, none).length;
+      case 'upcoming': return V.upcoming(ts, this.day, none).reduce((n, g) => n + g.tasks.length, 0);
+      case 'someday': return V.someday(ts, none).length;
+      case 'tag': {
+        const ids = new Set(this.taskTags.filter((tt) => tt.tag_id === v.id).map((tt) => tt.task_id));
+        return ts.filter((t) => ids.has(t.id) && !t.completed_at).length;
+      }
       case 'project': return ts.filter((t) => t.project_id === v.id && !t.completed_at).length;
       default: return 0;
     }

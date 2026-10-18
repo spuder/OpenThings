@@ -17,6 +17,8 @@
   import SettingsView from './lib/ui/SettingsView.svelte';
   import TrashView from './lib/ui/TrashView.svelte';
   import FocusView from './lib/ui/FocusView.svelte';
+  import BottomBar from './lib/ui/BottomBar.svelte';
+  import QuickFind from './lib/ui/QuickFind.svelte';
 
   store.init().then(() => store.go({ kind: 'today' }));
 
@@ -47,7 +49,7 @@
     {/if}
     <main>
       <div class="status">
-        <button class="menu-btn" onclick={() => (store.sidebarOpen = true)} aria-label="Show lists">
+        <button class="menu-btn" onclick={() => store.toggleSidebar()} aria-label="Show or hide lists" title="Show / hide sidebar (Ctrl/⌘ /)">
           <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
         </button>
         <span class="spacer"></span>
@@ -113,9 +115,7 @@
         </div>
       </div>
 
-      <button class="fab" onclick={() => { store.quickAddPrefill = ''; store.overlay = 'quickadd'; }} title="Quick add (Q)" aria-label="Quick add">
-        <Icon name="plus" size={20} />
-      </button>
+      <BottomBar />
     </main>
   </div>
 
@@ -123,6 +123,7 @@
   {#if store.overlay === 'palette'}<Palette />{/if}
   {#if store.overlay === 'help'}<Help />{/if}
   {#if store.overlay === 'focus'}<FocusView />{/if}
+  {#if store.overlay === 'find'}<QuickFind />{/if}
 
   {#if store.toast}
     {#key store.toast.id}
@@ -216,7 +217,7 @@
   .content {
     max-width: 760px;
     margin: 0 auto;
-    padding: 18px 56px 120px;
+    padding: 18px 56px 48px;
   }
   .content.wide {
     max-width: 1080px;
@@ -257,26 +258,6 @@
     margin: -8px 0 16px 40px;
     font-size: 13.5px;
   }
-  .fab {
-    position: absolute;
-    right: 28px;
-    bottom: 26px;
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: white;
-    display: grid;
-    place-items: center;
-    box-shadow: 0 4px 14px rgba(47, 111, 237, 0.35);
-    transition: transform 0.15s var(--ease);
-  }
-  .fab :global(svg) {
-    stroke: white;
-  }
-  .fab:hover {
-    transform: scale(1.06);
-  }
   .toast {
     position: fixed;
     bottom: 28px;
@@ -291,7 +272,19 @@
     z-index: 30;
     box-shadow: var(--card-shadow);
   }
-  .menu-btn,
+  .menu-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-right: auto;
+    border-radius: 8px;
+    color: var(--text-3);
+  }
+  .menu-btn:hover {
+    background: var(--chip);
+    color: var(--text-2);
+  }
   .spacer {
     display: none;
   }
@@ -342,7 +335,7 @@
       z-index: 14;
     }
     .content {
-      padding: 4px 16px calc(110px + env(safe-area-inset-bottom));
+      padding: 4px 16px 32px;
     }
     .view-head {
       margin: 6px 0 12px;
@@ -356,12 +349,6 @@
     }
     .notes {
       margin-left: 0;
-    }
-    .fab {
-      right: calc(18px + env(safe-area-inset-right));
-      bottom: calc(20px + env(safe-area-inset-bottom));
-      width: 54px;
-      height: 54px;
     }
   }
 

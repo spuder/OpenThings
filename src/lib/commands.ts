@@ -287,6 +287,8 @@ export const commands: Command[] = [
       if (v.kind === 'project') openListMenu({ kind: 'project', id: v.id });
     },
   },
+  { id: 'app.find', title: 'Quick Find', group: 'App', keys: ['mod+f', '/'], run: () => (store.overlay = 'find') },
+  { id: 'app.sidebar', title: 'Show / hide sidebar', group: 'App', keys: ['mod+/'], run: () => store.toggleSidebar() },
   { id: 'app.palette', title: 'Command palette', group: 'App', keys: ['mod+k', 'mod+shift+p', ':'], run: () => openPalette('commands'), hidden: true },
   { id: 'app.help', title: 'Keyboard shortcuts', group: 'App', keys: ['?'], run: () => (store.overlay = store.overlay === 'help' ? null : 'help') },
   { id: 'app.theme', title: 'Toggle dark mode', group: 'App', keys: ['shift+d'], run: () => { theme.toggle(); store.notify(theme.isDark ? 'Dark mode' : 'Light mode'); } },

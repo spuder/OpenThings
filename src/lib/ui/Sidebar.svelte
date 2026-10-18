@@ -44,7 +44,7 @@
 
 <svelte:window onkeydown={(e) => { if (newListOpen && e.key === 'Escape') { e.stopPropagation(); newListOpen = false; } }} />
 
-<nav class="sidebar" class:open={store.sidebarOpen} aria-label="Lists">
+<nav class="sidebar" class:open={store.sidebarOpen} class:hidden={store.sidebarHidden} aria-label="Lists">
   <div class="scroll">
     {#each top as section}
       <ul>
@@ -193,7 +193,9 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 10px 10px;
+    /* Same height as the bottom toolbar so the two line up. */
+    min-height: 52px;
+    padding: 0 10px;
     border-top: 1px solid var(--line);
   }
   .foot {
@@ -305,6 +307,14 @@
     background: var(--sidebar-active);
   }
 
+  @media (min-width: 761px) {
+    .sidebar {
+      transition: margin-left 0.22s var(--ease);
+    }
+    .sidebar.hidden {
+      margin-left: -249px;
+    }
+  }
   @media (max-width: 760px) {
     .sidebar {
       position: fixed;

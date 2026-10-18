@@ -115,6 +115,7 @@ export type ViewKey =
   | { kind: 'habits' }
   | { kind: 'matrix' }
   | { kind: 'trash' }
+  | { kind: 'tag'; id: ID }
   | { kind: 'settings' }
   | { kind: 'project'; id: ID }
   | { kind: 'area'; id: ID };

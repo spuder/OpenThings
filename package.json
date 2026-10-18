@@ -1,0 +1,33 @@
+{
+  "name": "openthings",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/node": "^24.13.3",
+    "@types/sql.js": "^1.4.11",
+    "playwright": "^1.64.1",
+    "svelte": "^5.57.0",
+    "svelte-check": "^4.7.6",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@fontsource/caveat": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "chrono-node": "^2.10.3",
+    "sql.js": "^1.15.0"
+  },
+  "license": "MIT",
+  "description": "Self-hosted, local-first task manager with time tracking, habits and a 48-hour brain dump."
+}

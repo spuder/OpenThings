@@ -19,6 +19,7 @@
   import FocusView from './lib/ui/FocusView.svelte';
   import BottomBar from './lib/ui/BottomBar.svelte';
   import QuickFind from './lib/ui/QuickFind.svelte';
+  import ThemePicker from './lib/ui/ThemePicker.svelte';
 
   store.init().then(() => store.go({ kind: 'today' }));
 
@@ -124,6 +125,7 @@
   {#if store.overlay === 'help'}<Help />{/if}
   {#if store.overlay === 'focus'}<FocusView />{/if}
   {#if store.overlay === 'find'}<QuickFind />{/if}
+  {#if store.overlay === 'themes'}<ThemePicker />{/if}
 
   {#if store.toast}
     {#key store.toast.id}

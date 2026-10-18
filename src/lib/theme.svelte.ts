@@ -1,56 +1,152 @@
-/** Appearance preference, per device (not synced): follow the system, or force light/dark. */
+/**
+ * Appearance, per device (not synced):
+ *   - base preference: follow the system, or force light / dark
+ *   - optional Omarchy theme (desktop): a full palette mapped onto the app's color tokens
+ */
+import { omarchyThemes, type OmarchyPalette } from './omarchy-themes';
+
 export type ThemePref = 'system' | 'light' | 'dark';
 
 const KEY = 'openthings.theme';
+const OMARCHY_KEY = 'openthings.omarchy';
+/** Resolved CSS variables of the chosen Omarchy theme, applied by index.html before first paint. */
+const VARS_KEY = 'openthings.themeVars';
 
-function read(): ThemePref {
+function store(key: string, value: string | null) {
   try {
-    const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'dark' ? v : 'system';
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
   } catch {
-    return 'system';
+    /* storage unavailable: applies for this session only */
+  }
+}
+
+function read(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
   }
 }
 
 const systemDark = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+const mix = (a: string, pct: number, b: string) => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
+
+/** Map an Omarchy palette onto the tokens defined in app.css. */
+export function paletteVars(p: OmarchyPalette): Record<string, string> {
+  const dark = p.mode === 'dark';
+  const surface = dark ? p.lighter_background : p.background;
+  return {
+    '--bg': p.background,
+    '--sidebar': p.dark_background,
+    '--sidebar-hover': mix(p.foreground, 7, p.dark_background),
+    '--sidebar-active': mix(p.accent, 18, p.dark_background),
+    '--text': p.foreground,
+    '--text-2': mix(p.foreground, 72, p.background),
+    '--text-3': mix(p.foreground, 48, p.background),
+    '--line': mix(p.foreground, 11, p.background),
+    '--line-strong': mix(p.foreground, 22, p.background),
+    '--accent': p.accent,
+    '--accent-soft': mix(p.accent, 18, 'transparent'),
+    '--select': mix(p.accent, 15, 'transparent'),
+    '--card': surface,
+    '--card-shadow': dark ? '0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45)' : '0 1px 2px rgba(0,0,0,.06), 0 8px 28px rgba(0,0,0,.1)',
+    '--chip': mix(p.foreground, 9, p.background),
+    '--star': p.yellow,
+    '--evening': p.blue,
+    '--deadline': p.red,
+    '--someday': mix(p.yellow, 55, p.foreground),
+    '--logbook': p.green,
+    '--upcoming': p.red,
+    '--anytime': p.cyan,
+    '--inbox': p.blue,
+    '--dump': p.yellow,
+    '--habits': p.orange,
+    '--matrix': p.magenta,
+    '--urgent': p.red,
+    '--important': p.blue,
+    '--paper': mix(p.yellow, dark ? 6 : 9, p.background),
+    '--paper-line': mix(p.foreground, 12, p.background),
+    '--paper-margin': mix(p.red, 45, p.background),
+    '--paper-ink': p.foreground,
+    '--paper-shadow': dark ? '0 1px 1px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.4)' : '0 1px 1px rgba(80,60,20,.08), 0 10px 30px rgba(80,60,20,.12)',
+  };
+}
 
 class Theme {
-  pref = $state<ThemePref>(typeof localStorage === 'undefined' ? 'system' : read());
+  pref = $state<ThemePref>(typeof localStorage === 'undefined' ? 'system' : ((v) => (v === 'light' || v === 'dark' ? v : 'system'))(read(KEY)));
+  /** Chosen Omarchy theme id, or null for the app's own palette. */
+  omarchy = $state<string | null>(typeof localStorage === 'undefined' ? null : read(OMARCHY_KEY));
+  /** Theme shown temporarily while browsing the picker. */
+  private previewId: string | null | undefined = undefined;
+  private applied: string[] = [];
+
+  get palette(): OmarchyPalette | undefined {
+    return omarchyThemes.find((t) => t.id === this.omarchy);
+  }
 
   /** What's actually on screen right now. */
   get isDark(): boolean {
+    const p = this.palette;
+    if (p) return p.mode === 'dark';
     return this.pref === 'dark' || (this.pref === 'system' && systemDark());
   }
 
   set(pref: ThemePref) {
     this.pref = pref;
-    try {
-      if (pref === 'system') localStorage.removeItem(KEY);
-      else localStorage.setItem(KEY, pref);
-    } catch {
-      /* storage unavailable: applies for this session only */
-    }
+    this.omarchy = null;
+    store(KEY, pref === 'system' ? null : pref);
+    store(OMARCHY_KEY, null);
     this.apply();
   }
 
-  /** Light ↔ dark from whatever is showing now. */
+  setOmarchy(id: string | null) {
+    this.omarchy = id;
+    this.previewId = undefined;
+    store(OMARCHY_KEY, id);
+    this.apply();
+  }
+
+  /** Show a theme without saving it (picker hover / arrow keys). `undefined` ends the preview. */
+  preview(id: string | null | undefined) {
+    this.previewId = id;
+    this.apply();
+  }
+
+  /** Light ↔ dark from whatever is showing now (leaves any Omarchy theme). */
   toggle() {
-    this.set(this.isDark ? 'light' : 'dark');
+    const dark = this.isDark;
+    this.set(dark ? 'light' : 'dark');
   }
 
   apply() {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    if (this.pref === 'system') delete root.dataset.theme;
-    else root.dataset.theme = this.pref;
+    const id = this.previewId !== undefined ? this.previewId : this.omarchy;
+    const p = omarchyThemes.find((t) => t.id === id);
+
+    for (const k of this.applied) root.style.removeProperty(k);
+    this.applied = [];
+
+    if (p) {
+      const vars = paletteVars(p);
+      for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+      this.applied = Object.keys(vars);
+      root.dataset.theme = p.mode;
+      root.style.colorScheme = p.mode;
+      if (this.previewId === undefined) store(VARS_KEY, JSON.stringify({ mode: p.mode, vars }));
+    } else {
+      root.style.removeProperty('color-scheme');
+      if (this.pref === 'system') delete root.dataset.theme;
+      else root.dataset.theme = this.pref;
+      if (this.previewId === undefined) store(VARS_KEY, null);
+    }
+
     // Keep the browser/OS chrome (address bar, status bar) in step.
-    const color = this.isDark ? '#1d1e21' : '#ffffff';
+    const color = p ? p.background : this.isDark ? '#1d1e21' : '#ffffff';
     document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
-      if (this.pref === 'system') {
-        m.setAttribute('content', m.getAttribute('media')?.includes('dark') ? '#1d1e21' : '#ffffff');
-      } else {
-        m.setAttribute('content', color);
-      }
+      if (!p && this.pref === 'system') m.setAttribute('content', m.getAttribute('media')?.includes('dark') ? '#1d1e21' : '#ffffff');
+      else m.setAttribute('content', color);
     });
   }
 }

@@ -63,7 +63,7 @@
 - **Completion chimes**, synthesized in the browser (toggle with ⇧M).
 - **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. Settings shows permission and upcoming reminders.
 - **Areas and projects** can be renamed, moved or deleted from the ⋯ button or right-click in the sidebar (or `⇧L`).
-- **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle.
+- **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle. On desktop, `⇧T` opens a theme switcher with all 23 [Omarchy](https://omarchy.org) themes (Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine…), previewed live as you move through them.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
 - **Sync status** on every screen, and a **Settings** page: sync setup (see [docs/sync.md](docs/sync.md)), notifications, and the planned REST API and MCP endpoints with ready-to-copy config.
 - **Mobile:** responsive layout, list drawer, tap to open tasks, larger touch targets, installable as a home-screen app.
@@ -111,6 +111,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop ^i`
 | `P` / `⇧P` | Timer / quick Pomodoro |
 | `⇧L` | Rename / move / delete the current area or project |
 | `⇧D` | Toggle dark mode |
+| `⇧T` | Theme switcher (Omarchy themes, desktop) |
 | `Alt+↑` / `Alt+↓` | Reorder |
 | `⌫` | Move to Trash |
 | `Alt+0` / `G X` | Trash (`⇧R` restore) |

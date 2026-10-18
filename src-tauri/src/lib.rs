@@ -162,6 +162,18 @@ fn quick_add_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWind
     Ok(w)
 }
 
+/// Hide the quick-add window after Esc, adding, or a second hotkey press. On macOS, when the main
+/// window isn't open either, also hide the app so focus goes back to the app the user came from.
+fn dismiss_quick_add<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(w) = app.get_webview_window(QUICK_ADD) {
+        let _ = w.hide();
+    }
+    #[cfg(target_os = "macos")]
+    if !main_window(app).and_then(|w| w.is_visible().ok()).unwrap_or(false) {
+        let _ = app.hide();
+    }
+}
+
 #[derive(Serialize, Clone)]
 struct QuickAddOpen {
     text: String,
@@ -169,6 +181,9 @@ struct QuickAddOpen {
 
 /// Show the floating quick-add window, optionally prefilled.
 fn open_quick_add<R: Runtime>(app: &AppHandle<R>, text: Option<String>) {
+    // Undo a previous `dismiss_quick_add` app hide, or the window can't come forward.
+    #[cfg(target_os = "macos")]
+    let _ = app.show();
     match quick_add_window(app) {
         Ok(w) => {
             let _ = w.emit_to(QUICK_ADD, "ot://quick-add-open", QuickAddOpen { text: text.unwrap_or_default() });
@@ -286,7 +301,7 @@ fn apply_hotkey<R: Runtime>(app: &AppHandle<R>, accel: &str) -> Result<(), Strin
             // Toggle: a second press hides it again.
             if let Some(w) = app.get_webview_window(QUICK_ADD) {
                 if w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false) {
-                    let _ = w.hide();
+                    dismiss_quick_add(app);
                     return;
                 }
             }
@@ -604,9 +619,7 @@ fn submit_quick_add(app: AppHandle, text: String, keep_open: bool) {
 
 #[tauri::command]
 fn hide_quick_add(app: AppHandle) {
-    if let Some(w) = app.get_webview_window(QUICK_ADD) {
-        let _ = w.hide();
-    }
+    dismiss_quick_add(&app);
 }
 
 #[tauri::command]

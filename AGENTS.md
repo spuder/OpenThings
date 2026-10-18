@@ -48,7 +48,7 @@ When in doubt, write it from scratch and say so in the PR description.
 - `chrono-node` for natural-language date fallback in quick add
 - Vitest for unit tests, Playwright (dev only) for screenshots
 
-Planned (see the architecture doc): Tauri desktop shell, Capacitor iOS/Android, a TypeScript/Bun sync server in Docker on Tailscale.
+Desktop: Tauri v2 shell in `src-tauri/` (Rust), see `docs/desktop.md`. Planned: Capacitor iOS/Android, a TypeScript/Bun sync server in Docker on Tailscale.
 
 ## Commands
 
@@ -58,6 +58,7 @@ npm run dev        # http://localhost:5173
 npm test           # vitest
 npm run check      # svelte-check + tsc
 npm run build
+npm run tauri dev  # desktop app (needs Rust; see docs/desktop.md)
 ```
 
 ## Code map
@@ -76,6 +77,9 @@ npm run build
 | `src/lib/env.ts` | Touch / narrow-screen detection |
 | `src/lib/reminders.svelte.ts` | Due/upcoming reminder logic and notification delivery (service worker `public/sw.js`) |
 | `src/lib/ui/*` | Svelte components |
+| `src/lib/native/` | Desktop (Tauri) bridge: `desktop.ts` (guarded by `isDesktop`), main-window wiring, quick-add window, Settings → Desktop — see `docs/desktop.md` |
+| `src-tauri/` | Tauri desktop shell (Rust): windows, tray, menu bar, global hotkey, deep links / CLI, native notifications. `npm run tauri dev` |
+| `packaging/arch/` | AUR PKGBUILDs (`openthings` from source, `openthings-bin`), checked by `.github/workflows/desktop.yml` |
 | `site/` | Product website for GitHub Pages (plain HTML/CSS); the app demo is built into `/app/` by `.github/workflows/pages.yml` |
 
 ## Conventions
@@ -88,4 +92,5 @@ npm run build
 - Schema changes are additive, in `migrate()` in `db.ts`, so existing browser databases upgrade in place.
 - The UI must work at phone width (≤ 760px) and with touch: no hover-only controls, 44px touch targets, no reliance on double click.
 - Brain Dump items are tasks with `dump = 1`. Unchecked ones are deleted for good 48 hours after `created_at`. Moving one to any list clears `dump`.
+- Native shells only add capabilities: guard native code with `isDesktop` (`src/lib/native/desktop.ts`) so the web, PWA and Docker builds are unaffected, and keep data writes in the main window's store.
 - Keep the UI calm: few elements per row, short animations (`transform`/`opacity`), no new colors without a token in `app.css`.

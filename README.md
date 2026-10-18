@@ -41,7 +41,7 @@
   <img src="docs/screenshots/today.png" alt="OpenThings Today view" width="860">
 </p>
 
-> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives in your browser (SQLite in IndexedDB); the sync client is built, the sync server and native apps are not yet.
+> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives in your browser (SQLite in IndexedDB); the sync client is built, the sync server and mobile apps are not yet. A [desktop app](#desktop-app) for macOS and Arch Linux is in preview.
 >
 > Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently and not affiliated with either. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
 
@@ -134,6 +134,30 @@ npm run build
 
 To start over with the demo data, run **Reset demo data** from the command palette.
 
+## Desktop app
+
+A native shell ([Tauri](https://tauri.app)) around the same app, for **macOS** and **Arch Linux** (Omarchy / Hyprland). It adds a global quick-add hotkey with a floating quick-add window, a menu-bar / tray icon with sync status, reminders as native notifications even with the window closed, a macOS menu bar, launch at login, and `openthings://` links. Details and a test checklist: [docs/desktop.md](docs/desktop.md).
+
+**Download:** open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).
+
+**macOS first launch:** the build isn't notarized yet, so macOS blocks it the first time. Open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
+
+**Quick add from anywhere:** ⌃⌥Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Wayland apps can't grab global keys, so bind the CLI in Hyprland (Super+Space is Omarchy's launcher):
+
+```ini
+# ~/.config/hypr/bindings.conf
+bind = SUPER ALT, SPACE, exec, openthings --quick-add
+windowrule {
+  name = openthings-quick-add
+  match:title = ^(OpenThings Quick Add)$
+  float = on
+  center = on
+  pin = on
+}
+```
+
+`openthings --add "Buy milk #errand"` adds without a window; `openthings://add?text=…` links work too. The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
+
 ## Self-hosting
 
 Images are published to GHCR by GitHub Actions on every push to `main` (`latest`, `sha-<short>`) and on `v*` tags (`1.2.3`, `1.2`), for `linux/amd64` and `linux/arm64`.
@@ -153,7 +177,7 @@ The image is a static build served by nginx. Until the sync server exists, **eac
 2. **REST API** on the server: tasks, projects, areas, habits, brain dump, time entries. Quick add accepts the same syntax as the app.
 3. **MCP server** on the same container, so AI assistants can read and manage tasks (list Today, add with quick-add syntax, complete, move, start timers). It's a thin layer over the REST API and goes through the same op log.
 4. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
-5. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
+5. **Desktop:** ~~Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland)~~ in preview, see [Desktop app](#desktop-app). Next: signing and notarization, release downloads, AUR, Ubuntu/Fedora packages.
 6. **Mobile:** Capacitor iOS and Android, plus native widgets, Shortcuts and share sheet.
 7. Things 3 import, CLI.
 

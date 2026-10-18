@@ -210,7 +210,7 @@
   .scrim {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.22);
     z-index: 20;
   }
   .panel {
@@ -223,9 +223,7 @@
     display: flex;
     flex-direction: column;
     z-index: 21;
-    background: color-mix(in srgb, var(--card) 94%, transparent);
-    backdrop-filter: blur(20px) saturate(1.4);
-    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    background: var(--card);
     border-radius: 16px;
     box-shadow: var(--card-shadow), 0 0 0 1px var(--line);
     overflow: hidden;

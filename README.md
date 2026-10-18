@@ -1,12 +1,46 @@
-# OpenThings
+<p align="center">
+  <img src="docs/logo.svg" width="120" height="120" alt="OpenThings logo">
+</p>
 
-A self-hosted, local-first task manager. Calm list design, time tracking, habits, an Eisenhower matrix, and a brain dump that cleans itself up after 48 hours. Keyboard-first: every action has a shortcut.
+<h1 align="center">OpenThings</h1>
 
-Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently. Not affiliated with either project. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
+<p align="center">
+  <b>A self-hosted, local-first task manager with a calm, keyboard-first design.</b><br>
+  Plan your day with Today, Upcoming and Areas, then focus with a built-in Pomodoro, habits, reminders and an Eisenhower matrix.
+  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host.
+</p>
 
-> **Status: proof of concept.** A web app that works on desktop and phone browsers and can be installed to the home screen. Data lives in your browser (SQLite in IndexedDB). The sync client is built; the sync server, desktop shell and native mobile apps are not yet.
+<p align="center">
+  <a href="https://github.com/spuder/OpenThings/pkgs/container/openthings"><img alt="Docker: ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2f6fed?style=for-the-badge&logo=docker&logoColor=white&labelColor=555"></a>
+  <a href="#self-hosting"><img alt="Self-host: compose.yaml" src="https://img.shields.io/badge/self--host-compose.yaml-3fa66b?style=for-the-badge&logo=tailscale&logoColor=white&labelColor=555"></a>
+</p>
 
-![Today](docs/screenshots/today.png)
+<p align="center">
+  <a href="#self-hosting">Self-hosting</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#roadmap">Roadmap</a> ·
+  <a href="docs/sync.md">Sync protocol</a> ·
+  <a href="AGENTS.md">Contributing</a> ·
+  <a href="https://github.com/spuder/OpenThings/issues">Issues</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/spuder/OpenThings/actions/workflows/container.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/spuder/OpenThings/container.yml?branch=main&label=CI"></a>
+  <a href="https://github.com/spuder/OpenThings/pkgs/container/openthings"><img alt="Image" src="https://ghcr-badge.egpl.dev/spuder/openthings/latest_tag?label=image&trim=major"></a>
+  <a href="https://github.com/spuder/OpenThings/pkgs/container/openthings"><img alt="Image size" src="https://ghcr-badge.egpl.dev/spuder/openthings/size"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/spuder/OpenThings"></a>
+  <a href="https://github.com/spuder/OpenThings/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/spuder/OpenThings"></a>
+  <a href="https://github.com/spuder/OpenThings/issues"><img alt="Issues" src="https://img.shields.io/github/issues/spuder/OpenThings"></a>
+  <a href="https://github.com/spuder/OpenThings/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/spuder/OpenThings"></a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/today.png" alt="OpenThings Today view" width="860">
+</p>
+
+> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives in your browser (SQLite in IndexedDB); the sync client is built, the sync server and native apps are not yet.
+>
+> Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently and not affiliated with either. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
 
 | Brain Dump | Matrix |
 | --- | --- |
@@ -92,7 +126,7 @@ npm run build
 
 To start over with the demo data, run **Reset demo data** from the command palette.
 
-## Self-hosting the proof of concept
+## Self-hosting
 
 Images are published to GHCR by GitHub Actions on every push to `main` (`latest`, `sha-<short>`) and on `v*` tags (`1.2.3`, `1.2`), for `linux/amd64` and `linux/arm64`.
 

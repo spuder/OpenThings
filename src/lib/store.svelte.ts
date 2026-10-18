@@ -51,7 +51,7 @@ export interface FocusSession {
 }
 
 export type PaletteMode =
-  | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder' }
+  | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder' | 'schedule' }
   | { kind: 'prompt'; label: string; placeholder?: string; initial?: string; onSubmit: (value: string) => void }
   | { kind: 'choose'; label: string; options: { label: string; hint?: string; run: () => void }[] };
 
@@ -772,11 +772,26 @@ class Store {
 
   // ---------- habits ----------
 
-  /** "Cold shower 75d" creates a 75-day challenge starting today. */
+  /**
+   * Trailing words set options: "Cold shower 75d" (75-day challenge), "Gym 5x" (5 times a week),
+   * "Journal weekdays", combinable: "Gym 4x 60d".
+   */
   addHabit(input: string) {
-    const m = /^(.*?)\s+(\d{1,3})\s*d(?:ays?)?$/i.exec(input.trim());
-    const name = m ? m[1] : input.trim();
-    const target = m ? Number(m[2]) : null;
+    let name = input.trim();
+    let target: number | null = null;
+    let schedule: string | null = null;
+    for (let i = 0; i < 3; i++) {
+      let m: RegExpExecArray | null;
+      if ((m = /\s+(\d{1,3})\s*d(?:ays?)?$/i.exec(name)) && !target) {
+        target = Number(m[1]);
+      } else if ((m = /\s+([1-7])\s*x(?:\s*\/?\s*w(?:ee)?k)?$/i.exec(name)) && !schedule) {
+        schedule = V.scheduleToString(V.parseSchedule(`times:${m[1]}`));
+      } else if ((m = /\s+(weekdays|weekends|daily)$/i.exec(name)) && !schedule) {
+        const w = m[1].toLowerCase();
+        schedule = w === 'weekdays' ? 'days:1,2,3,4,5' : w === 'weekends' ? 'days:0,6' : 'daily';
+      } else break;
+      name = name.slice(0, m.index).trim();
+    }
     db.insert('habits', {
       id: db.uuid7(),
       name,
@@ -784,8 +799,15 @@ class Store {
       created_at: new Date().toISOString(),
       target_days: target,
       start_date: target ? this.day : null,
+      schedule,
     });
     this.load();
+  }
+
+  setHabitSchedule(id: ID, schedule: V.HabitSchedule) {
+    db.update('habits', id, { schedule: V.scheduleToString(schedule) });
+    this.load();
+    this.notify(V.describeSchedule(schedule));
   }
 
   /** Set a challenge length (null = open-ended). Starting a new length restarts from today. */

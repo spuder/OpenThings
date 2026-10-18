@@ -3,7 +3,7 @@
   import { fade } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { addDays, parseYmd } from '../dates';
-  import { challengeProgress, streak } from '../views';
+  import { challengeProgress, checksInWeek, describeSchedule, habitStreak, isScheduledDay, parseSchedule } from '../views';
   import { relLabel } from '../dates';
   import { prompt } from '../commands';
   import Icon from './Icon.svelte';
@@ -26,8 +26,11 @@
 
   {#each store.habits as h (h.id)}
     {@const done = store.habitDays(h.id)}
-    {@const s = streak(done, store.day)}
-    {@const ch = h.target_days && h.start_date ? challengeProgress(h.start_date, h.target_days, done, store.day) : null}
+    {@const sched = parseSchedule(h.schedule)}
+    {@const st = habitStreak(sched, done, store.day)}
+    {@const s = st.value}
+    {@const ch = h.target_days && h.start_date ? challengeProgress(h.start_date, h.target_days, done, store.day, sched) : null}
+    {@const weekDone = sched.kind === 'times' ? checksInWeek(done, store.day) : 0}
     <div
       class="habit"
       class:selected={store.selectedId === h.id}
@@ -41,15 +44,30 @@
     >
       <span class="name-col">
         <span class="name">{h.name}</span>
+        {#if sched.kind !== 'daily' || store.selectedId === h.id}
+          <button
+            class="sched"
+            class:met={sched.kind === 'times' && weekDone >= sched.perWeek}
+            onclick={(e) => {
+              e.stopPropagation();
+              store.selectedId = h.id;
+              store.paletteMode = { kind: 'schedule' };
+              store.overlay = 'palette';
+            }}
+            title="Change schedule (W)"
+          >
+            {describeSchedule(sched)}{#if sched.kind === 'times'}{` · ${weekDone}/${sched.perWeek} this week`}{/if}
+          </button>
+        {/if}
         {#if ch}
           <span class="challenge" class:finished={ch.finished}>
             {#if ch.finished}
-              {ch.done >= ch.total ? 'Completed' : 'Ended'} · {ch.done}/{ch.total} days
+              {ch.done >= ch.required ? 'Completed' : 'Ended'} · {ch.done}/{ch.required} check-ins
             {:else}
-              Day {ch.day} of {ch.total} · {ch.done} done{#if ch.missed}{` · ${ch.missed} missed`}{/if} · ends {relLabel(ch.end, store.day)}
+              Day {ch.day} of {ch.total} · {ch.done}{ch.required !== ch.total ? `/${ch.required}` : ''} done{#if ch.missed}{` · ${ch.missed} missed`}{/if} · ends {relLabel(ch.end, store.day)}
             {/if}
           </span>
-          <span class="progress" aria-hidden="true"><span style:width={`${(ch.done / ch.total) * 100}%`}></span></span>
+          <span class="progress" aria-hidden="true"><span style:width={`${Math.min(1, ch.done / Math.max(1, ch.required)) * 100}%`}></span></span>
         {:else if store.selectedId === h.id}
           <button
             class="set-len"
@@ -67,6 +85,7 @@
           class:on={done.has(d)}
           class:today={d === store.day}
           class:outside={!!ch && (d < ch.start || d > ch.end)}
+          class:off={!isScheduledDay(sched, d)}
           onclick={(e) => {
             e.stopPropagation();
             store.selectedId = h.id;
@@ -76,14 +95,14 @@
           aria-pressed={done.has(d)}
         ></button>
       {/each}
-      <span class="streak-col" class:hot={s >= 3}>
+      <span class="streak-col" class:hot={st.unit === 'week' ? s >= 2 : s >= 3} title={st.unit === 'week' ? `${s} week streak` : `${s} day streak`}>
         {#if s > 0}<Icon name="habits" size={14} />{/if}
-        {s}
+        {s}{st.unit === 'week' ? 'w' : ''}
       </span>
     </div>
   {/each}
 
-  <button class="add" onclick={() => prompt('New habit', (n) => store.addHabit(n), 'Name, optionally with a length: Cold shower 75d')}>
+  <button class="add" onclick={() => prompt('New habit', (n) => store.addHabit(n), 'Name, plus options: Gym 5x · Journal weekdays · Cold shower 75d')}>
     <Icon name="plus" size={15} /> New habit <kbd>⇧N</kbd>
   </button>
 </div>
@@ -212,6 +231,28 @@
   .set-len kbd {
     font-size: 10px;
     line-height: 14px;
+  }
+  .sched {
+    font-size: 11.5px;
+    color: var(--text-3);
+    text-align: left;
+    width: fit-content;
+  }
+  .sched:hover {
+    color: var(--accent);
+  }
+  .sched.met {
+    color: var(--logbook);
+    font-weight: 600;
+  }
+  /* Not a due day: lighter, still checkable. */
+  .cell.off:not(.on) {
+    background: transparent;
+    outline: 1px dashed var(--line-strong);
+    outline-offset: -1px;
+  }
+  .cell.off.today:not(.on) {
+    outline: 1.5px dashed var(--habits);
   }
   .cell.outside {
     opacity: 0.35;

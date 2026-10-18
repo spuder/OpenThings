@@ -72,6 +72,8 @@ function migrate() {
   // Habit challenges: a fixed length (30/60/75 days) starting on start_date.
   add('habits', 'target_days', 'INTEGER');
   add('habits', 'start_date', 'TEXT');
+  // Habit schedule: daily | days:1,2,3,4,5 | times:5 (see views.ts).
+  add('habits', 'schedule', 'TEXT');
   columnCache.clear();
 }
 

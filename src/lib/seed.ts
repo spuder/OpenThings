@@ -130,7 +130,9 @@ export function seed() {
     const id = uuid7();
     // "No phone after 9pm" is a 75-day challenge, two weeks in.
     const challenge = i === 3 ? { target_days: 75, start_date: addDays(day, -14) } : { target_days: null, start_date: null };
-    insert('habits', { id, name, sort: i, created_at: iso(30 * 24 * H), ...challenge });
+    // "Walk outside" is 5× a week; "Journal" is weekdays only.
+    const schedule = i === 1 ? 'times:5' : i === 2 ? 'days:1,2,3,4,5' : null;
+    insert('habits', { id, name, sort: i, created_at: iso(30 * 24 * H), ...challenge, schedule });
     for (let d = 1; d < 21; d++) {
       // Deterministic pseudo-history.
       if ((d * (i + 3)) % 5 !== 0 && !(i === 2 && d > 6)) insert('habit_checks', { id: uuid7(), habit_id: id, day: addDays(day, -d) });

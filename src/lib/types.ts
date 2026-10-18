@@ -81,6 +81,8 @@ export interface Habit {
   target_days: number | null;
   /** First day of the challenge, YYYY-MM-DD. */
   start_date: string | null;
+  /** "daily" | "days:1,2,3,4,5" | "times:5"; null = daily. */
+  schedule: string | null;
 }
 
 export interface HabitCheck {

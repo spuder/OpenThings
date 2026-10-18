@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { nextOccurrence, parseQuickAdd, parseReminder } from './parse';
-import { challengeProgress, dump, inbox, isDumpExpired, matrix, streak, todayView, upcoming } from './views';
+import { challengeProgress, describeSchedule, dump, habitStreak, parseSchedule, inbox, isDumpExpired, matrix, streak, todayView, upcoming } from './views';
 import type { Task } from './types';
 
 // 2026-10-18 is a Sunday.
@@ -178,5 +178,34 @@ describe('reminders', () => {
     const p = parseQuickAdd('Odd %blorp', REF, now);
     expect(p.reminderAt).toBeNull();
     expect(p.title).toBe('Odd %blorp');
+  });
+});
+
+describe('habit schedules', () => {
+  const set = (...d: string[]) => new Set(d);
+  it('parses and describes', () => {
+    expect(describeSchedule(parseSchedule('days:1,2,3,4,5'))).toBe('Weekdays');
+    expect(describeSchedule(parseSchedule('times:5'))).toBe('5× a week');
+    expect(describeSchedule(parseSchedule('days:0,1,3'))).toBe('Mon Wed Sun');
+    expect(parseSchedule('times:7').kind).toBe('daily');
+    expect(parseSchedule('garbage').kind).toBe('daily');
+  });
+  it('weekday streaks skip weekends', () => {
+    const d = set('2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16');
+    expect(habitStreak(parseSchedule('days:1,2,3,4,5'), d, REF)).toEqual({ value: 5, unit: 'day' });
+    // The same check-ins as a daily habit: Saturday breaks it.
+    expect(habitStreak(parseSchedule('daily'), d, REF).value).toBe(0);
+  });
+  it('N-times-a-week streaks count weeks', () => {
+    const d = set('2026-10-06', '2026-10-08', '2026-10-13', '2026-10-14', '2026-10-15');
+    expect(habitStreak(parseSchedule('times:3'), d, REF)).toEqual({ value: 1, unit: 'week' });
+    expect(habitStreak(parseSchedule('times:2'), d, REF)).toEqual({ value: 2, unit: 'week' });
+  });
+  it('challenges only count due days as missed', () => {
+    const d = set('2026-10-05', '2026-10-06', '2026-10-07');
+    const p = challengeProgress('2026-10-05', 14, d, REF, parseSchedule('days:1,2,3,4,5'));
+    expect(p.required).toBe(10);
+    expect(p.done).toBe(3);
+    expect(p.missed).toBe(7); // Oct 8, 9, 12, 13, 14, 15, 16
   });
 });

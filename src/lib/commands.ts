@@ -34,7 +34,7 @@ function withTask(fn: (id: string) => void) {
   };
 }
 
-function openPalette(kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder') {
+function openPalette(kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder' | 'schedule') {
   store.paletteMode = { kind };
   store.overlay = 'palette';
 }
@@ -244,6 +244,14 @@ export const commands: Command[] = [
     keys: ['c'],
     when: () => inHabits() && !!store.selectedId,
     run: () => openPalette('challenge'),
+  },
+  {
+    id: 'habit.schedule',
+    title: 'Habit schedule (every day, weekdays, N× a week)…',
+    group: 'Habits',
+    keys: ['w'],
+    when: () => inHabits() && !!store.selectedId,
+    run: () => openPalette('schedule'),
   },
   { id: 'habit.delete', title: 'Delete habit', group: 'Habits', keys: ['backspace', 'delete'], when: () => inHabits() && !!store.selectedId, run: () => store.selectedId && store.deleteHabit(store.selectedId) },
 

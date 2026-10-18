@@ -4,6 +4,7 @@
   import { commands, keyLabel } from '../commands';
   import { parseDateWord, parseReminder, reminderLabel } from '../parse';
   import { notifier } from '../reminders.svelte';
+  import { parseSchedule, scheduleToString, type HabitSchedule } from '../views';
   import { addDays, longLabel, nextWeekday, relLabel } from '../dates';
 
   interface Item {
@@ -121,6 +122,34 @@
         if (h.target_days) out.push({ label: 'No challenge', hint: 'open-ended habit', run: () => store.setChallenge(h.id, null) });
         return q.trim() && !(n > 0) ? out.filter((i) => fuzzy(i.label, q)) : out;
       }
+      case 'schedule': {
+        const h = store.habits.find((x) => x.id === store.selectedId);
+        if (!h) return [];
+        const current = scheduleToString(parseSchedule(h.schedule));
+        const opt = (label: string, s: HabitSchedule): Item => ({
+          label,
+          hint: scheduleToString(s) === current ? 'current' : undefined,
+          run: () => store.setHabitSchedule(h.id, s),
+        });
+        // Typed days: "mon wed fri" → those weekdays; "4x" → 4 times a week.
+        const typed = q.trim().toLowerCase();
+        const out: Item[] = [];
+        const times = /^([1-7])\s*x/.exec(typed);
+        if (times) out.push(opt(`${times[1]}× a week, any days`, parseSchedule(`times:${times[1]}`)));
+        const names = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const picked = [...new Set(typed.split(/[\s,]+/).map((w) => names.indexOf(w.slice(0, 3))).filter((i) => i >= 0))];
+        if (picked.length && !times) out.push(opt('Only these days', parseSchedule(`days:${picked.sort().join(',')}`)));
+        if (out.length) return out;
+        return [
+          opt('Every day', { kind: 'daily' }),
+          opt('Weekdays (Mon–Fri)', { kind: 'days', days: [1, 2, 3, 4, 5] }),
+          opt('6× a week, any days', { kind: 'times', perWeek: 6 }),
+          opt('5× a week, any days', { kind: 'times', perWeek: 5 }),
+          opt('4× a week, any days', { kind: 'times', perWeek: 4 }),
+          opt('3× a week, any days', { kind: 'times', perWeek: 3 }),
+          opt('Weekends', { kind: 'days', days: [0, 6] }),
+        ].filter((i) => fuzzy(i.label, q));
+      }
       case 'reminder': {
         if (!task) return [];
         const base = task.when_date && task.when_date > store.day ? task.when_date : store.day;
@@ -170,6 +199,7 @@
       case 'tag': return 'Tag name…';
       case 'challenge': return 'Challenge length in days (e.g. 75)…';
       case 'reminder': return 'Remind me… 6pm, in 30m, fri 9am';
+      case 'schedule': return 'Schedule… or type days (mon wed fri) or 4x';
       case 'choose': return mode.label;
       case 'prompt': return mode.placeholder ?? mode.label;
     }

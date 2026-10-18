@@ -80,7 +80,9 @@ export function seed() {
   task('Pick up packing tape', { area_id: home, when_date: day, urgent: 1 }, ['errand']);
   task('Review homelab backups', { when_date: addDays(day, -2), important: 1 });
   task('Book venue for meetup', { project_id: meetup, deadline: day, important: 1, urgent: 1 });
-  task('Read a chapter', { area_id: health, when_date: day, evening: 1 });
+  const eightPm = new Date();
+  eightPm.setHours(20, 0, 0, 0);
+  task('Read a chapter', { area_id: health, when_date: day, evening: 1, reminder_at: eightPm.toISOString() });
   task('Plan tomorrow', { when_date: day, evening: 1, rrule: 'FREQ=DAILY;INTERVAL=1' });
 
   // Checklist on the first task

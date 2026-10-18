@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextOccurrence, parseQuickAdd } from './parse';
+import { nextOccurrence, parseQuickAdd, parseReminder } from './parse';
 import { challengeProgress, dump, inbox, isDumpExpired, matrix, streak, todayView, upcoming } from './views';
 import type { Task } from './types';
 
@@ -93,6 +93,8 @@ function task(p: Partial<Task>): Task {
     dump: 0,
     dump_section_id: null,
     deleted_at: null,
+    reminder_at: null,
+    reminder_sent_at: null,
     ...p,
   };
 }
@@ -145,5 +147,36 @@ describe('challengeProgress', () => {
     expect(p.finished).toBe(true);
     expect(p.day).toBe(30);
     expect(p.missed).toBe(30);
+  });
+});
+
+describe('reminders', () => {
+  // Sunday 2026-10-18, 15:00 local.
+  const now = new Date(2026, 9, 18, 15, 0, 0);
+  const local = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  it('bare times land today, or tomorrow if already past', () => {
+    expect(local(parseReminder('6pm', REF, now)!)).toBe('2026-10-18 18:00');
+    expect(local(parseReminder('9am', REF, now)!)).toBe('2026-10-19 09:00');
+    expect(local(parseReminder('18:30', REF, now)!)).toBe('2026-10-18 18:30');
+  });
+  it('bare times use the scheduled day when there is one', () => {
+    const p = parseQuickAdd('Call bank @fri %9:30am', REF, now);
+    expect(p.title).toBe('Call bank');
+    expect(local(p.reminderAt!)).toBe('2026-10-23 09:30');
+  });
+  it('relative and day+time', () => {
+    expect(local(parseReminder('in30m', REF, now)!)).toBe('2026-10-18 15:30');
+    expect(local(parseReminder('in-2h', REF, now)!)).toBe('2026-10-18 17:00');
+    expect(local(parseReminder('tomorrow-8am', REF, now)!)).toBe('2026-10-19 08:00');
+    expect(local(parseReminder('friday', REF, now)!)).toBe('2026-10-23 09:00');
+  });
+  it('rejects nonsense and keeps it in the title', () => {
+    expect(parseReminder('25:00', REF, now)).toBeNull();
+    const p = parseQuickAdd('Odd %blorp', REF, now);
+    expect(p.reminderAt).toBeNull();
+    expect(p.title).toBe('Odd %blorp');
   });
 });

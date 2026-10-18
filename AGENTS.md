@@ -73,6 +73,7 @@ npm run build
 | `src/lib/seed.ts` | Demo data for a fresh install |
 | `src/lib/sync/` | Sync protocol types, sync engine (status, push/pull), native bridge — see `docs/sync.md` |
 | `src/lib/env.ts` | Touch / narrow-screen detection |
+| `src/lib/reminders.svelte.ts` | Due/upcoming reminder logic and notification delivery (service worker `public/sw.js`) |
 | `src/lib/ui/*` | Svelte components |
 
 ## Conventions

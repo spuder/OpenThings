@@ -66,6 +66,7 @@
     repeat: 'var(--matrix)',
     matrix: 'var(--urgent)',
     dump: 'var(--dump)',
+    reminder: 'var(--habits)',
   };
   const tokenPrefix: Record<TokenKind, string> = {
     tag: '#',
@@ -76,6 +77,7 @@
     repeat: '↻ ',
     matrix: '',
     dump: '',
+    reminder: 'Remind ',
   };
 </script>
 
@@ -85,7 +87,7 @@
     bind:this={input}
     bind:value
     onkeydown={onKey}
-    placeholder="New to-do   #tag  +Project  @tomorrow  !fri  ~30m  *weekly  ^ui  @dump"
+    placeholder="New to-do   #tag  +Project  @tomorrow  %9am  !fri  ~30m  *weekly  ^ui  @dump"
     spellcheck="false"
     aria-label="New to-do"
   />

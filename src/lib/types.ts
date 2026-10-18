@@ -47,6 +47,10 @@ export interface Task {
   dump_section_id: ID | null;
   /** Set when moved to the Trash; purged 30 days later. */
   deleted_at: string | null;
+  /** Reminder time, ISO timestamp (UTC). */
+  reminder_at: string | null;
+  /** When the reminder fired; null = still pending. */
+  reminder_sent_at: string | null;
 }
 
 export interface ChecklistItem {

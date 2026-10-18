@@ -23,8 +23,9 @@ Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [
 - **Matrix:** Eisenhower quadrants from urgent / important flags.
 - **Time tracking** per task and a 25-minute Pomodoro.
 - **Completion chimes**, synthesized in the browser (toggle with ⇧M).
+- **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. Settings shows permission and upcoming reminders.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
-- **Sync status** on every screen, and a **Settings** page to set up sync (see [docs/sync.md](docs/sync.md)).
+- **Sync status** on every screen, and a **Settings** page: sync setup (see [docs/sync.md](docs/sync.md)), notifications, and the planned REST API and MCP endpoints with ready-to-copy config.
 - **Mobile:** responsive layout, list drawer, tap to open tasks, larger touch targets, installable as a home-screen app.
 - **Quick add** with short syntax (below), from anywhere with `Q`.
 - **Command palette** (`Ctrl/⌘ K`) and a shortcut sheet (`?`).
@@ -41,6 +42,7 @@ Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [
 | `@fri` `@in3d` `@2w` `@next-week` `@nov-3` `@2026-11-02` | When, by weekday, offset or date |
 | `@dump` `@dump/Ideas` | Brain dump, optional section |
 | `!fri` | Deadline |
+| `%9am` `%18:30` `%in30m` `%fri-9am` | Reminder |
 | `~30m` `~1h30m` | Time estimate |
 | `*daily` `*weekly` `*weekdays` `*2w` | Repeat |
 | `^u` `^i` `^ui` | Urgent / important |
@@ -59,7 +61,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop ^i`
 | `Enter` | Open / close task |
 | `X` | Complete |
 | `T` `E` `R` `S` | Today, This Evening, Tomorrow, Someday |
-| `W` / `D` | When… / Deadline… |
+| `W` / `D` / `A` | When… / Deadline… / Reminder… |
 | `M` | Move to list |
 | `#` | Tag |
 | `U` / `I` | Urgent / important |

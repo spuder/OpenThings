@@ -15,6 +15,7 @@
     trash: 'var(--text-2)',
     settings: 'var(--text-2)',
     gear: 'var(--text-2)',
+    bell: 'var(--habits)',
     area: 'var(--text-2)',
     evening: 'var(--evening)',
   };
@@ -79,6 +80,9 @@
     <path d="M10 2.8v2M10 15.2v2M2.8 10h2M15.2 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4" />
   {:else if name === 'trash'}
     <path d="M4 5.5h12M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5.5 5.5l.8 10.6a1.5 1.5 0 0 0 1.5 1.4h4.4a1.5 1.5 0 0 0 1.5-1.4l.8-10.6M8.5 9v5M11.5 9v5" />
+  {:else if name === 'bell'}
+    <path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.5 1.5H4z" />
+    <path d="M8.3 17a1.8 1.8 0 0 0 3.4 0" />
   {:else if name === 'cloud'}
     <path d="M6 15.5h8.5a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 5.3 9.6 3 3 0 0 0 6 15.5z" />
   {:else if name === 'search'}

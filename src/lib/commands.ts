@@ -33,7 +33,7 @@ function withTask(fn: (id: string) => void) {
   };
 }
 
-function openPalette(kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge') {
+function openPalette(kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder') {
   store.paletteMode = { kind };
   store.overlay = 'palette';
 }
@@ -171,6 +171,7 @@ export const commands: Command[] = [
   { id: 'task.someday', title: 'Someday', group: 'Task', keys: ['s'], when: hasTask, run: withTask((id) => store.setSomeday(id)) },
   { id: 'task.when', title: 'When…', group: 'Task', keys: ['w'], when: hasTask, run: () => openPalette('when') },
   { id: 'task.deadline', title: 'Deadline…', group: 'Task', keys: ['d'], when: hasTask, run: () => openPalette('deadline') },
+  { id: 'task.reminder', title: 'Reminder…', group: 'Task', keys: ['a'], when: hasTask, run: () => openPalette('reminder') },
   { id: 'task.move', title: 'Move to…', group: 'Task', keys: ['m'], when: hasTask, run: () => openPalette('move') },
   { id: 'task.tag', title: 'Add tag…', group: 'Task', keys: ['#', 'l'], when: hasTask, run: () => openPalette('tag') },
   { id: 'task.urgent', title: 'Toggle urgent', group: 'Task', keys: ['u'], when: hasTask, run: withTask((id) => store.toggleUrgent(id)) },

@@ -10,6 +10,7 @@
  *   ~30m ~1h ~1h30m                                 time estimate
  *   *daily *weekly *monthly *yearly *weekdays *2d *3w   repeat
  *   ^u ^i ^ui                                       Eisenhower: urgent / important
+ *   %9am %18:30 %fri-9am %tomorrow-8am %in30m %in2h   reminder (notification)
  *   title // notes                                  everything after // becomes notes
  */
 import * as chrono from 'chrono-node';
@@ -23,7 +24,7 @@ export interface When {
   inbox: boolean;
 }
 
-export type TokenKind = 'tag' | 'project' | 'when' | 'deadline' | 'estimate' | 'repeat' | 'matrix' | 'dump';
+export type TokenKind = 'tag' | 'project' | 'when' | 'deadline' | 'estimate' | 'repeat' | 'matrix' | 'dump' | 'reminder';
 
 export interface Parsed {
   title: string;
@@ -33,6 +34,8 @@ export interface Parsed {
   when: When | null;
   deadline: string | null;
   estimateMin: number | null;
+  /** Reminder time as an ISO timestamp (UTC). */
+  reminderAt: string | null;
   rrule: string | null;
   urgent: boolean;
   important: boolean;
@@ -128,7 +131,51 @@ export function nextOccurrence(rrule: string, from: string): string {
   return addDays(from, n);
 }
 
-export function parseQuickAdd(input: string, ref: string = todayFn()): Parsed {
+/**
+ * Parse a reminder: "9am", "9:30pm", "18:30", "in 30m", "in2h", "fri 9am", "tomorrow-8am", "nov 3 14:00".
+ * A bare time lands on `baseDay`; if that's today and the time has passed, tomorrow.
+ * A day without a time defaults to 9:00. Returns an ISO timestamp or null.
+ */
+export function parseReminder(spec: string, baseDay: string, now: Date = new Date()): string | null {
+  const s = spec.toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return null;
+  const rel = /^in ?(\d+) ?(m|min|mins|minutes?|h|hr|hrs|hours?)$/.exec(s);
+  if (rel) {
+    const ms = Number(rel[1]) * (rel[2].startsWith('h') ? 3_600_000 : 60_000);
+    return new Date(now.getTime() + ms).toISOString();
+  }
+  const tm = /^(\d{1,2})(?::(\d{2}))? ?(am|pm|a|p)?$/.exec(s);
+  if (tm) {
+    let h = Number(tm[1]);
+    const m = Number(tm[2] ?? 0);
+    const ap = tm[3]?.[0];
+    if (ap === 'p' && h < 12) h += 12;
+    if (ap === 'a' && h === 12) h = 0;
+    if (h > 23 || m > 59) return null;
+    const d = parseYmd(baseDay);
+    d.setHours(h, m, 0, 0);
+    if (d.getTime() <= now.getTime() && baseDay <= ymd(now)) d.setDate(d.getDate() + 1);
+    return d.toISOString();
+  }
+  const r = chrono.parse(s, now, { forwardDate: true })[0];
+  if (!r) return null;
+  const d = r.start.date();
+  if (!r.start.isCertain('hour')) d.setHours(9, 0, 0, 0);
+  return d.toISOString();
+}
+
+/** "Today 9:00 AM", "Fri 6:30 PM", "Nov 3 9:00 AM". */
+export function reminderLabel(iso: string, ref: string = todayFn()): string {
+  const d = new Date(iso);
+  const day = ymd(d);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const diff = Math.round((parseYmd(day).getTime() - parseYmd(ref).getTime()) / 86_400_000);
+  const dayLabel =
+    diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : diff > 1 && diff < 7 ? d.toLocaleDateString([], { weekday: 'short' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${dayLabel} ${time}`;
+}
+
+export function parseQuickAdd(input: string, ref: string = todayFn(), now: Date = new Date()): Parsed {
   const out: Parsed = {
     title: '',
     notes: '',
@@ -137,6 +184,7 @@ export function parseQuickAdd(input: string, ref: string = todayFn()): Parsed {
     when: null,
     deadline: null,
     estimateMin: null,
+    reminderAt: null,
     rrule: null,
     urgent: false,
     important: false,
@@ -154,6 +202,7 @@ export function parseQuickAdd(input: string, ref: string = todayFn()): Parsed {
   }
 
   const words: string[] = [];
+  let reminderSpec: { raw: string; spec: string } | null = null;
   for (const raw of text.split(/\s+/).filter(Boolean)) {
     const sigil = raw[0];
     const body = raw.slice(1);
@@ -210,6 +259,10 @@ export function parseQuickAdd(input: string, ref: string = todayFn()): Parsed {
         continue;
       }
     }
+    if (sigil === '%' && body.length > 0) {
+      reminderSpec = { raw, spec: body };
+      continue;
+    }
     if (sigil === '^' && /^[ui]{1,2}$/i.test(body)) {
       const b = body.toLowerCase();
       out.urgent = b.includes('u');
@@ -224,5 +277,16 @@ export function parseQuickAdd(input: string, ref: string = todayFn()): Parsed {
   out.title = words.join(' ').trim();
   // A repeating task with no start date starts today.
   if (out.rrule && !out.when) out.when = { date: ref, evening: false, someday: false, inbox: false };
+  if (reminderSpec) {
+    // A bare time ("%9am") applies to the task's scheduled day, else today.
+    const at = parseReminder(reminderSpec.spec, out.when?.date ?? ref, now);
+    if (at) {
+      out.reminderAt = at;
+      out.tokens.push({ text: reminderSpec.raw, kind: 'reminder', label: reminderLabel(at, ref) });
+    } else {
+      out.warnings.push(`Unknown reminder "${reminderSpec.spec}"`);
+      out.title = `${out.title} ${reminderSpec.raw}`.trim();
+    }
+  }
   return out;
 }

@@ -66,6 +66,9 @@ function migrate() {
   };
   // Trash: soft delete, purged 30 days later.
   add('tasks', 'deleted_at', 'TEXT');
+  // Reminders: when to notify (ISO, UTC) and when it was shown.
+  add('tasks', 'reminder_at', 'TEXT');
+  add('tasks', 'reminder_sent_at', 'TEXT');
   // Habit challenges: a fixed length (30/60/75 days) starting on start_date.
   add('habits', 'target_days', 'INTEGER');
   add('habits', 'start_date', 'TEXT');

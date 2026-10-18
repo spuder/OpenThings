@@ -152,3 +152,12 @@ export function playBell() {
   const t = ac.currentTime + 0.01;
   for (let i = 0; i < 3; i++) bell(ac, 587.33, t + i * 0.7, 0.24, 2.4);
 }
+
+/** Reminder: two descending bells, distinct from the completion chime. */
+export function playReminder() {
+  const ac = audio();
+  if (!ac) return;
+  const t = ac.currentTime + 0.01;
+  bell(ac, 1174.66, t, 0.18, 1.4);
+  bell(ac, 880, t + 0.22, 0.2, 2.0);
+}

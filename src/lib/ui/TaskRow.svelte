@@ -3,7 +3,7 @@
   import { store } from '../store.svelte';
   import type { Task } from '../types';
   import { daysBetween, formatDuration, relLabel } from '../dates';
-  import { describeRule } from '../parse';
+  import { describeRule, reminderLabel } from '../parse';
   import { commands, keyLabel } from '../commands';
   import Icon from './Icon.svelte';
   import Checkbox from './Checkbox.svelte';
@@ -19,6 +19,7 @@
   const container = $derived(showContainer ? store.containerName(task) : null);
   const tracking = $derived(store.tracking?.taskId === task.id);
   const tracked = $derived(store.trackedMs(task.id));
+  const reminderPending = $derived(!!task.reminder_at && !task.reminder_sent_at && !task.completed_at);
   const deadlineDiff = $derived(task.deadline ? daysBetween(store.day, task.deadline) : null);
 
   let el: HTMLElement | undefined = $state();
@@ -119,6 +120,7 @@
         {#if task.urgent}<span class="dot urgent" title="Urgent"></span>{/if}
         {#if task.important}<span class="dot important" title="Important"></span>{/if}
         {#if task.rrule}<span class="mini" title={describeRule(task.rrule)}><Icon name="repeat" size={13} /></span>{/if}
+        {#if reminderPending}<span class="reminder" title="Reminder"><Icon name="bell" size={12} />{reminderLabel(task.reminder_at!, store.day).replace(/^Today /, '')}</span>{/if}
         {#if tracking}
           <span class="timer live"><span class="pulse"></span>{formatDuration(tracked)}</span>
         {:else if tracked > 0}
@@ -163,6 +165,9 @@
           {/if}
           {#if task.deadline}<span class="chip deadline-chip"><Icon name="flag" size={12} /> {relLabel(task.deadline, store.day)}</span>{/if}
           {#if task.rrule}<span class="chip"><Icon name="repeat" size={12} /> {describeRule(task.rrule)}</span>{/if}
+          {#if task.reminder_at}
+            <span class="chip" class:sent={!!task.reminder_sent_at}><Icon name="bell" size={12} /> {reminderLabel(task.reminder_at, store.day)}<button class="x" onclick={() => store.setReminder(task.id, null)} aria-label="Remove reminder">×</button></span>
+          {/if}
           {#each tags as t (t.id)}
             <span class="chip">#{t.name}<button class="x" onclick={() => store.removeTag(task.id, t.id)} aria-label="Remove tag">×</button></span>
           {/each}
@@ -171,6 +176,7 @@
         <div class="actions">
           <button onclick={() => run('task.when')} title="When ({key('task.when')})"><Icon name="today" size={15} /></button>
           <button onclick={() => run('task.deadline')} title="Deadline ({key('task.deadline')})"><Icon name="flag" size={15} /></button>
+          <button class:on={reminderPending} onclick={() => run('task.reminder')} title="Reminder ({key('task.reminder')})"><Icon name="bell" size={15} /></button>
           <button onclick={() => run('task.tag')} title="Tag ({key('task.tag')})">#</button>
           <button onclick={() => run('task.move')} title="Move ({key('task.move')})">→</button>
           <button class:on={task.urgent} onclick={() => store.toggleUrgent(task.id)} title="Urgent ({key('task.urgent')})">U</button>
@@ -309,6 +315,17 @@
     50% {
       opacity: 0.3;
     }
+  }
+  .reminder {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11.5px;
+    color: var(--habits);
+    font-weight: 500;
+  }
+  .chip.sent {
+    color: var(--text-3);
   }
   .deadline {
     display: inline-flex;

@@ -1,6 +1,6 @@
 import { SvelteSet } from 'svelte/reactivity';
 import * as db from './db';
-import { addDays, longLabel, relLabel, today as todayFn } from './dates';
+import { addDays, daysBetween, longLabel, relLabel, today as todayFn } from './dates';
 import { nextOccurrence, type Parsed, type When } from './parse';
 import * as sound from './sound';
 import type {
@@ -23,6 +23,8 @@ import { seed } from './seed';
 import { sync } from './sync/engine.svelte';
 import { installBridge } from './sync/bridge';
 import { isTouch } from './env';
+import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
+import { reminderLabel } from './parse';
 
 export interface Group {
   key: string;
@@ -36,10 +38,17 @@ export interface Group {
 export type Overlay = null | 'quickadd' | 'palette' | 'help';
 
 export type PaletteMode =
-  | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' }
+  | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder' }
   | { kind: 'prompt'; label: string; placeholder?: string; onSubmit: (value: string) => void };
 
 export const TRASH_DAYS = 30;
+
+/** Move a reminder by the number of days between two schedule dates, keeping its time of day. */
+function shiftReminder(iso: string, fromDay: string, toDay: string): string {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + daysBetween(fromDay, toDay));
+  return d.toISOString();
+}
 
 function norm(s: string) {
   return s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
@@ -93,7 +102,13 @@ class Store {
     this.load();
     sync.onRemoteChanges = () => this.load();
     sync.init();
-    installBridge(sync);
+    installBridge(sync, () => upcomingReminders(this.tasks, Date.now()));
+    void notifier.init((id) => this.reveal(id));
+    const fromNotification = new URLSearchParams(location.search).get('task');
+    if (fromNotification) {
+      history.replaceState(null, '', location.pathname);
+      queueMicrotask(() => this.reveal(fromNotification));
+    }
     const open = this.timeEntries.find((e) => e.end_at === null);
     if (open) this.tracking = { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) };
     this.ready = true;
@@ -102,6 +117,7 @@ class Store {
   }
 
   private lastPurge = 0;
+  private lastReminderCheck = 0;
   tick() {
     this.now = Date.now();
     const d = todayFn();
@@ -110,6 +126,10 @@ class Store {
       this.pomodoro = null;
       sound.playBell();
       this.notify('Pomodoro done — take a break');
+    }
+    if (this.now - this.lastReminderCheck > 5_000) {
+      this.lastReminderCheck = this.now;
+      this.fireDueReminders();
     }
     if (this.now - this.lastPurge > 30_000) {
       this.lastPurge = this.now;
@@ -131,6 +151,18 @@ class Store {
     this.timeEntries = db.all<TimeEntry>('SELECT * FROM time_entries');
     this.dumpSections = db.all<DumpSection>('SELECT * FROM dump_sections ORDER BY sort');
     this.opCount = db.opCount();
+    this.announceReminders();
+  }
+
+  private reminderSig = '';
+  /** Tell native shells when the set of pending reminders changes, so they can reschedule. */
+  private announceReminders() {
+    if (typeof window === 'undefined') return;
+    const list = upcomingReminders(this.tasks, Date.now());
+    const sig = list.map((r) => `${r.taskId}@${r.at}`).join('|');
+    if (sig === this.reminderSig) return;
+    this.reminderSig = sig;
+    window.dispatchEvent(new CustomEvent('openthings:reminders', { detail: list }));
   }
 
   /** Unchecked brain-dump items older than 48h are deleted for good. Returns true if any were removed. */
@@ -410,6 +442,8 @@ class Store {
       dump: 0,
       dump_section_id: null,
       deleted_at: null,
+      reminder_at: p.reminderAt,
+      reminder_sent_at: null,
     };
     const explicit = p.project || p.when || p.dump;
     if (opts.useContext && !explicit) Object.assign(row, this.contextDefaults());
@@ -462,6 +496,9 @@ class Store {
           evening: t.evening,
           completed_at: null,
           created_at: new Date().toISOString(),
+          // Same reminder time of day, moved to the next occurrence.
+          reminder_at: t.reminder_at ? shiftReminder(t.reminder_at, t.when_date ?? this.day, next) : null,
+          reminder_sent_at: null,
         });
         for (const tt of this.taskTags.filter((x) => x.task_id === id)) db.insert('task_tags', { id: db.uuid7(), task_id: nid, tag_id: tt.tag_id });
         for (const c of this.checklistFor(id)) db.insert('checklist', { id: db.uuid7(), task_id: nid, title: c.title, done: 0, sort: c.sort });
@@ -511,6 +548,43 @@ class Store {
 
   moveToDumpSection(id: ID, sectionId: ID | null) {
     this.update(id, { dump: 1, dump_section_id: sectionId });
+  }
+
+  /** Fire reminders that are due: system notification (if allowed), chime, and an in-app toast. */
+  fireDueReminders() {
+    const due = dueReminders(this.tasks, Date.now());
+    if (!due.length) return;
+    const sentAt = new Date().toISOString();
+    for (const t of due) db.update('tasks', t.id, { reminder_sent_at: sentAt });
+    this.load();
+    sound.playReminder();
+    if (due.length <= 3) {
+      for (const t of due) void notifier.show(t.title, `Reminder · ${reminderLabel(t.reminder_at!, this.day)}`, t.id);
+    } else {
+      void notifier.show(`${due.length} reminders`, due.map((t) => t.title).join(', '));
+    }
+    this.notify(due.length === 1 ? `⏰ ${due[0].title}` : `⏰ ${due.length} reminders`);
+  }
+
+  /** Jump to the list that shows a task, then select and open it (used by notification clicks). */
+  reveal(id: ID) {
+    const t = this.task(id);
+    if (!t) return;
+    let v: ViewKey = { kind: 'inbox' };
+    if (t.dump) v = { kind: 'dump' };
+    else if (t.someday) v = { kind: 'someday' };
+    else if (t.when_date && t.when_date <= this.day) v = { kind: 'today' };
+    else if (t.when_date) v = { kind: 'upcoming' };
+    else if (t.project_id) v = { kind: 'project', id: t.project_id };
+    else if (t.area_id) v = { kind: 'area', id: t.area_id };
+    this.go(v);
+    this.selectedId = id;
+    this.expandedId = id;
+  }
+
+  /** Set or clear a reminder. Setting one re-arms it. */
+  setReminder(id: ID, iso: string | null) {
+    this.update(id, { reminder_at: iso, reminder_sent_at: null });
   }
 
   toggleUrgent(id: ID) {

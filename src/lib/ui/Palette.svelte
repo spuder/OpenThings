@@ -2,7 +2,8 @@
   import { fade, fly } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { commands, keyLabel } from '../commands';
-  import { parseDateWord } from '../parse';
+  import { parseDateWord, parseReminder, reminderLabel } from '../parse';
+  import { notifier } from '../reminders.svelte';
   import { addDays, longLabel, nextWeekday, relLabel } from '../dates';
 
   interface Item {
@@ -113,6 +114,33 @@
         if (h.target_days) out.push({ label: 'No challenge', hint: 'open-ended habit', run: () => store.setChallenge(h.id, null) });
         return q.trim() && !(n > 0) ? out.filter((i) => fuzzy(i.label, q)) : out;
       }
+      case 'reminder': {
+        if (!task) return [];
+        const base = task.when_date && task.when_date > store.day ? task.when_date : store.day;
+        const set = (iso: string | null) => () => {
+          store.setReminder(task.id, iso);
+          // Ask once, from this keypress/click, so the browser allows the prompt.
+          if (iso && notifier.permission === 'default') void notifier.request();
+        };
+        const typed = q.trim() ? parseReminder(q.trim(), base) : null;
+        const now = new Date();
+        const at = (day: string, h: number, m = 0) => {
+          const [y, mo, d] = day.split('-').map(Number);
+          return new Date(y, mo - 1, d, h, m).toISOString();
+        };
+        const out: Item[] = [];
+        if (typed) out.push({ label: reminderLabel(typed, store.day), hint: 'Set reminder', run: set(typed) });
+        if (!q.trim()) {
+          out.push({ label: 'In 1 hour', hint: reminderLabel(new Date(now.getTime() + 3_600_000).toISOString(), store.day), run: set(new Date(now.getTime() + 3_600_000).toISOString()) });
+          if (base !== store.day) out.push({ label: 'That morning', hint: reminderLabel(at(base, 9), store.day), run: set(at(base, 9)) });
+          if (now.getHours() < 18) out.push({ label: 'This evening', hint: reminderLabel(at(store.day, 18), store.day), run: set(at(store.day, 18)) });
+          out.push({ label: 'Tomorrow morning', hint: reminderLabel(at(addDays(store.day, 1), 9), store.day), run: set(at(addDays(store.day, 1), 9)) });
+          const monday = nextWeekday(store.day, 1) === addDays(store.day, 1) ? addDays(store.day, 8) : nextWeekday(store.day, 1);
+          out.push({ label: 'Next week', hint: reminderLabel(at(monday, 9), store.day), run: set(at(monday, 9)) });
+        }
+        if (task.reminder_at) out.push({ label: 'Remove reminder', run: set(null) });
+        return out;
+      }
       case 'prompt':
         return [];
     }
@@ -132,6 +160,7 @@
       case 'deadline': return 'Deadline? fri, 2026-11-02…';
       case 'tag': return 'Tag name…';
       case 'challenge': return 'Challenge length in days (e.g. 75)…';
+      case 'reminder': return 'Remind me… 6pm, in 30m, fri 9am';
       case 'prompt': return mode.placeholder ?? mode.label;
     }
   });

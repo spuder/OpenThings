@@ -21,6 +21,7 @@
     ['@someday @inbox', 'Someday or Inbox'],
     ['@dump  @dump/Ideas', 'Brain dump, optional section'],
     ['!fri', 'Deadline'],
+    ['%9am %in30m %fri-9am', 'Reminder'],
     ['~30m  ~1h30m', 'Time estimate'],
     ['*daily *weekly *weekdays *2w', 'Repeat'],
     ['^u ^i ^ui', 'Urgent / important'],

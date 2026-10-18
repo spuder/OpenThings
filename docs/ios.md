@@ -37,6 +37,8 @@ Everything iOS-specific is in `ios/` and `src/lib/native/`. The web, PWA and Doc
 
 `capacitor.config.ts` fixes `ios.scheme = 'capacitor'` and `server.hostname = 'localhost'`, so the page origin is always `capacitor://localhost`. IndexedDB is per origin; changing either value would start with an empty database. Data stays on the device (the WebView's website data store) until the sync server is configured.
 
+When the sync server exists, the app calls it cross-origin from `capacitor://localhost`, so the server must allow that origin (CORS) and be reached over HTTPS (iOS App Transport Security blocks plain HTTP; Tailscale's `*.ts.net` certificates work). "Use this site" is hidden in Settings on native builds because the page's own origin is not a server.
+
 ### Reminders → local notifications
 
 On the web, reminders only fire while the app is open. On iOS:

@@ -72,7 +72,8 @@ jobs:
       - name: Swift warnings in OpenThings sources
         if: always()
         working-directory: ios/App
-        run: grep -E '/(App|Shared|OpenThingsWidgets|OpenThingsShare)/[^ ]+\.swift:[0-9]+:[0-9]+: warning' xcodebuild.log | sort -u || echo "none"
+        run: |
+          grep -E '/(App|Shared|OpenThingsWidgets|OpenThingsShare)/[^ ]+\.swift:[0-9]+:[0-9]+: warning' xcodebuild.log | sort -u || echo "none"
 
       - name: Upload build log
         if: failure()

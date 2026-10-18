@@ -136,6 +136,7 @@
     background: transparent;
     font-size: 18px;
     font-weight: 500;
+    /* 16px+ prevents iOS zoom on focus. */
     padding: 4px 0 8px;
   }
   input::placeholder {
@@ -191,5 +192,11 @@
     margin-left: auto;
     color: var(--logbook);
     font-weight: 600;
+  }
+  @media (max-width: 760px) {
+    .panel {
+      top: calc(8px + env(safe-area-inset-top));
+      width: calc(100vw - 16px);
+    }
   }
 </style>

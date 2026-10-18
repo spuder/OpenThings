@@ -121,3 +121,32 @@ export function streak(days: Set<string>, day: string): number {
   }
   return n;
 }
+
+export interface ChallengeProgress {
+  /** Day number of the challenge today (1-based), capped at total. */
+  day: number;
+  total: number;
+  /** Checked days within the challenge window so far. */
+  done: number;
+  /** Past days in the window that weren't checked. */
+  missed: number;
+  start: string;
+  end: string;
+  finished: boolean;
+}
+
+/** Progress through a fixed-length habit challenge (30/60/75 days…). */
+export function challengeProgress(start: string, total: number, days: Set<string>, today: string): ChallengeProgress {
+  const end = addDays(start, total - 1);
+  let done = 0;
+  let missed = 0;
+  let d = start;
+  let elapsed = 0;
+  while (d <= today && d <= end) {
+    elapsed++;
+    if (days.has(d)) done++;
+    else if (d < today) missed++;
+    d = addDays(d, 1);
+  }
+  return { day: Math.min(Math.max(elapsed, 1), total), total, done, missed, start, end, finished: today > end || done >= total };
+}

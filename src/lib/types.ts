@@ -45,6 +45,8 @@ export interface Task {
   /** 1 = lives in the brain dump and expires 48h after created_at. */
   dump: number;
   dump_section_id: ID | null;
+  /** Set when moved to the Trash; purged 30 days later. */
+  deleted_at: string | null;
 }
 
 export interface ChecklistItem {
@@ -71,6 +73,10 @@ export interface Habit {
   name: string;
   sort: number;
   created_at: string;
+  /** Challenge length in days (30, 60, 75…); null = open-ended habit. */
+  target_days: number | null;
+  /** First day of the challenge, YYYY-MM-DD. */
+  start_date: string | null;
 }
 
 export interface HabitCheck {
@@ -102,5 +108,7 @@ export type ViewKey =
   | { kind: 'dump' }
   | { kind: 'habits' }
   | { kind: 'matrix' }
+  | { kind: 'trash' }
+  | { kind: 'settings' }
   | { kind: 'project'; id: ID }
   | { kind: 'area'; id: ID };

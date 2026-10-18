@@ -9,7 +9,7 @@ import type { ViewKey } from './types';
 export interface Command {
   id: string;
   title: string;
-  group: 'Navigate' | 'Create' | 'Selection' | 'Task' | 'Brain dump' | 'Habits' | 'Time' | 'App';
+  group: 'Navigate' | 'Create' | 'Selection' | 'Task' | 'Brain dump' | 'Habits' | 'Trash' | 'Time' | 'App';
   /** Key strings: "x", "alt+1", "mod+k", "shift+p", sequences "g t". */
   keys: string[];
   /** Command only applies when this returns true (default: always). */
@@ -24,6 +24,7 @@ export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(
 const sel = () => store.task(store.selectedId);
 const hasTask = () => !!sel() && store.view.kind !== 'habits';
 const inHabits = () => store.view.kind === 'habits';
+const inTrash = () => store.view.kind === 'trash';
 
 function withTask(fn: (id: string) => void) {
   return () => {
@@ -32,7 +33,7 @@ function withTask(fn: (id: string) => void) {
   };
 }
 
-function openPalette(kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag') {
+function openPalette(kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge') {
   store.paletteMode = { kind };
   store.overlay = 'palette';
 }
@@ -69,6 +70,8 @@ export const commands: Command[] = [
   nav('Brain Dump', { kind: 'dump' }, 7, 'd'),
   nav('Habits', { kind: 'habits' }, 8, 'h'),
   nav('Matrix', { kind: 'matrix' }, 9, 'm'),
+  nav('Trash', { kind: 'trash' }, 0, 'x'),
+  { id: 'go.settings', title: 'Settings', group: 'Navigate', keys: ['mod+,', 'g ,'], run: () => store.go({ kind: 'settings' }) },
 
   {
     id: 'create.quickadd',
@@ -174,12 +177,24 @@ export const commands: Command[] = [
   { id: 'task.important', title: 'Toggle important', group: 'Task', keys: ['i'], when: hasTask, run: withTask((id) => store.toggleImportant(id)) },
   { id: 'task.up', title: 'Move up', group: 'Task', keys: ['alt+arrowup', 'shift+k'], when: hasTask, run: withTask((id) => store.reorder(id, -1)) },
   { id: 'task.down', title: 'Move down', group: 'Task', keys: ['alt+arrowdown', 'shift+j'], when: hasTask, run: withTask((id) => store.reorder(id, 1)) },
-  { id: 'task.delete', title: 'Delete task', group: 'Task', keys: ['backspace', 'delete'], when: hasTask, run: withTask((id) => store.deleteTask(id)) },
+  { id: 'task.delete', title: 'Move to Trash', group: 'Task', keys: ['backspace', 'delete'], when: hasTask, run: withTask((id) => store.deleteTask(id)) },
 
   { id: 'dump.keep', title: 'Keep: move to Inbox', group: 'Brain dump', keys: ['shift+i'], when: () => !!sel()?.dump, run: withTask((id) => { store.moveTo(id, { inbox: true }); store.notify('Moved to Inbox'); }) },
 
   { id: 'habit.toggle', title: 'Check habit for today', group: 'Habits', keys: ['x', 'space'], when: () => inHabits() && !!store.selectedId, run: () => store.selectedId && store.toggleHabit(store.selectedId) },
+  {
+    id: 'habit.challenge',
+    title: 'Set challenge length (30/60/75 days)…',
+    group: 'Habits',
+    keys: ['c'],
+    when: () => inHabits() && !!store.selectedId,
+    run: () => openPalette('challenge'),
+  },
   { id: 'habit.delete', title: 'Delete habit', group: 'Habits', keys: ['backspace', 'delete'], when: () => inHabits() && !!store.selectedId, run: () => store.selectedId && store.deleteHabit(store.selectedId) },
+
+  { id: 'trash.restore', title: 'Restore from Trash', group: 'Trash', keys: ['shift+r', 'enter'], when: () => inTrash() && !!store.selectedId, run: () => store.selectedId && store.restoreTask(store.selectedId) },
+  { id: 'trash.purge', title: 'Delete permanently', group: 'Trash', keys: ['backspace', 'delete'], when: () => inTrash() && !!store.selectedId, run: () => store.selectedId && store.purgeTask(store.selectedId) },
+  { id: 'trash.empty', title: 'Empty Trash', group: 'Trash', keys: [], when: () => store.trashed.length > 0, run: () => confirm(`Permanently delete ${store.trashed.length} to-dos?`) && store.emptyTrash() },
 
   { id: 'time.track', title: 'Start / stop timer', group: 'Time', keys: ['p'], when: hasTask, run: withTask((id) => store.toggleTracking(id)) },
   { id: 'time.pomodoro', title: 'Start Pomodoro (25 min)', group: 'Time', keys: ['shift+p'], run: () => (store.pomodoro ? store.cancelPomodoro() : store.startPomodoro(sel()?.id ?? null)) },

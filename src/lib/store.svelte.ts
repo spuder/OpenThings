@@ -20,6 +20,9 @@ import type {
 } from './types';
 import * as V from './views';
 import { seed } from './seed';
+import { sync } from './sync/engine.svelte';
+import { installBridge } from './sync/bridge';
+import { isTouch } from './env';
 
 export interface Group {
   key: string;
@@ -33,8 +36,10 @@ export interface Group {
 export type Overlay = null | 'quickadd' | 'palette' | 'help';
 
 export type PaletteMode =
-  | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' }
+  | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' }
   | { kind: 'prompt'; label: string; placeholder?: string; onSubmit: (value: string) => void };
+
+export const TRASH_DAYS = 30;
 
 function norm(s: string) {
   return s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
@@ -46,6 +51,8 @@ class Store {
   projects = $state<Project[]>([]);
   headings = $state<Heading[]>([]);
   tasks = $state<Task[]>([]);
+  /** Tasks in the Trash, newest first. */
+  trashed = $state<Task[]>([]);
   checklist = $state<ChecklistItem[]>([]);
   tags = $state<Tag[]>([]);
   taskTags = $state<TaskTag[]>([]);
@@ -65,6 +72,8 @@ class Store {
   day = $state(todayFn());
 
   overlay = $state<Overlay>(null);
+  /** Off-canvas list drawer on narrow screens. */
+  sidebarOpen = $state(false);
   paletteMode = $state<PaletteMode>({ kind: 'commands' });
   quickAddPrefill = $state('');
   toast = $state<{ text: string; id: number } | null>(null);
@@ -80,7 +89,11 @@ class Store {
     const { fresh } = await db.openDb();
     if (fresh) seed();
     this.purgeDump();
+    this.purgeTrash();
     this.load();
+    sync.onRemoteChanges = () => this.load();
+    sync.init();
+    installBridge(sync);
     const open = this.timeEntries.find((e) => e.end_at === null);
     if (open) this.tracking = { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) };
     this.ready = true;
@@ -100,7 +113,7 @@ class Store {
     }
     if (this.now - this.lastPurge > 30_000) {
       this.lastPurge = this.now;
-      if (this.purgeDump()) this.load();
+      if (this.purgeDump() || this.purgeTrash()) this.load();
     }
   }
 
@@ -108,7 +121,8 @@ class Store {
     this.areas = db.all<Area>('SELECT * FROM areas ORDER BY sort');
     this.projects = db.all<Project>('SELECT * FROM projects ORDER BY sort');
     this.headings = db.all<Heading>('SELECT * FROM headings ORDER BY sort');
-    this.tasks = db.all<Task>('SELECT * FROM tasks');
+    this.tasks = db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NULL');
+    this.trashed = db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC');
     this.checklist = db.all<ChecklistItem>('SELECT * FROM checklist ORDER BY sort');
     this.tags = db.all<Tag>('SELECT * FROM tags ORDER BY name');
     this.taskTags = db.all<TaskTag>('SELECT * FROM task_tags');
@@ -127,6 +141,14 @@ class Store {
     return expired.length > 0;
   }
 
+  /** Trashed tasks older than 30 days are deleted for good. */
+  purgeTrash(): boolean {
+    const cutoff = new Date(Date.now() - TRASH_DAYS * 86_400_000).toISOString();
+    const old = db.all<{ id: string }>('SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
+    for (const t of old) this.hardDelete(t.id);
+    return old.length > 0;
+  }
+
   notify(text: string) {
     const id = Date.now();
     this.toast = { text, id };
@@ -139,9 +161,10 @@ class Store {
 
   go(v: ViewKey) {
     this.view = v;
+    this.sidebarOpen = false;
     this.keep.clear();
     this.expandedId = null;
-    this.selectedId = this.selectable[0] ?? null;
+    this.selectedId = isTouch ? null : (this.selectable[0] ?? null);
   }
 
   isView(v: ViewKey) {
@@ -162,6 +185,8 @@ class Store {
       case 'dump': return 'Brain Dump';
       case 'habits': return 'Habits';
       case 'matrix': return 'Matrix';
+      case 'trash': return 'Trash';
+      case 'settings': return 'Settings';
       case 'project': return this.projects.find((p) => p.id === v.id)?.name ?? 'Project';
       case 'area': return this.areas.find((a) => a.id === v.id)?.name ?? 'Area';
     }
@@ -171,9 +196,11 @@ class Store {
 
   groups: Group[] = $derived.by(() => this.computeGroups());
 
-  selectable: ID[] = $derived.by(() =>
-    this.view.kind === 'habits' ? this.habits.map((h) => h.id) : this.groups.flatMap((g) => g.items.map((t) => t.id)),
-  );
+  selectable: ID[] = $derived.by(() => {
+    if (this.view.kind === 'habits') return this.habits.map((h) => h.id);
+    if (this.view.kind === 'trash') return this.trashed.map((t) => t.id);
+    return this.groups.flatMap((g) => g.items.map((t) => t.id));
+  });
 
   private groupByContainer(items: Task[]): Group[] {
     const loose = items.filter((t) => !t.project_id);
@@ -256,6 +283,9 @@ class Store {
         return this.groupByContainer(items);
       }
       case 'habits':
+      case 'settings':
+        return [];
+      case 'trash':
         return [];
     }
   }
@@ -296,6 +326,7 @@ class Store {
         return t.day.length + t.evening.length;
       }
       case 'dump': return V.dump(ts, none, this.now).length;
+      case 'trash': return this.trashed.length;
       case 'project': return ts.filter((t) => t.project_id === v.id && !t.completed_at).length;
       default: return 0;
     }
@@ -378,6 +409,7 @@ class Store {
       rrule: p.rrule,
       dump: 0,
       dump_section_id: null,
+      deleted_at: null,
     };
     const explicit = p.project || p.when || p.dump;
     if (opts.useContext && !explicit) Object.assign(row, this.contextDefaults());
@@ -507,13 +539,38 @@ class Store {
     db.remove('tasks', id);
   }
 
+  /** Move a task to the Trash. It can be restored for 30 days. */
   deleteTask(id: ID) {
     const idx = this.selectable.indexOf(id);
     if (this.tracking?.taskId === id) this.stopTracking();
-    this.hardDelete(id);
+    db.update('tasks', id, { deleted_at: new Date().toISOString() });
+    this.keep.delete(id);
     this.load();
     this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
     if (this.expandedId === id) this.expandedId = null;
+    this.notify('Moved to Trash');
+  }
+
+  restoreTask(id: ID) {
+    const idx = this.selectable.indexOf(id);
+    db.update('tasks', id, { deleted_at: null });
+    this.load();
+    if (this.view.kind === 'trash') this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
+    this.notify('Restored');
+  }
+
+  purgeTask(id: ID) {
+    const idx = this.selectable.indexOf(id);
+    this.hardDelete(id);
+    this.load();
+    this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
+  }
+
+  emptyTrash() {
+    for (const t of this.trashed) this.hardDelete(t.id);
+    this.load();
+    this.selectedId = null;
+    this.notify('Trash emptied');
   }
 
   /** Move a task up/down within its group by swapping sort keys with its neighbour. */
@@ -581,9 +638,32 @@ class Store {
 
   // ---------- habits ----------
 
-  addHabit(name: string) {
-    db.insert('habits', { id: db.uuid7(), name, sort: this.nextSort(), created_at: new Date().toISOString() });
+  /** "Cold shower 75d" creates a 75-day challenge starting today. */
+  addHabit(input: string) {
+    const m = /^(.*?)\s+(\d{1,3})\s*d(?:ays?)?$/i.exec(input.trim());
+    const name = m ? m[1] : input.trim();
+    const target = m ? Number(m[2]) : null;
+    db.insert('habits', {
+      id: db.uuid7(),
+      name,
+      sort: this.nextSort(),
+      created_at: new Date().toISOString(),
+      target_days: target,
+      start_date: target ? this.day : null,
+    });
     this.load();
+  }
+
+  /** Set a challenge length (null = open-ended). Starting a new length restarts from today. */
+  setChallenge(id: ID, days: number | null, restart = true) {
+    const h = this.habits.find((x) => x.id === id);
+    if (!h) return;
+    db.update('habits', id, {
+      target_days: days,
+      start_date: days ? (restart || !h.start_date ? this.day : h.start_date) : null,
+    });
+    this.load();
+    this.notify(days ? `${days}-day challenge starts ${restart || !h.start_date ? 'today' : h.start_date}` : 'Challenge removed');
   }
   habitDays(id: ID): Set<string> {
     return new Set(this.habitChecks.filter((c) => c.habit_id === id).map((c) => c.day));

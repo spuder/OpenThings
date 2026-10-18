@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { nextOccurrence, parseQuickAdd } from './parse';
-import { dump, inbox, isDumpExpired, matrix, streak, todayView, upcoming } from './views';
+import { challengeProgress, dump, inbox, isDumpExpired, matrix, streak, todayView, upcoming } from './views';
 import type { Task } from './types';
 
 // 2026-10-18 is a Sunday.
@@ -92,6 +92,7 @@ function task(p: Partial<Task>): Task {
     rrule: null,
     dump: 0,
     dump_section_id: null,
+    deleted_at: null,
     ...p,
   };
 }
@@ -127,5 +128,22 @@ describe('views', () => {
     expect(streak(new Set(['2026-10-16', '2026-10-17', '2026-10-18']), REF)).toBe(3);
     expect(streak(new Set(['2026-10-16', '2026-10-17']), REF)).toBe(2);
     expect(streak(new Set(['2026-10-15']), REF)).toBe(0);
+  });
+});
+
+describe('challengeProgress', () => {
+  it('counts done and missed days within the window', () => {
+    const p = challengeProgress('2026-10-10', 75, new Set(['2026-10-10', '2026-10-11', '2026-10-13', '2026-10-18']), REF);
+    expect(p.day).toBe(9);
+    expect(p.done).toBe(4);
+    expect(p.missed).toBe(5); // 12, 14, 15, 16, 17
+    expect(p.end).toBe('2026-12-23');
+    expect(p.finished).toBe(false);
+  });
+  it('finishes after the end date', () => {
+    const p = challengeProgress('2026-09-01', 30, new Set(), REF);
+    expect(p.finished).toBe(true);
+    expect(p.day).toBe(30);
+    expect(p.missed).toBe(30);
   });
 });

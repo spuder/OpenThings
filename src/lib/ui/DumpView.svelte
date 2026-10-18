@@ -8,6 +8,7 @@
   import type { Task } from '../types';
 
   let drafts = $state<Record<string, string>>({});
+  const selectedDump = $derived(store.task(store.selectedId)?.dump ? store.task(store.selectedId) : undefined);
 
   function add(sectionKey: string, sectionName: string | null) {
     const text = (drafts[sectionKey] ?? '').trim();
@@ -107,6 +108,15 @@
 
     <button class="new-section" onclick={() => prompt('New section', (name) => store.addDumpSection(name))}>+ new section</button>
   </div>
+
+  {#if selectedDump && !selectedDump.completed_at}
+    <div class="mobile-bar" transition:fly={{ y: 16, duration: 160 }}>
+      <span class="ttl">{remaining(selectedDump)}</span>
+      <button onclick={() => keep(selectedDump!, 'today')}>Today</button>
+      <button onclick={() => keep(selectedDump!, 'inbox')}>Inbox</button>
+      <button onclick={() => { store.paletteMode = { kind: 'move' }; store.overlay = 'palette'; }}>Move…</button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -287,5 +297,72 @@
   }
   .new-section:hover {
     opacity: 0.8;
+  }
+  @media (max-width: 760px) {
+    .paper {
+      padding: 14px 12px 24px 44px;
+      background-image:
+        linear-gradient(90deg, transparent 32px, var(--paper-margin) 32px, var(--paper-margin) 33.5px, transparent 33.5px),
+        repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--line-h) - 1px), var(--paper-line) calc(var(--line-h) - 1px), var(--paper-line) var(--line-h));
+      background-position: 0 0, 0 14px;
+      min-height: 60vh;
+    }
+    .intro {
+      font-size: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    li {
+      font-size: 22px;
+    }
+    .text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .actions {
+      display: none;
+    }
+    .write input {
+      padding-left: 30px;
+      font-size: 22px;
+    }
+  }
+  .mobile-bar {
+    display: none;
+  }
+  @media (max-width: 760px) {
+    .mobile-bar {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: calc(90px + env(safe-area-inset-bottom));
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card);
+      box-shadow: var(--card-shadow);
+      border-radius: 14px;
+      padding: 6px 8px 6px 12px;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+    .mobile-bar .ttl {
+      font-size: 12px;
+      color: var(--text-3);
+      margin-right: 2px;
+    }
+    .mobile-bar button {
+      padding: 0 12px;
+      line-height: 34px;
+      border-radius: 9px;
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .mobile-bar button:active {
+      background: var(--chip);
+    }
   }
 </style>

@@ -13,7 +13,10 @@
       { v: { kind: 'anytime' }, label: 'Anytime', icon: 'anytime' },
       { v: { kind: 'someday' }, label: 'Someday', icon: 'someday' },
     ],
-    [{ v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' }],
+    [
+      { v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' },
+      { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
+    ],
     [
       { v: { kind: 'dump' }, label: 'Brain Dump', icon: 'dump', count: true },
       { v: { kind: 'habits' }, label: 'Habits', icon: 'habits' },
@@ -25,7 +28,7 @@
   const projectsIn = (areaId: string) => store.projects.filter((p) => p.area_id === areaId && !p.completed_at);
 </script>
 
-<nav class="sidebar" aria-label="Lists">
+<nav class="sidebar" class:open={store.sidebarOpen} aria-label="Lists">
   <div class="scroll">
     {#each top as section}
       <ul>
@@ -80,6 +83,9 @@
       <Icon name="plus" size={16} /> New List
     </button>
     <span class="grow"></span>
+    <button class="icon-btn" class:on={store.view.kind === 'settings'} onclick={() => store.go({ kind: 'settings' })} title="Settings (Ctrl/⌘ ,)" aria-label="Settings">
+      <Icon name="gear" size={16} />
+    </button>
     <button class="icon-btn" onclick={() => store.toggleMute()} title="Toggle sounds (⇧M)" aria-label="Toggle sounds">
       <Icon name={store.muted ? 'mute' : 'sound'} size={16} />
     </button>
@@ -177,5 +183,42 @@
   }
   .grow {
     flex: 1;
+  }
+  .icon-btn.on {
+    background: var(--sidebar-active);
+  }
+
+  @media (max-width: 760px) {
+    .sidebar {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 15;
+      width: min(300px, 84vw);
+      transform: translateX(-102%);
+      transition: transform 0.24s var(--ease);
+      box-shadow: none;
+      padding-left: env(safe-area-inset-left);
+    }
+    .sidebar.open {
+      transform: none;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
+    }
+    .scroll {
+      padding-top: calc(16px + env(safe-area-inset-top));
+    }
+    .row {
+      padding: 9px 10px;
+      font-size: 15.5px;
+      gap: 12px;
+    }
+    footer {
+      padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    }
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+    }
   }
 </style>

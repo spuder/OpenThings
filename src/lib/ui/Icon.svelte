@@ -12,6 +12,9 @@
     dump: 'var(--dump)',
     habits: 'var(--habits)',
     matrix: 'var(--matrix)',
+    trash: 'var(--text-2)',
+    settings: 'var(--text-2)',
+    gear: 'var(--text-2)',
     area: 'var(--text-2)',
     evening: 'var(--evening)',
   };
@@ -71,6 +74,13 @@
     <path d="M14 8l3 4M17 8l-3 4" />
   {:else if name === 'plus'}
     <path d="M10 4v12M4 10h12" />
+  {:else if name === 'gear' || name === 'settings'}
+    <circle cx="10" cy="10" r="2.6" />
+    <path d="M10 2.8v2M10 15.2v2M2.8 10h2M15.2 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4" />
+  {:else if name === 'trash'}
+    <path d="M4 5.5h12M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5.5 5.5l.8 10.6a1.5 1.5 0 0 0 1.5 1.4h4.4a1.5 1.5 0 0 0 1.5-1.4l.8-10.6M8.5 9v5M11.5 9v5" />
+  {:else if name === 'cloud'}
+    <path d="M6 15.5h8.5a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 5.3 9.6 3 3 0 0 0 6 15.5z" />
   {:else if name === 'search'}
     <circle cx="9" cy="9" r="5" />
     <path d="M13 13l3.5 3.5" />

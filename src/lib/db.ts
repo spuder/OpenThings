@@ -46,6 +46,45 @@ let device = '';
 let lastMs = 0;
 let counter = 0;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let memoryOnly = false;
+const writeListeners = new Set<() => void>();
+
+/** Called after every local write (not after applying remote ops). */
+export function onWrite(fn: () => void): () => void {
+  writeListeners.add(fn);
+  return () => writeListeners.delete(fn);
+}
+
+/** Additive schema migrations for databases created by older versions. */
+function migrate() {
+  const cols = all<{ name: string }>('PRAGMA table_info(ops)').map((c) => c.name);
+  // remote = 1: op arrived from the sync server and must not be pushed back.
+  if (!cols.includes('remote')) db.run('ALTER TABLE ops ADD COLUMN remote INTEGER NOT NULL DEFAULT 0');
+  const add = (tbl: string, col: string, decl: string) => {
+    const have = all<{ name: string }>(`PRAGMA table_info(${tbl})`).map((c) => c.name);
+    if (!have.includes(col)) db.run(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${decl}`);
+  };
+  // Trash: soft delete, purged 30 days later.
+  add('tasks', 'deleted_at', 'TEXT');
+  // Habit challenges: a fixed length (30/60/75 days) starting on start_date.
+  add('habits', 'target_days', 'INTEGER');
+  add('habits', 'start_date', 'TEXT');
+  columnCache.clear();
+}
+
+export function deviceId(): string {
+  return device;
+}
+
+export function metaGet(key: string): string | null {
+  const r = one<{ value: string | null }>('SELECT value FROM meta WHERE key = ?', [key]);
+  return r?.value ?? null;
+}
+
+export function metaSet(key: string, value: string | null) {
+  db.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, value]);
+  scheduleSave();
+}
 
 /** UUIDv7: 48-bit ms timestamp + random. Sortable, generated offline. */
 export function uuid7(): string {
@@ -65,6 +104,7 @@ export function uuid7(): string {
 /** Hybrid logical clock: wall ms, logical counter, device. Lexically sortable. */
 function hlc(): string {
   const now = Date.now();
+  // (lastMs/counter also advance in observeHlc when remote ops arrive.)
   if (now > lastMs) {
     lastMs = now;
     counter = 0;
@@ -102,16 +142,20 @@ async function idbPut(data: Uint8Array): Promise<void> {
   });
 }
 
-export async function openDb(): Promise<{ fresh: boolean }> {
-  const SQL = await initSqlJs({ locateFile: () => wasmUrl });
+export async function openDb(opts: { memory?: boolean } = {}): Promise<{ fresh: boolean }> {
+  const SQL = opts.memory ? await initSqlJs() : await initSqlJs({ locateFile: () => wasmUrl });
   let existing: Uint8Array | undefined;
-  try {
-    existing = await idbGet();
-  } catch {
-    existing = undefined;
+  if (!opts.memory) {
+    try {
+      existing = await idbGet();
+    } catch {
+      existing = undefined;
+    }
   }
+  memoryOnly = !!opts.memory;
   db = existing ? new SQL.Database(existing) : new SQL.Database();
   db.exec(SCHEMA);
+  migrate();
   const d = one('SELECT value FROM meta WHERE key = ?', ['device']);
   if (d) {
     device = String(d.value);
@@ -135,6 +179,17 @@ export function one<T = Row>(sql: string, params: SqlValue[] = []): T | undefine
   return all<T>(sql, params)[0];
 }
 
+/** HLC receive rule: never issue a clock lower than one we've seen from another device. */
+export function observeHlc(h: string) {
+  const [msStr, cStr] = h.split(':');
+  const ms = Number(msStr);
+  const c = Number(cStr);
+  if (ms > lastMs || (ms === lastMs && c > counter)) {
+    lastMs = ms;
+    counter = c;
+  }
+}
+
 function record(tbl: string, rowId: string, kind: 'insert' | 'update' | 'delete', payload: Row) {
   db.run('INSERT INTO ops (hlc, device, tbl, row_id, kind, payload) VALUES (?, ?, ?, ?, ?, ?)', [
     hlc(),
@@ -153,7 +208,12 @@ export function insert(tbl: string, row: Row & { id: string }) {
     cols.map((c) => row[c]),
   );
   record(tbl, row.id, 'insert', row);
+  changed();
+}
+
+function changed() {
   scheduleSave();
+  for (const fn of writeListeners) fn();
 }
 
 export function update(tbl: string, id: string, fields: Row) {
@@ -165,13 +225,112 @@ export function update(tbl: string, id: string, fields: Row) {
   ]);
   // One op per field: per-field last-write-wins on sync.
   for (const c of cols) record(tbl, id, 'update', { [c]: fields[c] });
-  scheduleSave();
+  changed();
 }
 
 export function remove(tbl: string, id: string) {
   db.run(`DELETE FROM ${tbl} WHERE id = ?`, [id]);
   record(tbl, id, 'delete', {});
+  changed();
+}
+
+// ---------- sync support ----------
+
+export interface Op {
+  seq?: number;
+  hlc: string;
+  device: string;
+  tbl: string;
+  row_id: string;
+  kind: 'insert' | 'update' | 'delete';
+  payload: Row;
+}
+
+/** Tables that sync. `ops` and `meta` never leave the device. */
+export const SYNC_TABLES = ['areas', 'projects', 'headings', 'tasks', 'checklist', 'tags', 'task_tags', 'habits', 'habit_checks', 'time_entries', 'dump_sections'] as const;
+
+const columnCache = new Map<string, Set<string>>();
+function columns(tbl: string): Set<string> {
+  if (!columnCache.has(tbl)) columnCache.set(tbl, new Set(all<{ name: string }>(`PRAGMA table_info(${tbl})`).map((c) => c.name)));
+  return columnCache.get(tbl)!;
+}
+
+/** Local ops not yet pushed, oldest first. */
+export function pendingOps(limit = 500): Op[] {
+  const pushed = Number(metaGet('sync.pushed_seq') ?? 0);
+  return all<Op & { payload: string }>('SELECT seq, hlc, device, tbl, row_id, kind, payload FROM ops WHERE remote = 0 AND seq > ? ORDER BY seq LIMIT ?', [pushed, limit]).map(
+    (o) => ({ ...o, payload: JSON.parse(o.payload as unknown as string) }),
+  );
+}
+
+export function pendingCount(): number {
+  const pushed = Number(metaGet('sync.pushed_seq') ?? 0);
+  return Number(one('SELECT COUNT(*) AS n FROM ops WHERE remote = 0 AND seq > ?', [pushed])?.n ?? 0);
+}
+
+export function markPushed(seq: number) {
+  metaSet('sync.pushed_seq', String(seq));
+}
+
+/**
+ * Apply ops from other devices with per-field last-writer-wins on the HLC.
+ * Table and column names are checked against the local schema; anything unknown is skipped.
+ * Returns the number of ops that changed local data.
+ */
+export function applyRemoteOps(ops: Op[]): number {
+  let applied = 0;
+  const sorted = [...ops].sort((a, b) => a.hlc.localeCompare(b.hlc));
+  db.run('BEGIN');
+  try {
+    for (const op of sorted) {
+      if (op.device === device) continue;
+      if (one('SELECT 1 AS x FROM ops WHERE hlc = ? AND device = ?', [op.hlc, op.device])) continue; // already have it
+      observeHlc(op.hlc);
+      if (!(SYNC_TABLES as readonly string[]).includes(op.tbl)) continue;
+      const cols = columns(op.tbl);
+      let changedRow = false;
+
+      if (op.kind === 'delete') {
+        db.run(`DELETE FROM ${op.tbl} WHERE id = ?`, [op.row_id]);
+        changedRow = true;
+      } else if (op.kind === 'insert') {
+        const exists = one(`SELECT 1 AS x FROM ${op.tbl} WHERE id = ?`, [op.row_id]);
+        const deleted = one('SELECT 1 AS x FROM ops WHERE tbl = ? AND row_id = ? AND kind = ?', [op.tbl, op.row_id, 'delete']);
+        const keys = Object.keys(op.payload).filter((k) => cols.has(k));
+        if (!exists && !deleted && keys.includes('id')) {
+          db.run(`INSERT INTO ${op.tbl} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map((k) => op.payload[k]));
+          changedRow = true;
+        }
+      } else if (op.kind === 'update') {
+        for (const [field, value] of Object.entries(op.payload)) {
+          if (!cols.has(field) || field === 'id') continue;
+          // Newest write to this field wins: compare against every op we hold that set it.
+          const newer = one(
+            `SELECT 1 AS x FROM ops WHERE tbl = ? AND row_id = ? AND kind IN ('insert','update') AND json_type(payload, ?) IS NOT NULL AND hlc > ? LIMIT 1`,
+            [op.tbl, op.row_id, `$.${field}`, op.hlc],
+          );
+          if (newer) continue;
+          db.run(`UPDATE ${op.tbl} SET ${field} = ? WHERE id = ?`, [value, op.row_id]);
+          changedRow = true;
+        }
+      }
+      db.run('INSERT INTO ops (hlc, device, tbl, row_id, kind, payload, remote) VALUES (?, ?, ?, ?, ?, ?, 1)', [
+        op.hlc,
+        op.device,
+        op.tbl,
+        op.row_id,
+        op.kind,
+        JSON.stringify(op.payload),
+      ]);
+      if (changedRow) applied++;
+    }
+    db.run('COMMIT');
+  } catch (e) {
+    db.run('ROLLBACK');
+    throw e;
+  }
   scheduleSave();
+  return applied;
 }
 
 export function opCount(): number {
@@ -185,7 +344,7 @@ export function scheduleSave() {
 
 export async function saveNow() {
   clearTimeout(saveTimer);
-  if (db) await idbPut(db.export());
+  if (db && !memoryOnly) await idbPut(db.export());
 }
 
 export async function resetDb() {

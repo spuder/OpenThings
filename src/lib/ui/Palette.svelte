@@ -101,6 +101,18 @@
         }
         return out;
       }
+      case 'challenge': {
+        const h = store.habits.find((x) => x.id === store.selectedId);
+        if (!h) return [];
+        const n = Number(q.trim().replace(/d(ays?)?$/i, ''));
+        const out: Item[] = [];
+        if (n > 0 && n <= 365) out.push({ label: `${n} days`, hint: 'starting today', run: () => store.setChallenge(h.id, n) });
+        for (const d of [30, 60, 75, 90, 100]) {
+          if (d !== n) out.push({ label: `${d} days`, hint: h.target_days === d ? 'current · restart today' : 'starting today', run: () => store.setChallenge(h.id, d) });
+        }
+        if (h.target_days) out.push({ label: 'No challenge', hint: 'open-ended habit', run: () => store.setChallenge(h.id, null) });
+        return q.trim() && !(n > 0) ? out.filter((i) => fuzzy(i.label, q)) : out;
+      }
       case 'prompt':
         return [];
     }
@@ -119,6 +131,7 @@
       case 'when': return 'When? today, fri, in 3d, nov 3…';
       case 'deadline': return 'Deadline? fri, 2026-11-02…';
       case 'tag': return 'Tag name…';
+      case 'challenge': return 'Challenge length in days (e.g. 75)…';
       case 'prompt': return mode.placeholder ?? mode.label;
     }
   });
@@ -250,5 +263,11 @@
     padding: 14px 16px;
     color: var(--text-3);
     font-size: 13px;
+  }
+  @media (max-width: 760px) {
+    .panel {
+      top: calc(8px + env(safe-area-inset-top));
+      width: calc(100vw - 16px);
+    }
   }
 </style>

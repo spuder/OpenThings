@@ -7,6 +7,7 @@
   import { commands, keyLabel } from '../commands';
   import Icon from './Icon.svelte';
   import Checkbox from './Checkbox.svelte';
+  import { isTouch } from '../env';
 
   let { task, showWhen = false, showContainer = false }: { task: Task; showWhen?: boolean; showContainer?: boolean } = $props();
 
@@ -32,6 +33,11 @@
   });
 
   function select() {
+    // Touch has no double click: a tap opens the task; taps inside an open task are left alone.
+    if (isTouch) {
+      if (!expanded) toggleOpen();
+      return;
+    }
     store.selectedId = task.id;
   }
   function toggleOpen() {
@@ -170,6 +176,7 @@
           <button class:on={task.urgent} onclick={() => store.toggleUrgent(task.id)} title="Urgent ({key('task.urgent')})">U</button>
           <button class:on={task.important} onclick={() => store.toggleImportant(task.id)} title="Important ({key('task.important')})">I</button>
           <button class:on={tracking} onclick={() => store.toggleTracking(task.id)} title="Timer ({key('time.track')})"><Icon name="clock" size={15} /></button>
+          <button class="done-btn" onclick={(e) => { e.stopPropagation(); store.expandedId = null; }}>Done</button>
         </div>
       </div>
     </div>
@@ -422,5 +429,67 @@
   .actions button.on {
     background: var(--accent-soft);
     color: var(--accent);
+  }
+  .done-btn {
+    display: none !important;
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .x {
+      display: inline;
+    }
+    .done-btn {
+      display: grid !important;
+      width: auto !important;
+      padding: 0 12px;
+      color: var(--accent) !important;
+      font-weight: 600;
+    }
+    .actions button {
+      width: 36px;
+      height: 34px;
+    }
+  }
+  @media (max-width: 760px) {
+    .row {
+      min-height: 44px;
+      padding: 9px 0;
+    }
+    .title {
+      white-space: normal;
+      overflow: visible;
+      line-height: 1.3;
+      font-size: 15.5px;
+    }
+    .title-line {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .meta {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      max-width: 40%;
+    }
+    .meta .tag {
+      display: none;
+    }
+    .task.expanded {
+      margin: 8px -8px 12px;
+      padding: 6px 10px 12px;
+    }
+    .detail {
+      padding-left: 0;
+    }
+    .title-input,
+    .notes,
+    .checklist input {
+      font-size: 16px;
+    }
+    .bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .actions {
+      justify-content: space-between;
+    }
   }
 </style>

@@ -82,4 +82,21 @@
       transform: scale(1.22);
     }
   }
+  @media (pointer: coarse) {
+    .box {
+      position: relative;
+      width: 21px;
+      height: 21px;
+      border-radius: 6px;
+    }
+    .box::after {
+      content: '';
+      position: absolute;
+      inset: -12px;
+    }
+    .box.small {
+      width: 18px;
+      height: 18px;
+    }
+  }
 </style>

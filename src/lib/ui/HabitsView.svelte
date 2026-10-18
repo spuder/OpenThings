@@ -3,16 +3,19 @@
   import { fade } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { addDays, parseYmd } from '../dates';
-  import { streak } from '../views';
+  import { challengeProgress, streak } from '../views';
+  import { relLabel } from '../dates';
   import { prompt } from '../commands';
   import Icon from './Icon.svelte';
+  import { isNarrow } from '../env';
 
-  const DAYS = 21;
+  // A week on phones, three weeks on wider screens.
+  const DAYS = isNarrow() ? 7 : 21;
   const days = $derived(Array.from({ length: DAYS }, (_, i) => addDays(store.day, i - DAYS + 1)));
   const letter = (d: string) => 'SMTWTFS'[parseYmd(d).getDay()];
 </script>
 
-<div class="habits">
+<div class="habits" style:--days={DAYS}>
   <div class="head">
     <span class="name-col"></span>
     {#each days as d (d)}
@@ -24,6 +27,7 @@
   {#each store.habits as h (h.id)}
     {@const done = store.habitDays(h.id)}
     {@const s = streak(done, store.day)}
+    {@const ch = h.target_days && h.start_date ? challengeProgress(h.start_date, h.target_days, done, store.day) : null}
     <div
       class="habit"
       class:selected={store.selectedId === h.id}
@@ -35,12 +39,34 @@
       aria-selected={store.selectedId === h.id}
       tabindex="-1"
     >
-      <span class="name-col">{h.name}</span>
+      <span class="name-col">
+        <span class="name">{h.name}</span>
+        {#if ch}
+          <span class="challenge" class:finished={ch.finished}>
+            {#if ch.finished}
+              {ch.done >= ch.total ? 'Completed' : 'Ended'} · {ch.done}/{ch.total} days
+            {:else}
+              Day {ch.day} of {ch.total} · {ch.done} done{#if ch.missed}{` · ${ch.missed} missed`}{/if} · ends {relLabel(ch.end, store.day)}
+            {/if}
+          </span>
+          <span class="progress" aria-hidden="true"><span style:width={`${(ch.done / ch.total) * 100}%`}></span></span>
+        {:else if store.selectedId === h.id}
+          <button
+            class="set-len"
+            onclick={(e) => {
+              e.stopPropagation();
+              store.paletteMode = { kind: 'challenge' };
+              store.overlay = 'palette';
+            }}>Set a 30/60/75-day challenge <kbd>C</kbd></button
+          >
+        {/if}
+      </span>
       {#each days as d (d)}
         <button
           class="cell"
           class:on={done.has(d)}
           class:today={d === store.day}
+          class:outside={!!ch && (d < ch.start || d > ch.end)}
           onclick={(e) => {
             e.stopPropagation();
             store.selectedId = h.id;
@@ -57,7 +83,7 @@
     </div>
   {/each}
 
-  <button class="add" onclick={() => prompt('New habit', (n) => store.addHabit(n))}>
+  <button class="add" onclick={() => prompt('New habit', (n) => store.addHabit(n), 'Name, optionally with a length: Cold shower 75d')}>
     <Icon name="plus" size={15} /> New habit <kbd>⇧N</kbd>
   </button>
 </div>
@@ -69,7 +95,7 @@
   .head,
   .habit {
     display: grid;
-    grid-template-columns: minmax(140px, 1fr) repeat(21, 22px) 64px;
+    grid-template-columns: minmax(110px, 1fr) repeat(var(--days), 22px) 56px;
     align-items: center;
     gap: 4px;
   }
@@ -144,6 +170,52 @@
     color: var(--habits);
     font-weight: 600;
   }
+  .name-col {
+    display: grid;
+    gap: 2px;
+  }
+  .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .challenge {
+    font-size: 11.5px;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .challenge.finished {
+    color: var(--logbook);
+    font-weight: 600;
+  }
+  .progress {
+    display: block;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--chip);
+    overflow: hidden;
+    max-width: 180px;
+  }
+  .progress span {
+    display: block;
+    height: 100%;
+    background: var(--habits);
+    border-radius: inherit;
+    transition: width 0.4s var(--ease);
+  }
+  .set-len {
+    font-size: 11.5px;
+    color: var(--accent);
+    text-align: left;
+  }
+  .set-len kbd {
+    font-size: 10px;
+    line-height: 14px;
+  }
+  .cell.outside {
+    opacity: 0.35;
+  }
   .add {
     margin-top: 16px;
     display: inline-flex;
@@ -151,5 +223,32 @@
     gap: 6px;
     color: var(--text-2);
     font-size: 13px;
+  }
+  @media (max-width: 760px) {
+    .head,
+    .habit {
+      grid-template-columns: repeat(var(--days), minmax(0, 1fr)) 48px;
+      gap: 4px 3px;
+    }
+    .name-col {
+      grid-column: 1 / -1;
+      padding-right: 0;
+    }
+    .head .name-col {
+      display: none;
+    }
+    .progress {
+      max-width: none;
+    }
+    .cell {
+      width: 100%;
+      max-width: 40px;
+      height: 30px;
+      border-radius: 8px;
+    }
+    .habit {
+      padding: 9px 8px;
+      margin: 0 -8px;
+    }
   }
 </style>

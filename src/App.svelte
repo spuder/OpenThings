@@ -13,6 +13,9 @@
   import Help from './lib/ui/Help.svelte';
   import Icon from './lib/ui/Icon.svelte';
   import ProgressPie from './lib/ui/ProgressPie.svelte';
+  import SyncBadge from './lib/ui/SyncBadge.svelte';
+  import SettingsView from './lib/ui/SettingsView.svelte';
+  import TrashView from './lib/ui/TrashView.svelte';
 
   store.init().then(() => store.go({ kind: 'today' }));
 
@@ -38,8 +41,15 @@
 {#if store.ready}
   <div class="app">
     <Sidebar />
+    {#if store.sidebarOpen}
+      <div class="drawer-scrim" transition:fade={{ duration: 150 }} onclick={() => (store.sidebarOpen = false)} onkeydown={() => {}} role="presentation"></div>
+    {/if}
     <main>
       <div class="status">
+        <button class="menu-btn" onclick={() => (store.sidebarOpen = true)} aria-label="Show lists">
+          <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+        </button>
+        <span class="spacer"></span>
         {#if store.pomodoro}
           <button class="pill pomo" onclick={() => store.cancelPomodoro()} title="Cancel Pomodoro (⇧P)" transition:fade>
             ◷ {formatDuration(store.pomodoro.endsAt - store.now)}
@@ -50,11 +60,9 @@
             <span class="dot"></span>{trackedTask.title} · {formatDuration(store.now - store.tracking.start)}
           </button>
         {/if}
-        <span class="sync" title="Local-first: all changes are written to SQLite and an op log; no server configured yet.">
-          Local · {store.opCount} ops
-        </span>
+        <SyncBadge compact />
         <button class="palette-btn" onclick={() => { store.paletteMode = { kind: 'commands' }; store.overlay = 'palette'; }}>
-          <Icon name="search" size={14} /> Commands <kbd>{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd>
+          <Icon name="search" size={14} /> <span class="palette-label">Commands</span> <kbd>{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
       </div>
 
@@ -79,6 +87,10 @@
                 <HabitsView />
               {:else if v.kind === 'matrix'}
                 <MatrixView />
+              {:else if v.kind === 'trash'}
+                <TrashView />
+              {:else if v.kind === 'settings'}
+                <SettingsView />
               {:else}
                 <TaskList
                   groups={store.groups}
@@ -130,10 +142,6 @@
     gap: 10px;
     padding: 10px 18px 0;
     min-height: 40px;
-  }
-  .sync {
-    font-size: 11.5px;
-    color: var(--text-3);
   }
   .pill {
     font-size: 12px;
@@ -252,6 +260,80 @@
     z-index: 30;
     box-shadow: var(--card-shadow);
   }
+  .menu-btn,
+  .spacer {
+    display: none;
+  }
+  .drawer-scrim {
+    display: none;
+  }
+
+  @media (max-width: 760px) {
+    .app {
+      height: 100dvh;
+    }
+    .status {
+      padding: calc(6px + env(safe-area-inset-top)) 10px 0;
+      gap: 8px;
+    }
+    .menu-btn {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      margin-left: -4px;
+      border-radius: 10px;
+      color: var(--text-2);
+    }
+    .spacer {
+      display: block;
+      flex: 1;
+    }
+    .palette-btn kbd,
+    .palette-label {
+      display: none;
+    }
+    .palette-btn {
+      width: 40px;
+      height: 40px;
+      justify-content: center;
+      padding: 0;
+      border: none;
+    }
+    .pill {
+      max-width: 52vw;
+    }
+    .drawer-scrim {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.28);
+      z-index: 14;
+    }
+    .content {
+      padding: 4px 16px calc(110px + env(safe-area-inset-bottom));
+    }
+    .view-head {
+      margin: 6px 0 12px;
+      gap: 10px;
+    }
+    h1 {
+      font-size: 24px;
+    }
+    .date {
+      padding-bottom: 3px;
+    }
+    .notes {
+      margin-left: 0;
+    }
+    .fab {
+      right: calc(18px + env(safe-area-inset-right));
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      width: 54px;
+      height: 54px;
+    }
+  }
+
   .loading {
     display: grid;
     place-items: center;

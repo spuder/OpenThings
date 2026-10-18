@@ -71,6 +71,8 @@ npm run build
 | `src/lib/commands.ts` | Command registry and keyboard handling |
 | `src/lib/sound.ts` | Synthesized UI sounds |
 | `src/lib/seed.ts` | Demo data for a fresh install |
+| `src/lib/sync/` | Sync protocol types, sync engine (status, push/pull), native bridge — see `docs/sync.md` |
+| `src/lib/env.ts` | Touch / narrow-screen detection |
 | `src/lib/ui/*` | Svelte components |
 
 ## Conventions
@@ -79,5 +81,8 @@ npm run build
 - **Every user action is a command** in `commands.ts` with a default key. Buttons call commands or store actions; the palette and help sheet read the registry. Keyboard-first is a requirement, not a nice-to-have.
 - Logic that can be pure (filters, parsing, dates) lives outside components and has tests in `*.test.ts`.
 - IDs are UUIDv7; ordering uses fractional `sort` values; dates are local `YYYY-MM-DD` strings.
+- Deleting a task sets `deleted_at` (Trash); it's purged 30 days later. Only Brain Dump expiry and Trash purge hard-delete rows.
+- Schema changes are additive, in `migrate()` in `db.ts`, so existing browser databases upgrade in place.
+- The UI must work at phone width (≤ 760px) and with touch: no hover-only controls, 44px touch targets, no reliance on double click.
 - Brain Dump items are tasks with `dump = 1`. Unchecked ones are deleted for good 48 hours after `created_at`. Moving one to any list clears `dump`.
 - Keep the UI calm: few elements per row, short animations (`transform`/`opacity`), no new colors without a token in `app.css`.

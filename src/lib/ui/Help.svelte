@@ -3,7 +3,7 @@
   import { store } from '../store.svelte';
   import { commands, keyLabel, type Command } from '../commands';
 
-  const order: Command['group'][] = ['Navigate', 'Create', 'Selection', 'Task', 'Brain dump', 'Habits', 'Time', 'App'];
+  const order: Command['group'][] = ['Navigate', 'Create', 'Selection', 'Task', 'Brain dump', 'Habits', 'Trash', 'Time', 'App'];
   const extra: Partial<Record<Command['group'], [string, string][]>> = {
     Selection: [
       ['Next / previous', 'J / K'],
@@ -84,6 +84,12 @@
   h1 {
     margin: 0 0 18px;
     font-size: 20px;
+  }
+  @media (max-width: 760px) {
+    .sheet {
+      inset: calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom));
+      padding: 18px 18px;
+    }
   }
   .cols {
     columns: 3 280px;

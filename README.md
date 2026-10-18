@@ -4,7 +4,7 @@ A self-hosted, local-first task manager. Calm list design, time tracking, habits
 
 Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently. Not affiliated with either project. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
 
-> **Status: proof of concept.** Desktop web app only. Data lives in your browser (SQLite in IndexedDB). No sync server, desktop shell or mobile app yet.
+> **Status: proof of concept.** A web app that works on desktop and phone browsers and can be installed to the home screen. Data lives in your browser (SQLite in IndexedDB). The sync client is built; the sync server, desktop shell and native mobile apps are not yet.
 
 ![Today](docs/screenshots/today.png)
 
@@ -19,10 +19,13 @@ Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [
 - **Lists:** Inbox, Today with This Evening, Upcoming, Anytime, Someday, Logbook.
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
-- **Habits** with a 21-day grid and streaks.
+- **Habits** with a 21-day grid (7 on phones) and streaks. Optional **challenges** of a fixed length: 30, 60, 75 days or any number, with day count, missed days and end date. Press `C` on a habit, or name it `Cold shower 75d`.
 - **Matrix:** Eisenhower quadrants from urgent / important flags.
 - **Time tracking** per task and a 25-minute Pomodoro.
-- **Completion sounds**, synthesized in the browser (toggle with ⇧M).
+- **Completion chimes**, synthesized in the browser (toggle with ⇧M).
+- **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
+- **Sync status** on every screen, and a **Settings** page to set up sync (see [docs/sync.md](docs/sync.md)).
+- **Mobile:** responsive layout, list drawer, tap to open tasks, larger touch targets, installable as a home-screen app.
 - **Quick add** with short syntax (below), from anywhere with `Q`.
 - **Command palette** (`Ctrl/⌘ K`) and a shortcut sheet (`?`).
 - **Local-first data:** SQLite (WASM) with an op log of every change, ready for a sync server. JSON export.
@@ -62,7 +65,10 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop ^i`
 | `U` / `I` | Urgent / important |
 | `P` / `⇧P` | Timer / Pomodoro |
 | `Alt+↑` / `Alt+↓` | Reorder |
-| `⌫` | Delete |
+| `⌫` | Move to Trash |
+| `Alt+0` / `G X` | Trash (`⇧R` restore) |
+| `C` | Habit challenge length |
+| `Ctrl/⌘ ,` | Settings |
 | `Ctrl/⌘ K` | Command palette |
 | `?` | All shortcuts |
 

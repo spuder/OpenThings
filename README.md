@@ -11,11 +11,14 @@
 </p>
 
 <p align="center">
+  <a href="https://spuder.github.io/OpenThings/app/"><img alt="Web: try in browser" src="https://img.shields.io/badge/web-try%20in%20browser-3fa66b?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=555"></a>
   <a href="https://github.com/spuder/OpenThings/pkgs/container/openthings"><img alt="Docker: ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2f6fed?style=for-the-badge&logo=docker&logoColor=white&labelColor=555"></a>
-  <a href="#self-hosting"><img alt="Self-host: compose.yaml" src="https://img.shields.io/badge/self--host-compose.yaml-3fa66b?style=for-the-badge&logo=tailscale&logoColor=white&labelColor=555"></a>
+  <a href="#self-hosting"><img alt="Self-host: compose.yaml" src="https://img.shields.io/badge/self--host-compose.yaml-e3743b?style=for-the-badge&logo=tailscale&logoColor=white&labelColor=555"></a>
 </p>
 
 <p align="center">
+  <a href="https://spuder.github.io/OpenThings/">Website</a> ·
+  <a href="https://spuder.github.io/OpenThings/app/">Try it in the browser</a> ·
   <a href="#self-hosting">Self-hosting</a> ·
   <a href="#features">Features</a> ·
   <a href="#roadmap">Roadmap</a> ·

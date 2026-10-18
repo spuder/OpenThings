@@ -75,6 +75,7 @@ npm run build
 | `src/lib/env.ts` | Touch / narrow-screen detection |
 | `src/lib/reminders.svelte.ts` | Due/upcoming reminder logic and notification delivery (service worker `public/sw.js`) |
 | `src/lib/ui/*` | Svelte components |
+| `site/` | Product website for GitHub Pages (plain HTML/CSS); the app demo is built into `/app/` by `.github/workflows/pages.yml` |
 
 ## Conventions
 

@@ -52,7 +52,8 @@ class Notifier {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return void (this.worker = 'unsupported');
     if (!isSecureContext) return void (this.worker = 'insecure');
     try {
-      await navigator.serviceWorker.register('/sw.js');
+      // BASE_URL keeps this working when the app is hosted under a sub-path (e.g. the GitHub Pages demo).
+      await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
       navigator.serviceWorker.addEventListener('message', (e) => {
         if (e.data?.type === 'openthings:open-task') onOpenTask(e.data.taskId);
       });
@@ -95,8 +96,8 @@ class Notifier {
       body,
       tag: taskId ? `reminder-${taskId}` : `openthings-${Date.now()}`,
       data: { taskId },
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: `${import.meta.env.BASE_URL}icon-192.png`,
+      badge: `${import.meta.env.BASE_URL}icon-192.png`,
     };
     try {
       const reg = await this.activeRegistration();

@@ -16,7 +16,8 @@ self.addEventListener('notificationclick', (event) => {
         if (taskId) client.postMessage({ type: 'openthings:open-task', taskId });
         return;
       }
-      await self.clients.openWindow(taskId ? `/?task=${encodeURIComponent(taskId)}` : '/');
+      const root = self.registration.scope; // works under a sub-path too
+      await self.clients.openWindow(taskId ? `${root}?task=${encodeURIComponent(taskId)}` : root);
     })(),
   );
 });
@@ -30,8 +31,8 @@ self.addEventListener('push', (event) => {
       body: data.body || '',
       tag: data.taskId ? `reminder-${data.taskId}` : undefined,
       data: { taskId: data.taskId },
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
     }),
   );
 });

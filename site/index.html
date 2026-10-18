@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenThings — calm, self-hosted to-dos</title>
+  <meta name="description" content="OpenThings is an open-source, local-first task manager you host yourself: Today and Upcoming lists, focus mode, habits, reminders, a self-cleaning brain dump and a keyboard for everything.">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="img/logo.svg" type="image/svg+xml">
+  <meta property="og:title" content="OpenThings — calm, self-hosted to-dos">
+  <meta property="og:description" content="Open-source, local-first task manager. Plan the day, focus, build habits — on your own server.">
+  <meta property="og:image" content="https://spuder.github.io/OpenThings/img/today-light.webp">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav" id="top">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top"><img src="img/logo.svg" alt="" width="28" height="28"> OpenThings</a>
+      <nav aria-label="Main">
+        <a href="#features">Features</a>
+        <a href="#self-host">Self-host</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="https://github.com/spuder/OpenThings">GitHub</a>
+      </nav>
+      <a class="btn btn-small" href="app/">Try it</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow reveal">Open source · Self-hosted · Local-first</p>
+        <h1 class="reveal">Your to-dos.<br>Calm, quick, and yours.</h1>
+        <p class="lead reveal">
+          OpenThings is a task manager that runs on your own server. Plan the day, capture ideas in seconds,
+          focus on one thing at a time, and keep the habits that matter — without an account or a subscription.
+        </p>
+        <div class="cta reveal">
+          <a class="btn" href="app/">Try it in your browser</a>
+          <a class="btn btn-ghost" href="#self-host">Host it yourself</a>
+        </div>
+        <p class="fine reveal">Free and MIT licensed. The demo keeps everything in your browser.</p>
+
+        <div class="showcase reveal">
+          <figure class="window">
+            <div class="chrome" aria-hidden="true"><span></span><span></span><span></span></div>
+            <picture>
+              <source srcset="img/today-dark.webp" media="(prefers-color-scheme: dark)">
+              <img src="img/today-light.webp" alt="The Today list in OpenThings, with This Evening below" width="1280" height="800">
+            </picture>
+          </figure>
+          <figure class="phone">
+            <img src="img/phone-today.webp" alt="OpenThings on a phone" width="390" height="664" loading="lazy">
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature chips -->
+    <section class="chips-band" aria-label="Highlights">
+      <div class="wrap chips">
+        <span>Today &amp; This Evening</span><span>Upcoming</span><span>Areas &amp; Projects</span><span>Quick add</span>
+        <span>Brain dump</span><span>Focus mode</span><span>Habits</span><span>Reminders</span>
+        <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span>
+      </div>
+    </section>
+
+    <div id="features"></div>
+
+    <!-- Feature rows -->
+    <section class="feature">
+      <div class="wrap row">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--star)">Plan</p>
+          <h2>A day you can actually finish</h2>
+          <p>Today holds what you've chosen to do now, with a quiet This Evening section for later. Upcoming lays out the weeks ahead, and Anytime and Someday keep the rest out of sight until you want it.</p>
+          <ul class="ticks">
+            <li>Areas of responsibility, projects and headings</li>
+            <li>Scheduled dates, deadlines and repeating to-dos</li>
+            <li>Checklists and notes inside every to-do</li>
+          </ul>
+        </div>
+        <figure class="shot reveal"><img src="img/upcoming-light.webp" alt="The Upcoming list grouped by day" width="1280" height="800" loading="lazy"></figure>
+      </div>
+    </section>
+
+    <section class="feature alt">
+      <div class="wrap row flip">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--blue)">Capture</p>
+          <h2>Type it once, put it anywhere</h2>
+          <p>Press <kbd>Q</kbd> from any screen and write the whole thing in one line. Short prefixes set the project, date, reminder, deadline, estimate and tags as you type.</p>
+          <div class="syntax">
+            <code><b class="t-proj">+Project</b> <b class="t-when">@fri</b> <b class="t-rem">%9am</b> <b class="t-dl">!next-week</b> <b class="t-est">~2h</b> <b class="t-tag">#shop</b> <b class="t-rep">*weekly</b></code>
+          </div>
+        </div>
+        <figure class="shot reveal"><img src="img/quickadd-light.webp" alt="Quick add showing parsed project, date, reminder and tags" width="1280" height="800" loading="lazy"></figure>
+      </div>
+    </section>
+
+    <section class="feature">
+      <div class="wrap row">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--paper-ink)">Brain dump</p>
+          <h2>A scratch pad that tidies itself</h2>
+          <p>Get the noise out of your head onto something that looks and feels like paper. Each line fades over two days and then disappears — unless you check it off or keep it by moving it to a real list.</p>
+          <ul class="ticks">
+            <li>Sections for ideas, errands, anything</li>
+            <li>Keep an item in one tap: Today, Inbox, or any project</li>
+          </ul>
+        </div>
+        <figure class="shot reveal"><img src="img/dump-light.webp" alt="The brain dump styled as lined paper with handwriting" width="1280" height="800" loading="lazy"></figure>
+      </div>
+    </section>
+
+    <section class="feature alt">
+      <div class="wrap row flip">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--red)">Focus</p>
+          <h2>One thing, on a timer</h2>
+          <p>Select a to-do and press <kbd>F</kbd>. Everything else steps back: a Pomodoro ring, the to-do's checklist, and a gentle bell when it's time for a break. Time spent is tracked automatically.</p>
+          <ul class="ticks">
+            <li>15, 25 or 50 minute sessions, longer break every fourth</li>
+            <li>Keeps running if you close it — a pill brings you back</li>
+          </ul>
+        </div>
+        <figure class="shot reveal"><img src="img/focus-light.webp" alt="Focus mode with a Pomodoro countdown ring" width="1280" height="800" loading="lazy"></figure>
+      </div>
+    </section>
+
+    <section class="feature">
+      <div class="wrap row">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--orange)">Habits</p>
+          <h2>Habits that fit your week</h2>
+          <p>Every day, weekdays, or five times a week on whichever days work — streaks follow the schedule you set. Turn any habit into a 30, 60 or 75-day challenge with a clear finish line.</p>
+          <ul class="ticks">
+            <li>Streaks that don't break on your days off</li>
+            <li>Progress, missed days and end date at a glance</li>
+          </ul>
+        </div>
+        <figure class="shot reveal"><img src="img/habits-light.webp" alt="Habit grid with schedules, streaks and a 75-day challenge" width="1280" height="800" loading="lazy"></figure>
+      </div>
+    </section>
+
+    <section class="feature alt">
+      <div class="wrap row flip">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--purple)">Prioritize</p>
+          <h2>Urgent isn't the same as important</h2>
+          <p>Flag to-dos urgent or important and the matrix sorts them into do, schedule, delegate and drop — a quick check that you're spending the day on the right things.</p>
+        </div>
+        <figure class="shot reveal"><img src="img/matrix-light.webp" alt="Eisenhower matrix with four quadrants" width="1280" height="800" loading="lazy"></figure>
+      </div>
+    </section>
+
+    <!-- Small features grid -->
+    <section class="grid-section">
+      <div class="wrap">
+        <h2 class="center reveal">The small things, done carefully</h2>
+        <div class="cards">
+          <article class="card reveal"><h3>Reminders</h3><p>Notifications with a chime at the time you pick — <code>%6pm</code>, <code>%in30m</code>, or from the picker.</p></article>
+          <article class="card reveal"><h3>A keyboard for everything</h3><p>Every action has a shortcut, plus a command palette on <kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>K</kbd> and a cheat sheet on <kbd>?</kbd>.</p></article>
+          <article class="card reveal"><h3>Sounds you'll like</h3><p>Soft bell chimes for completing, checking a habit and finishing a focus session. One key to mute.</p></article>
+          <article class="card reveal"><h3>Trash with a safety net</h3><p>Deleted to-dos wait 30 days before they're gone, so mistakes are easy to undo.</p></article>
+          <article class="card reveal"><h3>Light and dark</h3><p>Follows your system, or pick one. Comfortable either way.</p></article>
+          <article class="card reveal"><h3>On your phone</h3><p>A responsive layout with a list drawer and big touch targets. Add it to your home screen like an app.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Self-host -->
+    <section class="selfhost" id="self-host">
+      <div class="wrap row">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--green)">Self-hosted</p>
+          <h2>Runs on your server, in one container</h2>
+          <p>Pull the image and start it. With <a href="https://github.com/marvinvr/docktail">DockTail</a> on the host, it appears on your tailnet over HTTPS with no ports to open. Images are built for amd64 and arm64.</p>
+          <p class="muted">Local-first by design: every change is stored on your device in SQLite and recorded in a change log, ready to sync with your own server.</p>
+        </div>
+        <div class="code reveal">
+          <div class="code-head"><span>compose.yaml</span><button type="button" data-copy="compose">Copy</button></div>
+<pre id="compose"><code>services:
+  openthings:
+    image: ghcr.io/spuder/openthings:latest
+    restart: unless-stopped
+    labels:
+      - "docktail.service.enable=true"
+      - "docktail.service.name=openthings"
+      - "docktail.service.port=8080"
+      - "docktail.service.service-port=443"</code></pre>
+          <div class="code-foot"><code>docker compose up -d</code></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Roadmap -->
+    <section class="roadmap" id="roadmap">
+      <div class="wrap">
+        <h2 class="center reveal">What's next</h2>
+        <p class="center muted reveal">OpenThings is a working proof of concept. These are being built in the open.</p>
+        <div class="cards">
+          <article class="card reveal"><span class="tag">Next</span><h3>Sync server</h3><p>One container that keeps your devices in step and serves the app.</p></article>
+          <article class="card reveal"><span class="tag">Planned</span><h3>REST API &amp; MCP</h3><p>Automate with scripts and Home Assistant, or let AI assistants manage your to-dos.</p></article>
+          <article class="card reveal"><span class="tag">Planned</span><h3>Calendar time-blocking</h3><p>Drag to-dos onto your day and sync blocks to any CalDAV calendar.</p></article>
+          <article class="card reveal"><span class="tag">Planned</span><h3>Desktop &amp; mobile apps</h3><p>A global quick-add hotkey on macOS and Linux; widgets and Shortcuts on iOS and Android.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Closing CTA -->
+    <section class="closing">
+      <div class="wrap center">
+        <img class="reveal" src="img/logo.svg" alt="" width="72" height="72">
+        <h2 class="reveal">Give it a try</h2>
+        <p class="muted reveal">No sign-up. Your data stays in your browser until you connect your own server.</p>
+        <div class="cta reveal">
+          <a class="btn" href="app/">Open the demo</a>
+          <a class="btn btn-ghost" href="https://github.com/spuder/OpenThings">Star on GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <p>OpenThings is an independent open-source project (MIT). It is not affiliated with or endorsed by Cultured Code or Super Productivity.</p>
+      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
+    </div>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

@@ -24,8 +24,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.x
       - run: npm ci
       - run: npm test
+      - run: npm run test:server
       - run: npm run check
 
   image:

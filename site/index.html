@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenThings: calm, self-hosted to-dos</title>
-  <meta name="description" content="OpenThings is an open-source, local-first task manager you host yourself: Today and Upcoming lists, focus mode, habits, reminders, a self-cleaning brain dump and a keyboard for everything.">
+  <meta name="description" content="OpenThings is an open-source, local-first task manager you host yourself: Today and Upcoming lists, focus mode, habits, reminders, a self-cleaning brain dump, sync between your devices, a REST API and MCP for AI assistants.">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="img/logo.svg" type="image/svg+xml">
@@ -70,6 +70,7 @@
         <span>Today &amp; This Evening</span><span>Upcoming</span><span>Areas &amp; Projects</span><span>Quick add</span>
         <span>Brain dump</span><span>Focus mode</span><span>Habits</span><span>Reminders</span>
         <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span><span>iPhone app</span><span>Mac &amp; Linux app</span>
+        <span>Sync</span><span>REST API</span><span>MCP</span>
       </div>
     </section>
 
@@ -162,6 +163,22 @@
       </div>
     </section>
 
+    <section class="feature">
+      <div class="wrap row">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--green)">Connect</p>
+          <h2>Every device in step, and your assistant too</h2>
+          <p>Your server keeps your phone, laptop and browsers in sync. Each one holds a full copy and works offline; changes merge field by field when it reconnects. The same server has a REST API for scripts and Home Assistant, and an MCP endpoint so Claude and other AI assistants can read your lists and add, move or check off to-dos.</p>
+          <ul class="ticks">
+            <li>One container: the app, sync, REST and MCP</li>
+            <li>Quick-add syntax works over the API too</li>
+            <li>Works with Claude and any other MCP client</li>
+          </ul>
+        </div>
+        <figure class="shot reveal"><img src="img/mcp-light.webp" alt="Settings showing the MCP endpoint and ready-to-copy config" width="1280" height="800" loading="lazy"></figure>
+      </div>
+    </section>
+
     <!-- iPhone -->
     <section class="iphone" id="iphone">
       <div class="wrap">
@@ -234,7 +251,7 @@
           <p class="kicker" style="--k: var(--green)">Self-hosted</p>
           <h2>Runs on your server, in one container</h2>
           <p>Pull the image and start it. With <a href="https://github.com/marvinvr/docktail">DockTail</a> on the host, it appears on your tailnet over HTTPS with no ports to open. Images are built for amd64 and arm64.</p>
-          <p class="muted">Local-first by design: every change is stored on your device in SQLite and recorded in a change log, ready to sync with your own server.</p>
+          <p class="muted">Local-first by design: every change is stored on your device in SQLite and recorded in a change log, which the container syncs between your devices. It also serves a <a href="https://github.com/spuder/OpenThings/blob/main/docs/api.md">REST API and MCP endpoint</a>.</p>
         </div>
         <div class="code reveal">
           <div class="code-head"><span>compose.yaml</span><button type="button" data-copy="compose">Copy</button></div>
@@ -242,11 +259,18 @@
   openthings:
     image: ghcr.io/spuder/openthings:latest
     restart: unless-stopped
+    environment:
+      TZ: America/Denver
+    volumes:
+      - openthings-data:/data
     labels:
       - "docktail.service.enable=true"
       - "docktail.service.name=openthings"
       - "docktail.service.port=8080"
-      - "docktail.service.service-port=443"</code></pre>
+      - "docktail.service.service-port=443"
+
+volumes:
+  openthings-data:</code></pre>
           <div class="code-foot"><code>docker compose up -d</code></div>
         </div>
       </div>
@@ -258,8 +282,7 @@
         <h2 class="center reveal">What's next</h2>
         <p class="center muted reveal">OpenThings is a working proof of concept. These are being built in the open.</p>
         <div class="cards">
-          <article class="card reveal"><span class="tag">Next</span><h3>Sync server</h3><p>One container that keeps your devices in step and serves the app.</p></article>
-          <article class="card reveal"><span class="tag">Planned</span><h3>REST API &amp; MCP</h3><p>Automate with scripts and Home Assistant, or let AI assistants manage your to-dos.</p></article>
+          <article class="card reveal"><span class="tag">Next</span><h3>Reminders from the server</h3><p>Notifications pushed by your server, so they arrive in the browser even with the app closed. Plus device tokens for the API.</p></article>
           <article class="card reveal"><span class="tag">Planned</span><h3>Calendar time-blocking</h3><p>Drag to-dos onto your day and sync blocks to any CalDAV calendar.</p></article>
           <article class="card reveal"><span class="tag">Testing</span><h3>iPhone &amp; Android</h3><p>The <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iPhone app</a> runs today; App Store next. Android is coming and <a href="https://github.com/spuder/OpenThings/issues/6">needs testers</a>.</p></article>
           <article class="card reveal"><span class="tag">Preview</span><h3>Desktop app</h3><p>The <a href="#desktop">Mac and Arch Linux app</a> works today; signed releases and the AUR are next.</p></article>
@@ -284,7 +307,7 @@
   <footer class="footer">
     <div class="wrap footer-inner">
       <p>OpenThings is an independent open-source project (MIT). It is not affiliated with or endorsed by Cultured Code or Super Productivity.</p>
-      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iOS app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/desktop.md">Desktop app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/sync.md">Sync</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
+      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iOS app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/desktop.md">Desktop app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/sync.md">Sync</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/api.md">REST &amp; MCP</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
     </div>
   </footer>
 

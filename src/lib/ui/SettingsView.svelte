@@ -44,7 +44,7 @@
 
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : 'Never');
 
-  /** Where the REST API and MCP endpoint will live: the sync server, or this site if it serves the app. */
+  /** Where the REST API and MCP endpoint live: the sync server, or this site if it serves the app. */
   const base = $derived(sync.serverUrl ?? (typeof location !== 'undefined' && servedBySite ? location.origin : 'https://openthings.your-tailnet.ts.net'));
   const upcoming = $derived(upcomingReminders(store.tasks, store.now));
   const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent);
@@ -88,26 +88,31 @@ curl -X POST ${base}/api/v1/tasks \\
 curl '${base}/api/v1/tasks?view=today'`);
 
   const endpoints: [string, string, string][] = [
-    ['GET', '/api/v1/tasks?view=today', 'List a view: inbox, today, upcoming, anytime, someday, logbook, dump, trash'],
+    ['GET', '/api/v1/tasks?view=today', 'List a view: inbox, today, week, upcoming, anytime, someday, logbook, dump, trash, matrix'],
+    ['GET', '/api/v1/tasks?q=…', 'Search titles and notes'],
     ['POST', '/api/v1/tasks', 'Create from quick-add text {"text": "…"} or fields'],
     ['PATCH', '/api/v1/tasks/:id', 'Update fields (title, when, deadline, reminder, tags…)'],
-    ['POST', '/api/v1/tasks/:id/complete', 'Complete (or /uncomplete)'],
+    ['POST', '/api/v1/tasks/:id/complete', 'Complete (or /uncomplete, /move, /restore)'],
     ['DELETE', '/api/v1/tasks/:id', 'Move to Trash'],
-    ['GET', '/api/v1/projects · /areas · /tags', 'Lists and structure'],
+    ['GET · POST', '/api/v1/projects · /areas · /tags', 'Lists and structure'],
     ['GET · POST', '/api/v1/habits · /habits/:id/check', 'Habits and check-ins'],
-    ['POST', '/api/v1/timers/start · /stop', 'Time tracking'],
+    ['GET · POST', '/api/v1/timers · /start · /stop', 'Time tracking'],
   ];
 
   const tools: [string, string][] = [
-    ['list_tasks', 'Read a list (Today, Inbox, a project…)'],
+    ['list_tasks', 'Read a list (Today, Inbox, a project, a tag…)'],
+    ['search_tasks', 'Find to-dos by words in the title or notes'],
+    ['get_task', 'One to-do with notes, tags and checklist'],
     ['add_task', 'Create a to-do using quick-add syntax'],
     ['update_task', 'Change title, notes, dates, tags, reminder'],
-    ['complete_task', 'Check off a to-do'],
-    ['move_task', 'Move to a project, area or the Inbox'],
-    ['search_tasks', 'Find to-dos by text, tag or project'],
+    ['complete_task', 'Check off a to-do (or undo)'],
+    ['move_task', 'Move to a project, area, the Inbox or the Brain Dump'],
+    ['delete_task', 'Move to the Trash (or restore)'],
     ['brain_dump', 'Capture something into the Brain Dump'],
-    ['check_habit', 'Check in a habit for a day'],
-    ['start_timer / stop_timer', 'Time tracking'],
+    ['add_checklist_item / check_checklist_item', 'Checklists'],
+    ['list_projects / add_project', 'Areas, projects and tags'],
+    ['list_habits / check_habit', 'Habits and check-ins'],
+    ['start_timer / stop_timer / current_timer', 'Time tracking'],
   ];
 
 </script>
@@ -161,7 +166,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       <dd>v{PROTOCOL_VERSION} (draft)</dd>
     </dl>
     <button class="btn" onclick={() => sync.kick()} disabled={!sync.enabled || sync.status === 'syncing'}>Sync now</button>
-    <p class="note">The sync server isn't released yet. Until it is, turning sync on will show “Can't reach the server”, and your changes keep waiting safely on this device.</p>
+    <p class="note">The server is the OpenThings Docker image. Each device keeps a full copy and works offline; changes wait here until the server is reachable.</p>
   </section>
 
   <section>
@@ -225,10 +230,9 @@ curl '${base}/api/v1/tasks?view=today'`);
   <section>
     <header>
       <h2>REST API</h2>
-      <span class="pill">Coming with the server</span>
     </header>
     <p class="lead">
-      The sync server will expose a JSON API for scripts, Home Assistant, n8n and Shortcuts. Quick-add text works the same as in the app. No auth on your tailnet; device tokens are planned.
+      The server has a JSON API for scripts, Home Assistant, n8n and Shortcuts. Quick-add text works the same as in the app. No auth on your tailnet; device tokens are planned.
     </p>
     <dl>
       <dt>Base URL</dt>
@@ -247,10 +251,9 @@ curl '${base}/api/v1/tasks?view=today'`);
   <section>
     <header>
       <h2>MCP</h2>
-      <span class="pill">Coming with the server</span>
     </header>
     <p class="lead">
-      AI assistants (Claude, and other MCP clients) will be able to read and manage your to-dos through an MCP endpoint on the same server. Every change goes through the same op log as the app.
+      AI assistants (Claude, and other MCP clients) can read and manage your to-dos through the MCP endpoint on the same server. Every change goes through the same op log as the app and syncs to your devices.
     </p>
     <dl>
       <dt>Endpoint</dt>
@@ -259,7 +262,7 @@ curl '${base}/api/v1/tasks?view=today'`);
     <CodeBlock label="MCP config — clients that support remote (HTTP) servers" code={mcpHttp} />
     <CodeBlock label="MCP config — clients that only run local commands (via mcp-remote)" code={mcpStdio} />
     <CodeBlock label="Claude Code" code={mcpCli} />
-    <h3>Planned tools</h3>
+    <h3>Tools</h3>
     <table class="endpoints">
       <tbody>
         {#each tools as [name, what]}

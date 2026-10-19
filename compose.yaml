@@ -6,8 +6,15 @@ services:
     image: ghcr.io/spuder/openthings:latest
     pull_policy: always
     restart: unless-stopped
+    environment:
+      TZ: UTC # your time zone, e.g. America/Denver: "today" for the REST API and MCP tools
+    volumes:
+      - openthings-data:/data # the synced database; back this up
     labels:
       - "docktail.service.enable=true"
       - "docktail.service.name=openthings"
       - "docktail.service.port=8080"
       - "docktail.service.service-port=443"
+
+volumes:
+  openthings-data:

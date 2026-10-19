@@ -2,49 +2,25 @@
  * Local SQLite (sql.js / WASM) with an append-only op log.
  *
  * Every write goes through insert/update/remove, which apply the change and
- * record an operation (hybrid logical clock + device id). The op log is what a
- * future sync server would receive; the PoC only records it.
+ * record an operation (hybrid logical clock + device id). The sync engine pushes
+ * the op log to the server and applies other devices' ops (src/lib/sync/).
+ * Schema and op format are shared with the server (schema.ts).
  *
  * The database file is persisted to IndexedDB (debounced).
  */
 import initSqlJs, { type Database, type SqlValue } from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm-browser.wasm?url';
+import { ADDED_COLUMNS, Hlc, SCHEMA, SYNC_TABLES, TAGS_DROP_UNIQUE, uuid7, type Op, type Row } from './schema';
+
+export { SYNC_TABLES, uuid7, type Op, type Row };
 
 const IDB_NAME = 'openthings';
 const IDB_STORE = 'files';
 const IDB_KEY = 'db.sqlite';
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS areas (id TEXT PRIMARY KEY, name TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0);
-CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, area_id TEXT, name TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
-  sort REAL NOT NULL DEFAULT 0, completed_at TEXT);
-CREATE TABLE IF NOT EXISTS headings (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0);
-CREATE TABLE IF NOT EXISTS tasks (
-  id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
-  project_id TEXT, area_id TEXT, heading_id TEXT,
-  when_date TEXT, evening INTEGER NOT NULL DEFAULT 0, someday INTEGER NOT NULL DEFAULT 0,
-  deadline TEXT, completed_at TEXT, created_at TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0,
-  urgent INTEGER NOT NULL DEFAULT 0, important INTEGER NOT NULL DEFAULT 0,
-  estimate_min INTEGER, rrule TEXT, dump INTEGER NOT NULL DEFAULT 0, dump_section_id TEXT);
-CREATE TABLE IF NOT EXISTS checklist (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, title TEXT NOT NULL,
-  done INTEGER NOT NULL DEFAULT 0, sort REAL NOT NULL DEFAULT 0);
-CREATE TABLE IF NOT EXISTS tags (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE);
-CREATE TABLE IF NOT EXISTS task_tags (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, tag_id TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS habits (id TEXT PRIMARY KEY, name TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS habit_checks (id TEXT PRIMARY KEY, habit_id TEXT NOT NULL, day TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS time_entries (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, start_at TEXT NOT NULL, end_at TEXT);
-CREATE TABLE IF NOT EXISTS dump_sections (id TEXT PRIMARY KEY, name TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0);
-CREATE TABLE IF NOT EXISTS ops (seq INTEGER PRIMARY KEY AUTOINCREMENT, hlc TEXT NOT NULL, device TEXT NOT NULL,
-  tbl TEXT NOT NULL, row_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
-`;
-
-export type Row = Record<string, SqlValue>;
-
 let db: Database;
 let device = '';
-let lastMs = 0;
-let counter = 0;
+let clock = new Hlc('');
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let memoryOnly = false;
 const writeListeners = new Set<() => void>();
@@ -57,23 +33,12 @@ export function onWrite(fn: () => void): () => void {
 
 /** Additive schema migrations for databases created by older versions. */
 function migrate() {
-  const cols = all<{ name: string }>('PRAGMA table_info(ops)').map((c) => c.name);
-  // remote = 1: op arrived from the sync server and must not be pushed back.
-  if (!cols.includes('remote')) db.run('ALTER TABLE ops ADD COLUMN remote INTEGER NOT NULL DEFAULT 0');
-  const add = (tbl: string, col: string, decl: string) => {
+  for (const [tbl, col, decl] of ADDED_COLUMNS) {
     const have = all<{ name: string }>(`PRAGMA table_info(${tbl})`).map((c) => c.name);
     if (!have.includes(col)) db.run(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${decl}`);
-  };
-  // Trash: soft delete, purged 30 days later.
-  add('tasks', 'deleted_at', 'TEXT');
-  // Reminders: when to notify (ISO, UTC) and when it was shown.
-  add('tasks', 'reminder_at', 'TEXT');
-  add('tasks', 'reminder_sent_at', 'TEXT');
-  // Habit challenges: a fixed length (30/60/75 days) starting on start_date.
-  add('habits', 'target_days', 'INTEGER');
-  add('habits', 'start_date', 'TEXT');
-  // Habit schedule: daily | days:1,2,3,4,5 | times:5 (see views.ts).
-  add('habits', 'schedule', 'TEXT');
+  }
+  const tagsSql = one<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tags'")?.sql ?? '';
+  if (/unique/i.test(tagsSql)) db.exec(`BEGIN; ${TAGS_DROP_UNIQUE} COMMIT;`);
   columnCache.clear();
 }
 
@@ -89,34 +54,6 @@ export function metaGet(key: string): string | null {
 export function metaSet(key: string, value: string | null) {
   db.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, value]);
   scheduleSave();
-}
-
-/** UUIDv7: 48-bit ms timestamp + random. Sortable, generated offline. */
-export function uuid7(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  let ts = Date.now();
-  for (let i = 5; i >= 0; i--) {
-    bytes[i] = ts & 0xff;
-    ts = Math.floor(ts / 256);
-  }
-  bytes[6] = (bytes[6] & 0x0f) | 0x70;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const h = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-}
-
-/** Hybrid logical clock: wall ms, logical counter, device. Lexically sortable. */
-function hlc(): string {
-  const now = Date.now();
-  // (lastMs/counter also advance in observeHlc when remote ops arrive.)
-  if (now > lastMs) {
-    lastMs = now;
-    counter = 0;
-  } else {
-    counter++;
-  }
-  return `${String(lastMs).padStart(15, '0')}:${String(counter).padStart(5, '0')}:${device}`;
 }
 
 function idbOpen(): Promise<IDBDatabase> {
@@ -168,6 +105,7 @@ export async function openDb(opts: { memory?: boolean } = {}): Promise<{ fresh: 
     device = uuid7().slice(-12);
     db.run('INSERT INTO meta (key, value) VALUES (?, ?)', ['device', device]);
   }
+  clock = new Hlc(device);
   return { fresh: !existing };
 }
 
@@ -186,18 +124,12 @@ export function one<T = Row>(sql: string, params: SqlValue[] = []): T | undefine
 
 /** HLC receive rule: never issue a clock lower than one we've seen from another device. */
 export function observeHlc(h: string) {
-  const [msStr, cStr] = h.split(':');
-  const ms = Number(msStr);
-  const c = Number(cStr);
-  if (ms > lastMs || (ms === lastMs && c > counter)) {
-    lastMs = ms;
-    counter = c;
-  }
+  clock.observe(h);
 }
 
 function record(tbl: string, rowId: string, kind: 'insert' | 'update' | 'delete', payload: Row) {
   db.run('INSERT INTO ops (hlc, device, tbl, row_id, kind, payload) VALUES (?, ?, ?, ?, ?, ?)', [
-    hlc(),
+    clock.next(),
     device,
     tbl,
     rowId,
@@ -271,19 +203,6 @@ export function remove(tbl: string, id: string) {
 
 // ---------- sync support ----------
 
-export interface Op {
-  seq?: number;
-  hlc: string;
-  device: string;
-  tbl: string;
-  row_id: string;
-  kind: 'insert' | 'update' | 'delete';
-  payload: Row;
-}
-
-/** Tables that sync. `ops` and `meta` never leave the device. */
-export const SYNC_TABLES = ['areas', 'projects', 'headings', 'tasks', 'checklist', 'tags', 'task_tags', 'habits', 'habit_checks', 'time_entries', 'dump_sections'] as const;
-
 const columnCache = new Map<string, Set<string>>();
 function columns(tbl: string): Set<string> {
   if (!columnCache.has(tbl)) columnCache.set(tbl, new Set(all<{ name: string }>(`PRAGMA table_info(${tbl})`).map((c) => c.name)));
@@ -322,32 +241,17 @@ export function applyRemoteOps(ops: Op[]): number {
       if (one('SELECT 1 AS x FROM ops WHERE hlc = ? AND device = ?', [op.hlc, op.device])) continue; // already have it
       observeHlc(op.hlc);
       if (!(SYNC_TABLES as readonly string[]).includes(op.tbl)) continue;
-      const cols = columns(op.tbl);
+      // One op that can't apply (a constraint, a bad value) must not block every later sync:
+      // undo just that op's changes, keep the op so it isn't fetched again, and move on.
+      db.run('SAVEPOINT op');
       let changedRow = false;
-
-      if (op.kind === 'delete') {
-        db.run(`DELETE FROM ${op.tbl} WHERE id = ?`, [op.row_id]);
-        changedRow = true;
-      } else if (op.kind === 'insert') {
-        const exists = one(`SELECT 1 AS x FROM ${op.tbl} WHERE id = ?`, [op.row_id]);
-        const deleted = one('SELECT 1 AS x FROM ops WHERE tbl = ? AND row_id = ? AND kind = ?', [op.tbl, op.row_id, 'delete']);
-        const keys = Object.keys(op.payload).filter((k) => cols.has(k));
-        if (!exists && !deleted && keys.includes('id')) {
-          db.run(`INSERT INTO ${op.tbl} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map((k) => op.payload[k]));
-          changedRow = true;
-        }
-      } else if (op.kind === 'update') {
-        for (const [field, value] of Object.entries(op.payload)) {
-          if (!cols.has(field) || field === 'id') continue;
-          // Newest write to this field wins: compare against every op we hold that set it.
-          const newer = one(
-            `SELECT 1 AS x FROM ops WHERE tbl = ? AND row_id = ? AND kind IN ('insert','update') AND json_type(payload, ?) IS NOT NULL AND hlc > ? LIMIT 1`,
-            [op.tbl, op.row_id, `$.${field}`, op.hlc],
-          );
-          if (newer) continue;
-          db.run(`UPDATE ${op.tbl} SET ${field} = ? WHERE id = ?`, [value, op.row_id]);
-          changedRow = true;
-        }
+      try {
+        changedRow = applyOne(op);
+        db.run('RELEASE op');
+      } catch (e) {
+        db.run('ROLLBACK TO op');
+        db.run('RELEASE op');
+        console.warn(`Skipped remote ${op.kind} ${op.tbl}/${op.row_id}: ${(e as Error).message}`);
       }
       db.run('INSERT INTO ops (hlc, device, tbl, row_id, kind, payload, remote) VALUES (?, ?, ?, ?, ?, ?, 1)', [
         op.hlc,
@@ -366,6 +270,36 @@ export function applyRemoteOps(ops: Op[]): number {
   }
   scheduleSave();
   return applied;
+}
+
+/** Apply one remote op to the data tables. Returns true if local data changed. */
+function applyOne(op: Op): boolean {
+  const cols = columns(op.tbl);
+  if (op.kind === 'delete') {
+    db.run(`DELETE FROM ${op.tbl} WHERE id = ?`, [op.row_id]);
+    return true;
+  }
+  if (op.kind === 'insert') {
+    const exists = one(`SELECT 1 AS x FROM ${op.tbl} WHERE id = ?`, [op.row_id]);
+    const deleted = one('SELECT 1 AS x FROM ops WHERE tbl = ? AND row_id = ? AND kind = ?', [op.tbl, op.row_id, 'delete']);
+    const keys = Object.keys(op.payload).filter((k) => cols.has(k));
+    if (exists || deleted || !keys.includes('id')) return false;
+    db.run(`INSERT INTO ${op.tbl} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map((k) => op.payload[k]));
+    return true;
+  }
+  let changed = false;
+  for (const [field, value] of Object.entries(op.payload)) {
+    if (!cols.has(field) || field === 'id') continue;
+    // Newest write to this field wins: compare against every op we hold that set it.
+    const newer = one(
+      `SELECT 1 AS x FROM ops WHERE tbl = ? AND row_id = ? AND kind IN ('insert','update') AND json_type(payload, ?) IS NOT NULL AND hlc > ? LIMIT 1`,
+      [op.tbl, op.row_id, `$.${field}`, op.hlc],
+    );
+    if (newer) continue;
+    db.run(`UPDATE ${op.tbl} SET ${field} = ? WHERE id = ?`, [value, op.row_id]);
+    changed = true;
+  }
+  return changed;
 }
 
 export function opCount(): number {

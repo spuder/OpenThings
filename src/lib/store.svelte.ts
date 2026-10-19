@@ -1,7 +1,7 @@
 import { SvelteSet } from 'svelte/reactivity';
 import * as db from './db';
-import { addDays, daysBetween, longLabel, relLabel, today as todayFn } from './dates';
-import { nextOccurrence, type Parsed, type When } from './parse';
+import { addDays, longLabel, relLabel, shiftReminder, today as todayFn } from './dates';
+import { nextOccurrence, parseHabit, type Parsed, type When } from './parse';
 import * as sound from './sound';
 import type {
   Area,
@@ -19,6 +19,7 @@ import type {
   ViewKey,
 } from './types';
 import * as V from './views';
+import { mergeTags } from './schema';
 import { sync } from './sync/engine.svelte';
 import { installBridge } from './sync/bridge';
 import { isTouch } from './env';
@@ -67,13 +68,6 @@ function loadRecent(): ViewKey[] {
   } catch {
     return [];
   }
-}
-
-/** Move a reminder by the number of days between two schedule dates, keeping its time of day. */
-function shiftReminder(iso: string, fromDay: string, toDay: string): string {
-  const d = new Date(iso);
-  d.setDate(d.getDate() + daysBetween(fromDay, toDay));
-  return d.toISOString();
 }
 
 function norm(s: string) {
@@ -167,8 +161,6 @@ class Store {
       history.replaceState(null, '', location.pathname);
       this.reveal(fromNotification);
     }
-    const open = this.timeEntries.find((e) => e.end_at === null);
-    if (open) this.tracking = { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) };
     this.ready = true;
     setInterval(() => this.tick(), 1000);
     window.addEventListener('beforeunload', () => void db.saveNow());
@@ -203,11 +195,16 @@ class Store {
     this.tasks = db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NULL');
     this.trashed = db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC');
     this.checklist = db.all<ChecklistItem>('SELECT * FROM checklist ORDER BY sort');
-    this.tags = db.all<Tag>('SELECT * FROM tags ORDER BY name');
-    this.taskTags = db.all<TaskTag>('SELECT * FROM task_tags');
+    // Same-named tags from different devices show as one.
+    const tags = mergeTags(db.all<Tag>('SELECT * FROM tags ORDER BY name'), db.all<TaskTag>('SELECT * FROM task_tags'));
+    this.tags = tags.tags;
+    this.taskTags = tags.links;
     this.habits = db.all<Habit>('SELECT * FROM habits ORDER BY sort');
     this.habitChecks = db.all<HabitCheck>('SELECT * FROM habit_checks');
     this.timeEntries = db.all<TimeEntry>('SELECT * FROM time_entries');
+    // Running timer: may have been started or stopped on another device, the REST API or MCP.
+    const open = this.timeEntries.filter((e) => e.end_at === null).sort((a, b) => b.start_at.localeCompare(a.start_at))[0];
+    this.tracking = open ? { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) } : null;
     this.dumpSections = db.all<DumpSection>('SELECT * FROM dump_sections ORDER BY sort');
     this.opCount = db.opCount();
     this.announceReminders();
@@ -505,7 +502,7 @@ class Store {
   }
 
   private tagId(name: string): ID {
-    const existing = db.one<Tag>('SELECT * FROM tags WHERE lower(name) = lower(?)', [name]);
+    const existing = db.one<Tag>('SELECT * FROM tags WHERE lower(name) = lower(?) ORDER BY id LIMIT 1', [name]);
     if (existing) return existing.id;
     const id = db.uuid7();
     db.insert('tags', { id, name });
@@ -929,26 +926,9 @@ class Store {
 
   // ---------- habits ----------
 
-  /**
-   * Trailing words set options: "Cold shower 75d" (75-day challenge), "Gym 5x" (5 times a week),
-   * "Journal weekdays", combinable: "Gym 4x 60d".
-   */
+  /** Add a habit; trailing words set options (see parseHabit): "Gym 4x 60d". */
   addHabit(input: string) {
-    let name = input.trim();
-    let target: number | null = null;
-    let schedule: string | null = null;
-    for (let i = 0; i < 3; i++) {
-      let m: RegExpExecArray | null;
-      if ((m = /\s+(\d{1,3})\s*d(?:ays?)?$/i.exec(name)) && !target) {
-        target = Number(m[1]);
-      } else if ((m = /\s+([1-7])\s*x(?:\s*\/?\s*w(?:ee)?k)?$/i.exec(name)) && !schedule) {
-        schedule = V.scheduleToString(V.parseSchedule(`times:${m[1]}`));
-      } else if ((m = /\s+(weekdays|weekends|daily)$/i.exec(name)) && !schedule) {
-        const w = m[1].toLowerCase();
-        schedule = w === 'weekdays' ? 'days:1,2,3,4,5' : w === 'weekends' ? 'days:0,6' : 'daily';
-      } else break;
-      name = name.slice(0, m.index).trim();
-    }
+    const { name, target, schedule } = parseHabit(input);
     db.insert('habits', {
       id: db.uuid7(),
       name,

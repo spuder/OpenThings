@@ -298,3 +298,56 @@ export function parseQuickAdd(input: string, ref: string = todayFn(), now: Date 
   }
   return out;
 }
+
+export interface TagCompletion {
+  /** Index of the first character after `#`. */
+  start: number;
+  /** What's typed so far (without `#`). */
+  typed: string;
+  /** Best matching tag, in its stored spelling. */
+  suggestion: string;
+  /** The rest of `suggestion` after `typed`: shown as ghost text, never inserted while typing. */
+  ghost: string;
+  /** Where one Tab press goes: the shared prefix of every match, or the next `/ - _` segment. */
+  step: string;
+}
+
+/**
+ * Inline completion for the `#tag` being typed just before `caret`. `names` are the known tags,
+ * best first (the first match wins). Tags already used elsewhere in the text are skipped.
+ */
+export function tagCompletion(text: string, caret: number, names: string[]): TagCompletion | null {
+  if (/^\S/.test(text.slice(caret))) return null;
+  const before = text.slice(0, caret);
+  if (before.includes('//')) return null;
+  const m = /(^|\s)#([\p{L}][\p{L}\p{N}_\-/]*)$/u.exec(before);
+  if (!m) return null;
+  const typed = m[2];
+  const start = caret - typed.length;
+  const lower = typed.toLowerCase();
+  const used = new Set(
+    (text.slice(0, start - 1) + ' ' + text.slice(caret)).match(/(?:^|\s)#[^\s#]+/g)?.map((w) => w.trim().slice(1).toLowerCase()) ?? [],
+  );
+  const seen = new Set<string>();
+  const matches = names.filter((n) => {
+    const l = n.toLowerCase();
+    if (l.length <= lower.length || !l.startsWith(lower) || used.has(l) || seen.has(l)) return false;
+    seen.add(l);
+    return true;
+  });
+  if (!matches.length) return null;
+  const suggestion = matches[0];
+
+  let common = suggestion.length;
+  for (const n of matches) {
+    let i = lower.length;
+    while (i < common && n[i]?.toLowerCase() === suggestion[i].toLowerCase()) i++;
+    common = i;
+  }
+  // Ambiguous right here: step along the best match instead, one segment at a time.
+  let end = common > lower.length ? common : suggestion.length;
+  const sep = suggestion.slice(lower.length, end).search(/[/\-_]/);
+  if (sep >= 0) end = lower.length + sep + 1;
+
+  return { start, typed, suggestion, ghost: suggestion.slice(typed.length), step: suggestion.slice(0, end) };
+}

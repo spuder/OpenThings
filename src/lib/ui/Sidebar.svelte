@@ -19,7 +19,8 @@
     openListMenu({ kind, id });
   };
 
-  const top: { v: ViewKey; label: string; icon: string; count?: boolean }[][] = [
+  type Item = { v: ViewKey; label: string; icon: string; count?: boolean };
+  const top: Item[][] = [
     [{ v: { kind: 'inbox' }, label: 'Inbox', icon: 'inbox', count: true }],
     [
       { v: { kind: 'today' }, label: 'Today', icon: 'today', count: true },
@@ -28,14 +29,15 @@
       { v: { kind: 'someday' }, label: 'Someday', icon: 'someday' },
     ],
     [
-      { v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' },
-      { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
-    ],
-    [
       { v: { kind: 'dump' }, label: 'Brain Dump', icon: 'dump', count: true },
       { v: { kind: 'habits' }, label: 'Habits', icon: 'habits' },
       { v: { kind: 'matrix' }, label: 'Matrix', icon: 'matrix' },
     ],
+  ];
+  /** Finished and deleted to-dos: after your lists, out of the way. */
+  const bottom: Item[] = [
+    { v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' },
+    { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
   ];
 
   const looseProjects = $derived(store.projects.filter((p) => !p.area_id && !p.completed_at));
@@ -46,9 +48,9 @@
 
 <nav class="sidebar" class:open={store.sidebarOpen} class:hidden={store.sidebarHidden} aria-label="Lists">
   <div class="scroll">
-    {#each top as section}
-      <ul>
-        {#each section as item}
+    {#snippet section(items: Item[], cls = '')}
+      <ul class={cls}>
+        {#each items as item}
           {@const n = item.count ? store.openCount(item.v) : 0}
           <li>
             <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>
@@ -59,6 +61,10 @@
           </li>
         {/each}
       </ul>
+    {/snippet}
+
+    {#each top as items}
+      {@render section(items)}
     {/each}
 
     {#if looseProjects.length}
@@ -95,6 +101,8 @@
         {/each}
       </ul>
     {/each}
+
+    {@render section(bottom, 'bottom')}
   </div>
 
   <footer>
@@ -188,6 +196,9 @@
   }
   .area {
     margin-top: 6px;
+  }
+  .bottom {
+    margin-top: 24px;
   }
   /* Projects inside an area sit a step in, so they read as belonging to it. */
   .row.in-area {

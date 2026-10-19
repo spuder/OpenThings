@@ -14,6 +14,11 @@ const config: CapacitorConfig = {
   server: {
     hostname: 'localhost',
   },
+  plugins: {
+    // Don't resize the web view for the keyboard: the app reads keyboardWillShow and makes room itself
+    // (src/lib/keyboard.ts), which keeps fixed panels and the list layout stable.
+    Keyboard: { resize: 'none' },
+  },
 };
 
 export default config;

@@ -7,12 +7,15 @@
  *     reschedules them on every `openthings:reminders` event (they fire even when the app is closed).
  *   - Opens the task when a notification is tapped, and handles `openthings://…` links from widgets.
  *   - Writes a small JSON snapshot (Today, upcoming reminders, sync state) to the App Group for widgets.
+ *   - Reports the on-screen keyboard height so lists and quick add stay above it.
  *   - Imports to-dos that the Share extension or Shortcuts left in the App Group, through
  *     `store.addParsed`, so they land in the op log like any other write.
  *
  * Native side: ios/App/App/OpenThingsPlugin.swift (jsName "OpenThingsNative"). See docs/ios.md.
  */
 import { App } from '@capacitor/app';
+import { Keyboard } from '@capacitor/keyboard';
+import { setKeyboardHeight } from '../keyboard';
 import { registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { notifier, type NotifyPermission, type UpcomingReminder } from '../reminders.svelte';
@@ -97,6 +100,11 @@ function reschedule(list: UpcomingReminder[], day: string) {
 
 export async function startNative(store: NativeStoreApi) {
   const upcoming = () => window.OpenThings?.reminders.upcoming() ?? [];
+
+  // The keyboard overlays the web view (resize: none in capacitor.config.ts); lists and quick add
+  // make room for it from these events. See src/lib/keyboard.ts.
+  await Keyboard.addListener('keyboardWillShow', (e) => setKeyboardHeight(e.keyboardHeight));
+  await Keyboard.addListener('keyboardWillHide', () => setKeyboardHeight(0));
 
   // Reminders are delivered by the OS from here on; the in-app path only plays the chime and toast.
   notifier.useNative({

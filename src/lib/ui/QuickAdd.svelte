@@ -5,14 +5,22 @@
   import { parseQuickAdd, type TokenKind } from '../parse';
   import { relLabel } from '../dates';
 
-  let value = $state(store.quickAddPrefill);
+  // Brain Dump is for getting things out of your head: a plain box, no syntax, chips or tags.
+  // The text is kept literally. Opened elsewhere with @dump (B), it still lands in the dump.
+  const prefill = parseQuickAdd(store.quickAddPrefill, store.day);
+  const simple = store.view.kind === 'dump' || prefill.dump;
+  let value = $state(simple ? '' : store.quickAddPrefill);
   // Opened with the current list pre-filled (+Project, @today): that text is the context now, so
   // deleting it sends the to-do to the Inbox instead of falling back to the current list.
   const context = store.quickAddPrefill && store.quickAddPrefill === store.contextToken() ? store.quickAddPrefill : '';
   let input: HTMLInputElement | undefined = $state();
   let added = $state(0);
 
-  const parsed = $derived(parseQuickAdd(value, store.day));
+  const parsed = $derived(
+    simple
+      ? { ...parseQuickAdd('', store.day), title: value.trim(), dump: prefill.dump, dumpSection: prefill.dumpSection }
+      : parseQuickAdd(value, store.day),
+  );
 
   const contextLabel = $derived.by(() => {
     if (parsed.project || parsed.when || parsed.dump) return null;
@@ -48,7 +56,7 @@
     if (!parsed.title) return;
     store.addParsed(parsed, { useContext: !context });
     added++;
-    value = keepOpen ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : context) : '';
+    value = keepOpen && !simple ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : context) : '';
     if (keepOpen) placeCursor(context ? 0 : value.length);
     else close();
   }
@@ -127,11 +135,11 @@
     bind:this={input}
     bind:value
     onkeydown={onKey}
-    placeholder={`New to-do   ${keys.map((k) => k.label).join('  ')}`}
+    placeholder={simple ? 'Write anything…' : `New to-do   ${keys.map((k) => k.label).join('  ')}`}
     spellcheck="false"
     aria-label="New to-do"
   />
-  {#if value}
+  {#if value && !simple}
     <div class="keys" transition:slide={{ duration: 160 }}>
       {#each keys as k, i (k.label)}
         <button
@@ -145,6 +153,7 @@
       {/each}
     </div>
   {/if}
+  {#if !simple}
   <div class="keys flags">
     <button type="button" class="key flag" class:on={parsed.important} style:--c="var(--important)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('important')} aria-pressed={parsed.important}>#important</button>
     <button type="button" class="key flag" class:on={parsed.urgent} style:--c="var(--urgent)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('urgent')} aria-pressed={parsed.urgent}>#urgent</button>
@@ -161,6 +170,7 @@
     {#if contextLabel && parsed.title}<span class="ctx">→ {contextLabel}</span>{/if}
     {#each parsed.warnings as w}<span class="warn">{w}</span>{/each}
   </div>
+  {/if}
   <div class="foot">
     <span class="kb"><kbd>↵</kbd> add</span>
     <span class="kb"><kbd>⇧↵</kbd> add another</span>

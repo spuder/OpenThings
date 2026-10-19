@@ -17,8 +17,7 @@ optdepends=('notification-daemon: reminder notifications (mako, dunst, swaync, â
 conflicts=('openthings-bin')
 options=('!lto' '!debug')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/spuder/OpenThings/archive/refs/tags/v$pkgver.tar.gz")
-# Replace with the real checksum (updpkgsums) once the v$pkgver tag exists.
-sha256sums=('SKIP')
+sha256sums=('e7aae95c54c250876964cd730a51b325814da1279f535192bd1d62924f006de6')
 
 _srcdir() { echo "$srcdir/OpenThings-$pkgver"; }
 

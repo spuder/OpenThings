@@ -184,7 +184,8 @@ jobs:
           mkdir -p "$work"
           cp -r packaging/arch/openthings packaging/arch/openthings-bin "$work/"
           # makepkg uses an existing source file instead of downloading it: stand in for the
-          # not-yet-published v$ver tag tarball and release asset with this checkout's files.
+          # published v$ver tag tarball and release asset with this checkout's files. Their
+          # checksums differ from the real downloads, so the build skips checksum verification.
           tar --exclude=./node_modules --exclude=./src-tauri/target --exclude=./.git --exclude=./out \
               --transform "s,^\.,OpenThings-$ver," -czf "$work/openthings/openthings-$ver.tar.gz" .
           cp "out/openthings-$ver-linux-x86_64.tar.gz" "$work/openthings-bin/"
@@ -193,7 +194,7 @@ jobs:
             cd "$work/$p"
             # .SRCINFO must match the PKGBUILD.
             sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
-            sudo -u builder makepkg -s --noconfirm --cleanbuild
+            sudo -u builder makepkg -s --noconfirm --cleanbuild --skipchecksums
             namcap PKGBUILD *.pkg.tar.zst || true
             pacman -Qlp *.pkg.tar.zst
           done

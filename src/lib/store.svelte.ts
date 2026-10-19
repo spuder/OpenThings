@@ -28,6 +28,7 @@ import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
+import { mergeImportedTags, type ThingsImport } from './import/things';
 
 export interface Group {
   key: string;
@@ -1135,6 +1136,30 @@ class Store {
     a.download = `openthings-${this.day}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  /**
+   * Write a planned Things import in one transaction, then refresh the app.
+   * Importing adds to existing data; it never replaces or deletes anything.
+   */
+  importThings(plan: ThingsImport): void {
+    const rows: db.BulkInsert[] = [];
+    const add = (tbl: string, items: readonly { id: string }[]) => {
+      for (const row of items) rows.push({ tbl, row: row as unknown as db.Row & { id: string } });
+    };
+    // Tags are unique by name; reuse any that already exist so importing twice
+    // (or into demo data) doesn't hit the unique constraint.
+    const tags = mergeImportedTags(db.all<Tag>('SELECT * FROM tags'), plan.tags, plan.taskTags);
+    add('areas', plan.areas);
+    add('projects', plan.projects);
+    add('headings', plan.headings);
+    add('tags', tags.tags);
+    add('tasks', plan.tasks);
+    add('task_tags', tags.taskTags);
+    add('checklist', plan.checklist);
+    db.bulkInsert(rows);
+    this.load();
+    this.notify(`Imported ${plan.stats.todos} to-do${plan.stats.todos === 1 ? '' : 's'} from Things`);
   }
 }
 

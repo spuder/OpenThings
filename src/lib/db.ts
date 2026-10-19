@@ -216,6 +216,36 @@ export function insert(tbl: string, row: Row & { id: string }) {
   changed();
 }
 
+export interface BulkInsert {
+  tbl: string;
+  row: Row & { id: string };
+}
+
+/**
+ * Insert many rows in one transaction, recording one op per row like insert().
+ * If any row fails, nothing is written. Saves and notifies once at the end, so a
+ * large import (thousands of to-dos) doesn't re-render the app per row.
+ */
+export function bulkInsert(items: BulkInsert[]) {
+  if (!items.length) return;
+  db.run('BEGIN');
+  try {
+    for (const { tbl, row } of items) {
+      const cols = Object.keys(row);
+      db.run(
+        `INSERT INTO ${tbl} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+        cols.map((c) => row[c]),
+      );
+      record(tbl, row.id, 'insert', row);
+    }
+    db.run('COMMIT');
+  } catch (e) {
+    db.run('ROLLBACK');
+    throw e;
+  }
+  changed();
+}
+
 function changed() {
   scheduleSave();
   for (const fn of writeListeners) fn();

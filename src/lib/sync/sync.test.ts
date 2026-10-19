@@ -44,6 +44,25 @@ describe('op log', () => {
     db.markPushed(ops[1].seq!);
     expect(db.pendingCount()).toBe(1);
   });
+
+  it('bulk inserts in one transaction and records an op per row', () => {
+    const row = (id: string, sort: number) => ({ id, title: id, created_at: 'x', sort });
+    db.bulkInsert([
+      { tbl: 'tasks', row: row('b1', 1) },
+      { tbl: 'tasks', row: row('b2', 2) },
+    ]);
+    expect(db.pendingOps().filter((o) => o.row_id.startsWith('b')).map((o) => o.kind)).toEqual(['insert', 'insert']);
+
+    // A duplicate id fails the whole batch, not just the bad row.
+    expect(() =>
+      db.bulkInsert([
+        { tbl: 'tasks', row: row('b3', 3) },
+        { tbl: 'tasks', row: row('b1', 4) },
+      ]),
+    ).toThrow();
+    expect(db.one('SELECT id FROM tasks WHERE id = ?', ['b3'])).toBeUndefined();
+    expect(db.one('SELECT id FROM tasks WHERE id = ?', ['b1'])).toBeTruthy();
+  });
 });
 
 describe('applyRemoteOps', () => {

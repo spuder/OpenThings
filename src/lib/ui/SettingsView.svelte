@@ -106,6 +106,7 @@ curl '${base}/api/v1/tasks?view=today'`);
     ['check_habit', 'Check in a habit for a day'],
     ['start_timer / stop_timer', 'Time tracking'],
   ];
+
 </script>
 
 <div class="settings">
@@ -311,6 +312,14 @@ curl '${base}/api/v1/tasks?view=today'`);
       <button class="btn" onclick={() => store.exportJson()}>Export JSON backup</button>
       <button class="btn danger" onclick={() => confirm('Erase all local data and restore the demo?') && store.resetDemo()}>Reset to demo data</button>
     </div>
+
+    {#if !isTouch}
+      <h3>Import from Things 3</h3>
+      <p class="lead">
+        Importing a Things 3 database is only supported in the <strong>macOS desktop app</strong>. The browser version can't read the Things database from your Mac.
+      </p>
+      <p class="note">The macOS app finds <code>main.sqlite</code> in the Things group container automatically and imports it without a file picker.</p>
+    {/if}
   </section>
 </div>
 

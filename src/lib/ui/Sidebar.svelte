@@ -5,6 +5,7 @@
   import ProgressPie from './ProgressPie.svelte';
   import { openListMenu, prompt } from '../commands';
   import { fly } from 'svelte/transition';
+  import { viewEnabled } from '../features.svelte';
 
   let newListOpen = $state(false);
   function newList(kind: 'project' | 'area') {
@@ -23,6 +24,7 @@
     [{ v: { kind: 'inbox' }, label: 'Inbox', icon: 'inbox', count: true }],
     [
       { v: { kind: 'today' }, label: 'Today', icon: 'today', count: true },
+      { v: { kind: 'week' }, label: 'This Week', icon: 'week', count: true },
       { v: { kind: 'upcoming' }, label: 'Upcoming', icon: 'upcoming' },
       { v: { kind: 'anytime' }, label: 'Anytime', icon: 'anytime' },
       { v: { kind: 'someday' }, label: 'Someday', icon: 'someday' },
@@ -48,7 +50,7 @@
   <div class="scroll">
     {#each top as section}
       <ul>
-        {#each section as item}
+        {#each section.filter((i) => viewEnabled(i.v.kind)) as item}
           {@const n = item.count ? store.openCount(item.v) : 0}
           <li>
             <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>

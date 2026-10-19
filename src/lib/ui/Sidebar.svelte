@@ -19,7 +19,8 @@
     openListMenu({ kind, id });
   };
 
-  const top: { v: ViewKey; label: string; icon: string; count?: boolean }[][] = [
+  type NavItem = { v: ViewKey; label: string; icon: string; count?: boolean };
+  const top: NavItem[][] = [
     [{ v: { kind: 'inbox' }, label: 'Inbox', icon: 'inbox', count: true }],
     [
       { v: { kind: 'today' }, label: 'Today', icon: 'today', count: true },
@@ -28,14 +29,15 @@
       { v: { kind: 'someday' }, label: 'Someday', icon: 'someday' },
     ],
     [
-      { v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' },
-      { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
-    ],
-    [
       { v: { kind: 'dump' }, label: 'Brain Dump', icon: 'dump', count: true },
       { v: { kind: 'habits' }, label: 'Habits', icon: 'habits' },
       { v: { kind: 'matrix' }, label: 'Matrix', icon: 'matrix' },
     ],
+  ];
+  // Pinned under the scrolling lists, just above the footer.
+  const bottom: NavItem[] = [
+    { v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' },
+    { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
   ];
 
   const looseProjects = $derived(store.projects.filter((p) => !p.area_id && !p.completed_at));
@@ -44,19 +46,23 @@
 
 <svelte:window onkeydown={(e) => { if (newListOpen && e.key === 'Escape') { e.stopPropagation(); newListOpen = false; } }} />
 
+{#snippet navRow(item: NavItem)}
+  {@const n = item.count ? store.openCount(item.v) : 0}
+  <li>
+    <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>
+      <Icon name={item.icon} />
+      <span class="label">{item.label}</span>
+      {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
+    </button>
+  </li>
+{/snippet}
+
 <nav class="sidebar" class:open={store.sidebarOpen} class:hidden={store.sidebarHidden} aria-label="Lists">
   <div class="scroll">
     {#each top as section}
       <ul>
         {#each section as item}
-          {@const n = item.count ? store.openCount(item.v) : 0}
-          <li>
-            <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>
-              <Icon name={item.icon} />
-              <span class="label">{item.label}</span>
-              {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
-            </button>
-          </li>
+          {@render navRow(item)}
         {/each}
       </ul>
     {/each}
@@ -96,6 +102,12 @@
       </ul>
     {/each}
   </div>
+
+  <ul class="bottom">
+    {#each bottom as item}
+      {@render navRow(item)}
+    {/each}
+  </ul>
 
   <footer>
     <div class="newlist">
@@ -188,6 +200,11 @@
   }
   .area {
     margin-top: 6px;
+  }
+  ul.bottom {
+    margin: 0;
+    padding: 6px 10px;
+    border-top: 1px solid var(--line);
   }
   footer {
     display: flex;

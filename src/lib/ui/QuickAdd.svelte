@@ -5,11 +5,17 @@
   import { parseQuickAdd, tagCompletion, type TokenKind } from '../parse';
   import { relLabel } from '../dates';
 
+  /**
+   * Set by the desktop app's floating quick-add window (src/lib/native/QuickAddWindow.svelte):
+   * the text is handed to the main window, which adds it through the store. Default: add here.
+   */
+  let { native = null }: { native?: { submit(text: string, keepOpen: boolean): void; close(): void } | null } = $props();
+
   // Brain Dump is for getting things out of your head: a plain box, no syntax, chips or tags.
   // The text is kept literally. Opened elsewhere with @dump (B), it still lands in the dump.
   const prefill = parseQuickAdd(store.quickAddPrefill, store.day);
-  const simple = store.view.kind === 'dump' || prefill.dump;
-  let value = $state(simple ? '' : store.quickAddPrefill);
+  const simple = $derived(!native && (store.view.kind === 'dump' || prefill.dump));
+  let value = $state((() => (simple ? '' : store.quickAddPrefill))());
   // Opened with the current list pre-filled (+Project, @today): that text is the context now, so
   // deleting it sends the to-do to the Inbox instead of falling back to the current list.
   const context = store.quickAddPrefill && store.quickAddPrefill === store.contextToken() ? store.quickAddPrefill : '';
@@ -58,6 +64,7 @@
 
   const contextLabel = $derived.by(() => {
     if (parsed.project || parsed.when || parsed.dump) return null;
+    if (native) return 'Inbox';
     if (context) return 'Inbox';
     const v = store.view;
     switch (v.kind) {
@@ -88,7 +95,8 @@
 
   function submit(keepOpen: boolean) {
     if (!parsed.title) return;
-    store.addParsed(parsed, { useContext: !context });
+    if (native) native.submit(value, keepOpen);
+    else store.addParsed(parsed, { useContext: !context });
     added++;
     value = keepOpen && !simple ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : context) : '';
     if (keepOpen) placeCursor(context ? 0 : value.length);
@@ -126,6 +134,7 @@
 
   function close() {
     (document.activeElement as HTMLElement | null)?.blur();
+    if (native) return native.close();
     store.overlay = null;
   }
 
@@ -169,8 +178,8 @@
   };
 </script>
 
-<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
-<div class="panel" transition:fly={{ y: -10, duration: 180 }} role="dialog" aria-label="Quick add" aria-modal="true">
+{#if !native}<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>{/if}
+<div class="panel" class:native transition:fly={{ y: -10, duration: 180 }} role="dialog" aria-label="Quick add" aria-modal="true">
   <div class="field">
     <input
       bind:this={input}
@@ -195,7 +204,8 @@
       <div class="ghost" aria-hidden="true"><span style:transform="translateX({-scrollX}px)"><span class="text">{value.slice(0, caret ?? 0)}</span>{completion.ghost}<span class="text">{value.slice(caret ?? 0)}</span></span></div>
     {/if}
   </div>
-  {#if value && !simple}
+  <!-- Tappable syntax chips are for touch; the desktop quick-add window is keyboard-only and small. -->
+  {#if value && !simple && !native}
     <div class="keys" transition:slide={{ duration: 160 }}>
       {#if completion}
         <!-- Touch has no Tab or →: tap the suggestion to take the whole tag and keep typing. -->
@@ -221,10 +231,12 @@
     </div>
   {/if}
   {#if !simple}
+  {#if !native}
   <div class="keys flags">
     <button type="button" class="key flag" class:on={parsed.important} style:--c="var(--important)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('important')} aria-pressed={parsed.important}>#important</button>
     <button type="button" class="key flag" class:on={parsed.urgent} style:--c="var(--urgent)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('urgent')} aria-pressed={parsed.urgent}>#urgent</button>
   </div>
+  {/if}
   <div class="preview">
     {#if parsed.title}
       <span class="title">{parsed.title}</span>
@@ -268,6 +280,15 @@
     box-shadow: var(--card-shadow), 0 0 0 1px var(--line);
     z-index: 21;
     padding: 14px 16px 10px;
+  }
+  /* Desktop quick-add window: the panel is the whole (frameless) window. */
+  .panel.native {
+    position: static;
+    width: 100%;
+    transform: none;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 100vh;
   }
   .field {
     position: relative;
@@ -435,6 +456,13 @@
     }
     .added + .add-btn {
       margin-left: 0;
+    }
+    /* The desktop quick-add window is narrow but isn't a phone: keep the keyboard hints. */
+    .native .kb {
+      display: inline;
+    }
+    .native .touch-btn {
+      display: none;
     }
   }
 </style>

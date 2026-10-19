@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=OpenThings
+GenericName=Task Manager
+Comment=Local-first task manager
+Exec=openthings %u
+Icon=openthings
+Terminal=false
+Categories=Office;ProjectManagement;
+Keywords=tasks;todo;gtd;reminders;
+StartupWMClass=openthings
+MimeType=x-scheme-handler/openthings;
+Actions=quick-add;
+
+[Desktop Action quick-add]
+Name=Quick Add
+Exec=openthings --quick-add

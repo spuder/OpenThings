@@ -20,8 +20,8 @@
     openListMenu({ kind, id });
   };
 
-  type Item = { v: ViewKey; label: string; icon: string; count?: boolean };
-  const top: Item[][] = [
+  type NavItem = { v: ViewKey; label: string; icon: string; count?: boolean };
+  const top: NavItem[][] = [
     [{ v: { kind: 'inbox' }, label: 'Inbox', icon: 'inbox', count: true }],
     [
       { v: { kind: 'today' }, label: 'Today', icon: 'today', count: true },
@@ -36,8 +36,8 @@
       { v: { kind: 'matrix' }, label: 'Matrix', icon: 'matrix' },
     ],
   ];
-  /** Finished and deleted to-dos: after your lists, out of the way. */
-  const bottom: Item[] = [
+  // Pinned under the scrolling lists, just above the footer.
+  const bottom: NavItem[] = [
     { v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' },
     { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
   ];
@@ -48,26 +48,30 @@
 
 <svelte:window onkeydown={(e) => { if (newListOpen && e.key === 'Escape') { e.stopPropagation(); newListOpen = false; } }} />
 
+{#snippet navRow(item: NavItem)}
+  {@const n = item.count ? store.openCount(item.v) : 0}
+  <li>
+    <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>
+      <Icon name={item.icon} />
+      <span class="label">{item.label}</span>
+      {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
+    </button>
+  </li>
+{/snippet}
+
+{#snippet section(items: NavItem[], cls = '')}
+  {@const visible = items.filter((item) => viewEnabled(item.v.kind))}
+  {#if visible.length}
+    <ul class={cls}>
+      {#each visible as item}
+        {@render navRow(item)}
+      {/each}
+    </ul>
+  {/if}
+{/snippet}
+
 <nav class="sidebar" class:open={store.sidebarOpen} class:hidden={store.sidebarHidden} aria-label="Lists">
   <div class="scroll">
-    {#snippet section(items: Item[], cls = '')}
-      {@const visible = items.filter((item) => viewEnabled(item.v.kind))}
-      {#if visible.length}
-        <ul class={cls}>
-          {#each visible as item}
-            {@const n = item.count ? store.openCount(item.v) : 0}
-            <li>
-              <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>
-                <Icon name={item.icon} />
-                <span class="label">{item.label}</span>
-                {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    {/snippet}
-
     {#each top as items}
       {@render section(items)}
     {/each}
@@ -107,8 +111,9 @@
       </ul>
     {/each}
 
-    {@render section(bottom, 'bottom')}
   </div>
+
+  {@render section(bottom, 'bottom')}
 
   <footer>
     <div class="newlist">
@@ -202,8 +207,10 @@
   .area {
     margin-top: 6px;
   }
-  .bottom {
-    margin-top: 24px;
+  ul.bottom {
+    margin: 0;
+    padding: 6px 10px;
+    border-top: 1px solid var(--line);
   }
   /* Projects inside an area sit a step in, so they read as belonging to it. */
   .row.in-area {

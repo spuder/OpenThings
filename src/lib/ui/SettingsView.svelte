@@ -6,6 +6,8 @@
   import CodeBlock from './CodeBlock.svelte';
   import { notifier, upcomingReminders } from '../reminders.svelte';
   import { reminderLabel } from '../parse';
+  import { isDesktop } from '../native/desktop';
+  import DesktopSettings from '../native/DesktopSettings.svelte';
   import { theme, type ThemePref } from '../theme.svelte';
   import { isNativeShell } from '../native/shell';
   import { nativeStatus } from '../native/status.svelte';
@@ -14,6 +16,8 @@
   import { FEATURES, features } from '../features.svelte';
   import Icon from './Icon.svelte';
   const native = isNativeShell();
+  // In the iOS and desktop shells the page origin (capacitor://, tauri://) isn't a server address.
+  const servedBySite = !native && !isDesktop;
   const themes: [ThemePref, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
   let url = $state(sync.serverUrl ?? '');
@@ -41,7 +45,7 @@
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : 'Never');
 
   /** Where the REST API and MCP endpoint will live: the sync server, or this site if it serves the app. */
-  const base = $derived(sync.serverUrl ?? (typeof location !== 'undefined' && !native ? location.origin : 'https://openthings.your-tailnet.ts.net'));
+  const base = $derived(sync.serverUrl ?? (typeof location !== 'undefined' && servedBySite ? location.origin : 'https://openthings.your-tailnet.ts.net'));
   const upcoming = $derived(upcomingReminders(store.tasks, store.now));
   const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent);
   const standalone = typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone)').matches;
@@ -131,7 +135,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       />
     </label>
     <div class="row-actions">
-      {#if !native}<button class="btn" onclick={() => (url = location.origin)}>Use this site</button>{/if}
+      {#if servedBySite}<button class="btn" onclick={() => (url = location.origin)}>Use this site</button>{/if}
       <button class="btn" onclick={test} disabled={!url || testing}>{testing ? 'Testing…' : 'Test connection'}</button>
       {#if sync.enabled}
         <button class="btn" onclick={() => save(true)} disabled={!url || url === sync.serverUrl}>Save URL</button>
@@ -283,6 +287,8 @@ curl '${base}/api/v1/tasks?view=today'`);
     {/if}
     <p class="note">System follows your device's light/dark setting. Choices are saved on this device only.</p>
   </section>
+
+  {#if isDesktop}<DesktopSettings />{/if}
 
   <section>
     <h2>Features</h2>

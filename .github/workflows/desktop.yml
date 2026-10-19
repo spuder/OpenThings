@@ -215,6 +215,15 @@ jobs:
           echo "::error::The macOS build wasn't signed and notarized; set the Apple secrets (docs/desktop.md#signing-and-notarization)."
           exit 1
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Only commits that reached main (through a reviewed merge) are released, whoever pushed the tag.
+      - name: Require the tag to be on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) isn't on main; only commits merged to main are released."
+            exit 1
+          fi
       - name: Version
         id: v
         run: |

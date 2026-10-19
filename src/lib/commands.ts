@@ -28,6 +28,11 @@ const hasTask = () => !!sel() && store.view.kind !== 'habits';
 const inHabits = () => store.view.kind === 'habits';
 const inTrash = () => store.view.kind === 'trash';
 
+function typingNow() {
+  const el = document.activeElement as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
+
 function withTask(fn: (id: string) => void) {
   return () => {
     const t = sel();
@@ -288,6 +293,8 @@ export const commands: Command[] = [
       if (v.kind === 'project') openListMenu({ kind: 'project', id: v.id });
     },
   },
+  // Outside a text field; inside one, ⌘Z / Ctrl+Z is the field's own text undo.
+  { id: 'app.undo', title: 'Undo', group: 'App', keys: ['mod+z'], when: () => !typingNow(), run: () => store.undo() },
   { id: 'app.find', title: 'Quick Find', group: 'App', keys: ['mod+f', '/'], run: () => (store.overlay = 'find') },
   { id: 'app.sidebar', title: 'Show / hide sidebar', group: 'App', keys: ['mod+/'], run: () => store.toggleSidebar() },
   { id: 'app.palette', title: 'Command palette', group: 'App', keys: ['mod+k', 'mod+shift+p', ':'], run: () => openPalette('commands'), hidden: true },

@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.2.2](https://github.com/spuder/OpenThings/releases/tag/v0.2.2) - 2026-10-19
+
+### What's Changed
+
+* Releases are automatic: merging a version bump to `main` tags it and publishes the desktop builds, the Homebrew cask and the container image. Only commits on `main` can be released. `scripts/bump-version.sh` sets the version everywhere. By @spuder in https://github.com/spuder/OpenThings/pull/39
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.2.1...v0.2.2
+
 ## [v0.2.1](https://github.com/spuder/OpenThings/releases/tag/v0.2.1) - 2026-10-19
 
 ### What's Changed

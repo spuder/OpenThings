@@ -3,6 +3,9 @@ dist
 .git
 docs
 *.log
+src-tauri
+packaging
+.claude
 ios
 android
 data

@@ -26,6 +26,7 @@ import { isTouch } from './env';
 import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
+import { previousValues, UndoStack } from './undo';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
 import { mergeImportedTags, type ThingsImport } from './import/things';
 
@@ -242,6 +243,18 @@ class Store {
     setTimeout(() => {
       if (this.toast?.id === id) this.toast = null;
     }, 2600);
+  }
+
+  // ---------- undo ----------
+
+  /** Undo steps for to-do changes (⌘Z / Ctrl+Z outside text fields). Per session, not synced. */
+  private undoStack = new UndoStack();
+
+  undo() {
+    const label = this.undoStack.undo();
+    if (!label) return this.notify('Nothing to undo');
+    this.load();
+    this.notify(`Undid ${label}`);
   }
 
   // ---------- navigation ----------
@@ -582,7 +595,12 @@ class Store {
     return id;
   }
 
-  update(id: ID, fields: Partial<Task>) {
+  update(id: ID, fields: Partial<Task>, label = 'change') {
+    const t = this.task(id);
+    if (t) {
+      const prev = previousValues(t, fields);
+      this.undoStack.push(label, () => db.update('tasks', id, prev as db.Row));
+    }
     db.update('tasks', id, fields as db.Row);
     this.load();
   }
@@ -594,8 +612,16 @@ class Store {
       db.update('tasks', id, { completed_at: null });
       this.keep.delete(id);
       sound.playUncheck();
+      this.undoStack.push('uncheck', () => db.update('tasks', id, { completed_at: t.completed_at }));
     } else {
       db.update('tasks', id, { completed_at: new Date().toISOString() });
+      // Undo also takes back the next occurrence of a repeating to-do (assigned below).
+      let spawned: ID | null = null;
+      this.undoStack.push('complete', () => {
+        db.update('tasks', id, { completed_at: null });
+        this.keep.delete(id);
+        if (spawned) this.hardDelete(spawned);
+      });
       this.keep.add(id);
       if (t.dump) sound.playScratch();
       else sound.playComplete();
@@ -604,6 +630,7 @@ class Store {
         const from = t.when_date && t.when_date > this.day ? t.when_date : this.day;
         const next = nextOccurrence(t.rrule, from);
         const nid = db.uuid7();
+        spawned = nid;
         db.insert('tasks', {
           ...(t as unknown as db.Row),
           id: nid,
@@ -629,7 +656,13 @@ class Store {
       evening: w.evening ? 1 : 0,
       someday: w.someday ? 1 : 0,
       ...(w.inbox ? { project_id: null, area_id: null, heading_id: null } : {}),
-    });
+    }, 'date change');
+  }
+
+  /** Toast naming the list a to-do landed in, for keyboard and palette actions that move it out of sight. */
+  announceWhen(id: ID) {
+    const t = this.task(id);
+    if (t) this.notify(V.describeWhen(t, this.day));
   }
 
   setToday(id: ID) {
@@ -658,11 +691,11 @@ class Store {
       fields.dump = 0;
       fields.dump_section_id = null;
     }
-    this.update(id, fields);
+    this.update(id, fields, 'move');
   }
 
   moveToDumpSection(id: ID, sectionId: ID | null) {
-    this.update(id, { dump: 1, dump_section_id: sectionId });
+    this.update(id, { dump: 1, dump_section_id: sectionId }, 'move');
   }
 
   /** Fire reminders that are due: system notification (if allowed), chime, and an in-app toast. */
@@ -718,7 +751,7 @@ class Store {
 
   /** Set or clear a reminder. Setting one re-arms it. */
   setReminder(id: ID, iso: string | null) {
-    this.update(id, { reminder_at: iso, reminder_sent_at: null });
+    this.update(id, { reminder_at: iso, reminder_sent_at: null }, 'reminder change');
   }
 
   toggleUrgent(id: ID) {
@@ -752,6 +785,10 @@ class Store {
     const idx = this.selectable.indexOf(id);
     if (this.tracking?.taskId === id) this.stopTracking();
     db.update('tasks', id, { deleted_at: new Date().toISOString() });
+    this.undoStack.push('move to Trash', () => {
+      db.update('tasks', id, { deleted_at: null });
+      this.selectedId = id;
+    });
     this.keep.delete(id);
     this.load();
     this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
@@ -766,6 +803,7 @@ class Store {
     const orphan =
       (t?.project_id && !this.projects.some((p) => p.id === t.project_id)) || (t?.area_id && !this.areas.some((a) => a.id === t.area_id));
     db.update('tasks', id, orphan ? { deleted_at: null, project_id: null, area_id: null, heading_id: null } : { deleted_at: null });
+    if (t) this.undoStack.push('restore', () => db.update('tasks', id, { deleted_at: t.deleted_at, project_id: t.project_id, area_id: t.area_id, heading_id: t.heading_id }));
     this.load();
     if (this.view.kind === 'trash') this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
     this.notify('Restored');

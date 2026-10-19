@@ -1,0 +1,112 @@
+name: Desktop
+
+# Builds the Tauri desktop app (src-tauri/):
+#   - macOS: universal (Apple silicon + Intel) .app and .dmg, ad-hoc signed, not notarized
+#   - Arch Linux (Omarchy): release binary tarball + AppImage, and checks both AUR PKGBUILDs build
+# Bundles are uploaded as workflow artifacts.
+on:
+  push:
+    branches: [desktop-app]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Build universal .app and .dmg
+        run: npx tauri build --target universal-apple-darwin --bundles app,dmg
+      - name: Collect bundles
+        run: |
+          mkdir -p out
+          cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg out/
+          # Zip the .app with ditto so permissions and the ad-hoc signature survive.
+          ditto -c -k --keepParent src-tauri/target/universal-apple-darwin/release/bundle/macos/OpenThings.app out/OpenThings-macos-universal.app.zip
+          codesign -dv --verbose=2 src-tauri/target/universal-apple-darwin/release/bundle/macos/OpenThings.app || true
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenThings-macos-universal
+          path: out/*
+          if-no-files-found: error
+
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    env:
+      # linuxdeploy can't strip binaries built with Arch's newer toolchain (.relr.dyn), and can't
+      # mount FUSE inside a container.
+      NO_STRIP: 'true'
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git rust nodejs npm \
+            webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg xdotool openssl \
+            curl wget file patchelf squashfs-tools namcap sudo
+      - uses: actions/checkout@v4
+      - name: Version
+        id: v
+        run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Rust unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+      - name: Build release binary and AppImage
+        run: npx tauri build --bundles appimage
+      - name: Release tarball (input of openthings-bin)
+        run: |
+          chmod +x packaging/arch/make-bin-tarball.sh
+          packaging/arch/make-bin-tarball.sh "${{ steps.v.outputs.version }}" src-tauri/target/release/openthings out
+          cp src-tauri/target/release/bundle/appimage/*.AppImage out/
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenThings-arch-x86_64
+          path: out/*
+          if-no-files-found: error
+
+      - name: Check PKGBUILDs (makepkg as an unprivileged user)
+        run: |
+          set -eux
+          ver="${{ steps.v.outputs.version }}"
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          work=/home/builder/pkg
+          mkdir -p "$work"
+          cp -r packaging/arch/openthings packaging/arch/openthings-bin "$work/"
+          # makepkg uses an existing source file instead of downloading it: stand in for the
+          # not-yet-published v$ver tag tarball and release asset with this checkout's files.
+          tar --exclude=./node_modules --exclude=./src-tauri/target --exclude=./.git --exclude=./out \
+              --transform "s,^\.,OpenThings-$ver," -czf "$work/openthings/openthings-$ver.tar.gz" .
+          cp "out/openthings-$ver-linux-x86_64.tar.gz" "$work/openthings-bin/"
+          chown -R builder: /home/builder
+          for p in openthings-bin openthings; do
+            cd "$work/$p"
+            # .SRCINFO must match the PKGBUILD.
+            sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
+            sudo -u builder makepkg -s --noconfirm --cleanbuild
+            namcap PKGBUILD *.pkg.tar.zst || true
+            pacman -Qlp *.pkg.tar.zst
+          done
+          cd "$work/openthings-bin" && pacman -U --noconfirm *.pkg.tar.zst && test -x /usr/bin/openthings

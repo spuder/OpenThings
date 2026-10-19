@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextOccurrence, parseQuickAdd, parseReminder } from './parse';
+import { nextOccurrence, parseQuickAdd, parseReminder, tagCompletion } from './parse';
 import { challengeProgress, describeSchedule, dump, habitStreak, parseSchedule, inbox, isDumpExpired, matrix, streak, todayView, upcoming } from './views';
 import type { Task } from './types';
 
@@ -227,5 +227,46 @@ describe('built-in #urgent / #important', () => {
   it('combine with ^ syntax', () => {
     const p = parseQuickAdd('Pay rent ^u #important', REF);
     expect(p.urgent && p.important).toBe(true);
+  });
+});
+
+describe('tagCompletion', () => {
+  const tags = ['foobar', 'football', 'work/office', 'work/home', 'Errands'];
+  const at = (text: string, names = tags) => tagCompletion(text, text.length, names);
+
+  it('suggests the best match as ghost text without changing what is typed', () => {
+    const c = at('Buy milk #fo');
+    expect(c).toMatchObject({ typed: 'fo', suggestion: 'foobar', ghost: 'obar', start: 10 });
+  });
+  it('narrows progressively as you type', () => {
+    expect(at('#foot')?.suggestion).toBe('football');
+    expect(at('#foot')?.ghost).toBe('ball');
+    expect(at('#foobar')).toBeNull();
+    expect(at('#fox')).toBeNull();
+  });
+  it('Tab steps to the shared prefix first, then along the best match', () => {
+    expect(at('#f')?.step).toBe('foo');
+    expect(at('#foo')?.step).toBe('foobar');
+    expect(at('#w')?.step).toBe('work/');
+    expect(at('#work/')?.step).toBe('work/office');
+  });
+  it('steps one segment at a time even with a single match', () => {
+    expect(at('#p', ['print-shop-jobs'])?.step).toBe('print-');
+    expect(at('#print-', ['print-shop-jobs'])?.step).toBe('print-shop-');
+  });
+  it('matches case-insensitively and keeps the stored spelling', () => {
+    expect(at('#err')).toMatchObject({ suggestion: 'Errands', ghost: 'ands' });
+  });
+  it('only completes a #tag right before the caret', () => {
+    expect(at('foo')).toBeNull();
+    expect(at('#fo ')).toBeNull();
+    expect(at('a#fo')).toBeNull();
+    expect(at('#')).toBeNull();
+    expect(at('Call // notes #fo')).toBeNull();
+    expect(tagCompletion('#fo rest', 3, tags)?.suggestion).toBe('foobar');
+    expect(tagCompletion('#fox', 3, tags)).toBeNull();
+  });
+  it('skips tags already in the text', () => {
+    expect(at('#foobar #fo')?.suggestion).toBe('football');
   });
 });

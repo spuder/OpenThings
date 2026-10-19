@@ -51,7 +51,8 @@ When in doubt, write it from scratch and say so in the PR description.
 - Capacitor 8 for the iOS app (`ios/`, Swift Package Manager, no CocoaPods); see `docs/ios.md`
 - Server: Bun + `bun:sqlite` (`server/`), one process in the Docker image serving the app, sync, REST API and MCP; see `docs/sync.md` and `docs/api.md`. Tested with `bun test`.
 
-Planned: Tauri desktop shell, Capacitor Android.
+Desktop: Tauri v2 shell in `src-tauri/` (Rust), see `docs/desktop.md`.
+Planned: Capacitor Android.
 
 ## Commands
 
@@ -63,6 +64,7 @@ npm test           # vitest
 npm run test:server  # bun test server
 npm run check      # svelte-check + tsc
 npm run build
+npm run tauri dev  # desktop app (needs Rust; see docs/desktop.md)
 npx cap sync ios   # copy the build into the iOS project (open it in Xcode on a Mac)
 ```
 
@@ -91,6 +93,9 @@ npx cap sync ios   # copy the build into the iOS project (open it in Xcode on a 
 | `ios/App/OpenThingsWidgets/`, `ios/App/OpenThingsShare/` | Widget and Share Sheet extensions |
 | `ios/App/Config/OpenThings.xcconfig` | Bundle id, App Group, URL scheme, team: the one place to change them |
 | `src/lib/ui/*` | Svelte components |
+| `src/lib/native/` | Desktop (Tauri) bridge: `desktop.ts` (guarded by `isDesktop`), main-window wiring, quick-add window, Settings → Desktop — see `docs/desktop.md` |
+| `src-tauri/` | Tauri desktop shell (Rust): windows, tray, menu bar, global hotkey, deep links / CLI, native notifications. `npm run tauri dev` |
+| `packaging/arch/` | AUR PKGBUILDs (`openthings` from source, `openthings-bin`), checked by `.github/workflows/desktop.yml` |
 | `site/` | Product website for GitHub Pages (plain HTML/CSS); the app demo is built into `/app/` by `.github/workflows/pages.yml` |
 
 ## Conventions
@@ -104,6 +109,7 @@ npx cap sync ios   # copy the build into the iOS project (open it in Xcode on a 
 - The server reuses the app's pure modules (`parse.ts`, `views.ts`, `dates.ts`, `schema.ts`); keep them free of browser-only imports. REST and MCP writes go through `ServerDb.insert` / `update` / `remove` (same op log), and a new REST route or MCP tool calls `Service` rather than SQL.
 - The UI must work at phone width (≤ 760px) and with touch: no hover-only controls, 44px touch targets, no reliance on double click.
 - Brain Dump items are tasks with `dump = 1`. Unchecked ones are deleted for good 48 hours after `created_at`. Moving one to any list clears `dump`.
+- Native shells only add capabilities: guard Tauri code with `isDesktop` and Capacitor code with `isNativeShell()` so web, PWA and Docker builds are unaffected, and keep data writes in the main window's store.
 - **Native code stays in `ios/` and `src/lib/native/`.** Web code that touches it is guarded by `isNativeShell()` and loads the Capacitor module lazily, so web, PWA and Docker builds are unaffected. Native shells use the `window.OpenThings` bridge; they don't reimplement sync or reminders. Extensions never write the database: they queue items in the App Group and the app imports them through the store (op log).
 - Optional features are listed in `FEATURES` in `features.svelte.ts`. A new optional view must be gated through `viewEnabled()`.
 - Keep the UI calm: few elements per row, short animations (`transform`/`opacity`), no new colors without a token in `app.css`.

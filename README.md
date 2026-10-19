@@ -7,7 +7,7 @@
 <p align="center">
   <b>A self-hosted, local-first task manager with a calm, keyboard-first design.</b><br>
   Plan your day with Today, Upcoming and Areas, then focus with a built-in Pomodoro, habits, reminders and an Eisenhower matrix.
-  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host, and as an iPhone app.
+  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host, and as an iPhone app and a desktop app for macOS and Arch Linux.
 </p>
 
 <p align="center">
@@ -15,6 +15,7 @@
   <a href="https://github.com/spuder/OpenThings/pkgs/container/openthings"><img alt="Docker: ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2f6fed?style=for-the-badge&logo=docker&logoColor=white&labelColor=555"></a>
   <a href="#self-hosting"><img alt="Self-host: compose.yaml" src="https://img.shields.io/badge/self--host-compose.yaml-e3743b?style=for-the-badge&logo=tailscale&logoColor=white&labelColor=555"></a>
   <a href="#ios-app"><img alt="iOS: build from source" src="https://img.shields.io/badge/iOS-build%20from%20source-111111?style=for-the-badge&logo=apple&logoColor=white&labelColor=555"></a>
+  <a href="#desktop-app"><img alt="Desktop: macOS and Arch Linux" src="https://img.shields.io/badge/desktop-macOS%20%7C%20Arch-6b5bd6?style=for-the-badge&logo=tauri&logoColor=white&labelColor=555"></a>
 </p>
 
 <p align="center">
@@ -44,7 +45,7 @@
   <img src="docs/screenshots/today.png" alt="OpenThings Today view" width="860">
 </p>
 
-> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives on each device (SQLite in IndexedDB) and syncs through the server in the Docker image, which also offers a REST API and an MCP endpoint for AI assistants. An **iOS app** (Capacitor, with widgets, share sheet and Shortcuts) runs on iPhone (tested on an iPhone 15); build it yourself with Xcode, see [iOS app](#ios-app). **Android** is coming and [needs testers](https://github.com/spuder/OpenThings/issues/6).
+> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives on each device (SQLite in IndexedDB) and syncs through the server in the Docker image, which also offers a REST API and an MCP endpoint for AI assistants. An **iOS app** (Capacitor, with widgets, share sheet and Shortcuts) runs on iPhone (tested on an iPhone 15); build it yourself with Xcode, see [iOS app](#ios-app). A [desktop app](#desktop-app) for macOS and Arch Linux is in preview. **Android** is coming and [needs testers](https://github.com/spuder/OpenThings/issues/6).
 >
 > Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently and not affiliated with either. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
 
@@ -144,6 +145,38 @@ npm run build
 
 A fresh install starts empty — there is no demo data.
 
+## Desktop app
+
+<p align="center">
+  <img src="docs/screenshots/desktop-today.png" alt="OpenThings desktop app on macOS, Today list" width="760">
+</p>
+
+| Quick add from anywhere (⌃⌥Space) | Settings → Desktop |
+| --- | --- |
+| ![Floating quick-add window with a parsed date, tag and reminder](docs/screenshots/desktop-quickadd.png) | ![Desktop settings: global shortcut and launch at login](docs/screenshots/desktop-settings.png) |
+
+A native shell ([Tauri](https://tauri.app)) around the same app, for **macOS** and **Arch Linux** (Omarchy / Hyprland). It adds a global quick-add hotkey with a floating quick-add window, a menu-bar / tray icon with sync status, reminders as native notifications even with the window closed, a macOS menu bar, launch at login, and `openthings://` links. Details and a test checklist: [docs/desktop.md](docs/desktop.md).
+
+**Download:** open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).
+
+**macOS first launch:** the build isn't notarized yet, so macOS blocks it the first time. Open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
+
+**Quick add from anywhere:** ⌃⌥Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Wayland apps can't grab global keys, so bind the CLI in Hyprland (Super+Space is Omarchy's launcher):
+
+```ini
+# ~/.config/hypr/bindings.conf
+bind = SUPER ALT, SPACE, exec, openthings --quick-add
+windowrule {
+  name = openthings-quick-add
+  match:title = ^(OpenThings Quick Add)$
+  float = on
+  center = on
+  pin = on
+}
+```
+
+`openthings --add "Buy milk #errand"` adds without a window; `openthings://add?text=…` links work too. The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
+
 ## iOS app
 
 | Today | Quick add | Lists | Brain Dump |
@@ -207,7 +240,7 @@ Run the server locally with `npm run build && npm run server` (http://localhost:
 
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
-3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
+3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, see [Desktop app](#desktop-app). Next: signing and notarization, release downloads, AUR, Ubuntu/Fedora packages.
 4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 

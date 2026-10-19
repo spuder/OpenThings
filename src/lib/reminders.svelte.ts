@@ -40,11 +40,16 @@ export function upcomingReminders(tasks: Task[], now: number): UpcomingReminder[
     .map((t) => ({ taskId: t.id, title: t.title, at: t.reminder_at! }));
 }
 
-/** Native shells (Capacitor) deliver notifications through the OS instead of the service worker. */
+/** Native shells (Capacitor, Tauri) deliver notifications through the OS instead of the service worker. */
 export interface NativeNotifier {
   permission(): Promise<NotifyPermission>;
   request(): Promise<NotifyPermission>;
   show(title: string, body: string, taskId?: string): Promise<void>;
+  /**
+   * The OS has already scheduled reminders ahead of time (iOS), so the app must not show them again.
+   * Default true. The desktop shell sets false: the app fires due reminders and calls `show`.
+   */
+  schedulesAhead?: boolean;
 }
 
 class Notifier {
@@ -55,7 +60,7 @@ class Notifier {
 
   /** True when the OS schedules reminder notifications itself (native shells), so the app must not show them again. */
   get osDelivers(): boolean {
-    return this.native !== null;
+    return this.native !== null && this.native.schedulesAhead !== false;
   }
 
   /** Called by the native shell module; from then on permission, request and show go through it. */
@@ -66,7 +71,6 @@ class Notifier {
   }
   /** Last delivery error, shown in Settings for troubleshooting. */
   lastError = $state<string | null>(null);
-
   async init(onOpenTask: (id: string) => void) {
     if (this.native) return;
     this.permission = currentPermission();

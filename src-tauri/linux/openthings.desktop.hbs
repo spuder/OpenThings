@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}} %u
+Icon={{icon}}
+Terminal=false
+Categories=Office;ProjectManagement;
+Keywords=tasks;todo;gtd;reminders;
+StartupWMClass=openthings
+MimeType=x-scheme-handler/openthings;
+Actions=quick-add;
+
+[Desktop Action quick-add]
+Name=Quick Add
+Exec={{exec}} --quick-add

@@ -6,7 +6,7 @@
     inbox: 'var(--inbox)',
     today: 'var(--star)',
     upcoming: 'var(--upcoming)',
-    week: 'var(--upcoming)',
+    week: 'var(--week)',
     anytime: 'var(--anytime)',
     someday: 'var(--someday)',
     logbook: 'var(--logbook)',

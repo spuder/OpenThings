@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The web app in the main and quick-add windows: listen to shell events and call the shell's own commands (no file system or shell access).",
+  "windows": ["main", "quickadd"],
+  "permissions": ["core:default"]
+}

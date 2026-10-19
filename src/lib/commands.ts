@@ -29,6 +29,11 @@ const hasTask = () => !!sel() && store.view.kind !== 'habits';
 const inHabits = () => store.view.kind === 'habits';
 const inTrash = () => store.view.kind === 'trash';
 
+function typingNow() {
+  const el = document.activeElement as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
+
 function withTask(fn: (id: string) => void) {
   return () => {
     const t = sel();
@@ -224,17 +229,17 @@ export const commands: Command[] = [
   },
 
   { id: 'task.complete', title: 'Complete task', group: 'Task', keys: ['x', 'mod+enter'], when: hasTask, run: withTask((id) => store.toggleComplete(id)) },
-  { id: 'task.today', title: 'Start today', group: 'Task', keys: ['t'], when: hasTask, run: withTask((id) => store.setToday(id)) },
-  { id: 'task.evening', title: 'This evening', group: 'Task', keys: ['e'], when: hasTask, run: withTask((id) => store.setEvening(id)) },
-  { id: 'task.tomorrow', title: 'Tomorrow', group: 'Task', keys: ['r'], when: hasTask, run: withTask((id) => store.setTomorrow(id)) },
-  { id: 'task.someday', title: 'Someday', group: 'Task', keys: ['s'], when: hasTask, run: withTask((id) => store.setSomeday(id)) },
+  { id: 'task.today', title: 'Start today', group: 'Task', keys: ['t'], when: hasTask, run: withTask((id) => { store.setToday(id); store.announceWhen(id); }) },
+  { id: 'task.evening', title: 'This evening', group: 'Task', keys: ['e'], when: hasTask, run: withTask((id) => { store.setEvening(id); store.announceWhen(id); }) },
+  { id: 'task.tomorrow', title: 'Tomorrow', group: 'Task', keys: ['r'], when: hasTask, run: withTask((id) => { store.setTomorrow(id); store.announceWhen(id); }) },
+  { id: 'task.someday', title: 'Someday', group: 'Task', keys: ['s'], when: hasTask, run: withTask((id) => { store.setSomeday(id); store.announceWhen(id); }) },
   { id: 'task.when', title: 'When…', group: 'Task', keys: ['w'], when: hasTask, run: () => openPalette('when') },
   { id: 'task.deadline', title: 'Deadline…', group: 'Task', keys: ['d'], when: hasTask, run: () => openPalette('deadline') },
   { id: 'task.reminder', title: 'Reminder…', group: 'Task', keys: ['a'], when: hasTask, run: () => openPalette('reminder') },
   { id: 'task.move', title: 'Move to…', group: 'Task', keys: ['m'], when: hasTask, run: () => openPalette('move') },
   { id: 'task.tag', title: 'Add tag…', group: 'Task', keys: ['#', 'l'], when: hasTask, run: () => openPalette('tag') },
-  { id: 'task.urgent', title: 'Toggle urgent', group: 'Task', keys: ['u'], when: hasTask, run: withTask((id) => store.toggleUrgent(id)) },
-  { id: 'task.important', title: 'Toggle important', group: 'Task', keys: ['i'], when: hasTask, run: withTask((id) => store.toggleImportant(id)) },
+  { id: 'task.urgent', title: 'Toggle urgent', group: 'Task', keys: ['u'], when: hasTask, run: withTask((id) => { store.toggleUrgent(id); store.notify(sel()?.urgent ? 'Marked urgent' : 'Not urgent'); }) },
+  { id: 'task.important', title: 'Toggle important', group: 'Task', keys: ['i'], when: hasTask, run: withTask((id) => { store.toggleImportant(id); store.notify(sel()?.important ? 'Marked important' : 'Not important'); }) },
   { id: 'task.up', title: 'Move up', group: 'Task', keys: ['alt+arrowup', 'shift+k'], when: hasTask, run: withTask((id) => store.reorder(id, -1)) },
   { id: 'task.down', title: 'Move down', group: 'Task', keys: ['alt+arrowdown', 'shift+j'], when: hasTask, run: withTask((id) => store.reorder(id, 1)) },
   { id: 'task.delete', title: 'Move to Trash', group: 'Task', keys: ['backspace', 'delete'], when: hasTask, run: withTask((id) => store.deleteTask(id)) },
@@ -292,6 +297,8 @@ export const commands: Command[] = [
       if (v.kind === 'project') openListMenu({ kind: 'project', id: v.id });
     },
   },
+  // Outside a text field; inside one, ⌘Z / Ctrl+Z is the field's own text undo.
+  { id: 'app.undo', title: 'Undo', group: 'App', keys: ['mod+z'], when: () => !typingNow(), run: () => store.undo() },
   { id: 'app.find', title: 'Quick Find', group: 'App', keys: ['mod+f', '/'], run: () => (store.overlay = 'find') },
   { id: 'app.sidebar', title: 'Show / hide sidebar', group: 'App', keys: ['mod+/'], run: () => store.toggleSidebar() },
   { id: 'app.palette', title: 'Command palette', group: 'App', keys: ['mod+k', 'mod+shift+p', ':'], run: () => openPalette('commands'), hidden: true },

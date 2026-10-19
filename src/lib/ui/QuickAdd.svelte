@@ -2,19 +2,28 @@
   import { untrack } from 'svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { store } from '../store.svelte';
-  import { parseQuickAdd, type TokenKind } from '../parse';
+  import { parseQuickAdd, tagCompletion, type TokenKind } from '../parse';
   import { relLabel } from '../dates';
+
+  /**
+   * Set by the desktop app's floating quick-add window (src/lib/native/QuickAddWindow.svelte):
+   * the text is handed to the main window, which adds it through the store. Default: add here.
+   */
+  let { native = null }: { native?: { submit(text: string, keepOpen: boolean): void; close(): void } | null } = $props();
 
   // Brain Dump is for getting things out of your head: a plain box, no syntax, chips or tags.
   // The text is kept literally. Opened elsewhere with @dump (B), it still lands in the dump.
   const prefill = parseQuickAdd(store.quickAddPrefill, store.day);
-  const simple = store.view.kind === 'dump' || prefill.dump;
-  let value = $state(simple ? '' : store.quickAddPrefill);
+  const simple = $derived(!native && (store.view.kind === 'dump' || prefill.dump));
+  let value = $state((() => (simple ? '' : store.quickAddPrefill))());
   // Opened with the current list pre-filled (+Project, @today): that text is the context now, so
   // deleting it sends the to-do to the Inbox instead of falling back to the current list.
   const context = store.quickAddPrefill && store.quickAddPrefill === store.contextToken() ? store.quickAddPrefill : '';
   let input: HTMLInputElement | undefined = $state();
   let added = $state(0);
+  /** Caret position while it's a plain cursor (no selection) in the focused input; null otherwise. */
+  let caret = $state<number | null>(null);
+  let scrollX = $state(0);
 
   const parsed = $derived(
     simple
@@ -22,8 +31,40 @@
       : parseQuickAdd(value, store.day),
   );
 
+  // Most used tags first; the built-in flags last.
+  const tagNames = $derived.by(() => {
+    const uses = new Map<string, number>();
+    for (const tt of store.taskTags) uses.set(tt.tag_id, (uses.get(tt.tag_id) ?? 0) + 1);
+    const names = [...store.tags].sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0) || a.name.localeCompare(b.name)).map((t) => t.name);
+    return [...names, 'urgent', 'important'];
+  });
+
+  // Inline tag completion: the rest of the best match shows as ghost text after the cursor. It's
+  // never inserted while you type, so the cursor stays put; Tab takes one step, → takes it all.
+  const completion = $derived(simple || caret === null ? null : tagCompletion(value, caret, tagNames));
+
+  function syncCaret() {
+    if (!input) return;
+    const { selectionStart: a, selectionEnd: b } = input;
+    caret = a !== null && a === b && document.activeElement === input ? a : null;
+    scrollX = input.scrollLeft;
+  }
+
+  /** Replace the partial tag with `to`; a finished tag from Tab gets a space so you can type on. */
+  function complete(to: string, spaceIfDone: boolean) {
+    const c = completion; // re-derives as soon as value changes
+    if (!c) return;
+    const end = c.start + c.typed.length;
+    const rest = value.slice(end);
+    const done = spaceIfDone && to === c.suggestion;
+    value = value.slice(0, c.start) + to + (done && !rest.startsWith(' ') ? ' ' : '') + rest;
+    caret = c.start + to.length + (done ? 1 : 0);
+    placeCursor(caret);
+  }
+
   const contextLabel = $derived.by(() => {
     if (parsed.project || parsed.when || parsed.dump) return null;
+    if (native) return 'Inbox';
     if (context) return 'Inbox';
     const v = store.view;
     switch (v.kind) {
@@ -54,7 +95,8 @@
 
   function submit(keepOpen: boolean) {
     if (!parsed.title) return;
-    store.addParsed(parsed, { useContext: !context });
+    if (native) native.submit(value, keepOpen);
+    else store.addParsed(parsed, { useContext: !context });
     added++;
     value = keepOpen && !simple ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : context) : '';
     if (keepOpen) placeCursor(context ? 0 : value.length);
@@ -92,11 +134,18 @@
 
   function close() {
     (document.activeElement as HTMLElement | null)?.blur();
+    if (native) return native.close();
     store.overlay = null;
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (completion && e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      complete(completion.step, true);
+    } else if (completion && e.key === 'ArrowRight' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      complete(completion.suggestion, false);
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       close();
     } else if (e.key === 'Enter') {
@@ -129,18 +178,46 @@
   };
 </script>
 
-<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
-<div class="panel" transition:fly={{ y: -10, duration: 180 }} role="dialog" aria-label="Quick add" aria-modal="true">
-  <input
-    bind:this={input}
-    bind:value
-    onkeydown={onKey}
-    placeholder={simple ? 'Write anything…' : `New to-do   ${keys.map((k) => k.label).join('  ')}`}
-    spellcheck="false"
-    aria-label="New to-do"
-  />
-  {#if value && !simple}
+{#if !native}<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>{/if}
+<div class="panel" class:native transition:fly={{ y: -10, duration: 180 }} role="dialog" aria-label="Quick add" aria-modal="true">
+  <div class="field">
+    <input
+      bind:this={input}
+      bind:value
+      class:ghosted={!!completion}
+      onkeydown={onKey}
+      oninput={syncCaret}
+      onkeyup={syncCaret}
+      onpointerup={syncCaret}
+      onselect={syncCaret}
+      onfocus={syncCaret}
+      onblur={() => (caret = null)}
+      onscroll={syncCaret}
+      placeholder={simple ? 'Write anything…' : `New to-do   ${keys.map((k) => k.label).join('  ')}`}
+      spellcheck="false"
+      autocomplete="off"
+      aria-label="New to-do"
+      aria-autocomplete="inline"
+    />
+    {#if completion}
+      <!-- Draws the whole line with the ghost spliced in; the input's own text is hidden meanwhile. -->
+      <div class="ghost" aria-hidden="true"><span style:transform="translateX({-scrollX}px)"><span class="text">{value.slice(0, caret ?? 0)}</span>{completion.ghost}<span class="text">{value.slice(caret ?? 0)}</span></span></div>
+    {/if}
+  </div>
+  <!-- Tappable syntax chips are for touch; the desktop quick-add window is keyboard-only and small. -->
+  {#if value && !simple && !native}
     <div class="keys" transition:slide={{ duration: 160 }}>
+      {#if completion}
+        <!-- Touch has no Tab or →: tap the suggestion to take the whole tag and keep typing. -->
+        <button
+          type="button"
+          class="key suggest"
+          in:fade={{ duration: 120 }}
+          onpointerdown={(e) => e.preventDefault()}
+          onclick={() => complete(completion.suggestion, true)}
+          aria-label={`Complete tag #${completion.suggestion}`}>#{completion.suggestion}</button
+        >
+      {/if}
       {#each keys as k, i (k.label)}
         <button
           type="button"
@@ -154,10 +231,12 @@
     </div>
   {/if}
   {#if !simple}
+  {#if !native}
   <div class="keys flags">
     <button type="button" class="key flag" class:on={parsed.important} style:--c="var(--important)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('important')} aria-pressed={parsed.important}>#important</button>
     <button type="button" class="key flag" class:on={parsed.urgent} style:--c="var(--urgent)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('urgent')} aria-pressed={parsed.urgent}>#urgent</button>
   </div>
+  {/if}
   <div class="preview">
     {#if parsed.title}
       <span class="title">{parsed.title}</span>
@@ -172,6 +251,7 @@
   </div>
   {/if}
   <div class="foot">
+    {#if completion}<span class="kb"><kbd>⇥</kbd> #{completion.step}</span>{/if}
     <span class="kb"><kbd>↵</kbd> add</span>
     <span class="kb"><kbd>⇧↵</kbd> add another</span>
     <span class="kb"><kbd>Esc</kbd> close</span>
@@ -201,7 +281,20 @@
     z-index: 21;
     padding: 14px 16px 10px;
   }
-  input {
+  /* Desktop quick-add window: the panel is the whole (frameless) window. */
+  .panel.native {
+    position: static;
+    width: 100%;
+    transform: none;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 100vh;
+  }
+  .field {
+    position: relative;
+  }
+  input,
+  .ghost {
     width: 100%;
     border: none;
     outline: none;
@@ -210,6 +303,24 @@
     font-weight: 500;
     /* 16px+ prevents iOS zoom on focus. */
     padding: 4px 0 8px;
+  }
+  .ghost {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: pre;
+    color: var(--text-3);
+  }
+  .ghost > span {
+    display: inline-block;
+  }
+  .ghost .text {
+    color: var(--text);
+  }
+  input.ghosted {
+    color: transparent;
+    caret-color: var(--text);
   }
   input::placeholder {
     color: var(--text-3);
@@ -276,6 +387,11 @@
   .key:hover {
     color: var(--text);
   }
+  .key.suggest {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    font-weight: 600;
+  }
   .key.flag {
     color: var(--c);
     background: transparent;
@@ -311,6 +427,12 @@
       font-size: 14px;
       padding: 7px 11px;
     }
+    .key.suggest {
+      min-height: 44px;
+    }
+    .keys {
+      align-items: center;
+    }
     /* No Esc or Enter keys to point at: real buttons instead. */
     .kb {
       display: none;
@@ -334,6 +456,13 @@
     }
     .added + .add-btn {
       margin-left: 0;
+    }
+    /* The desktop quick-add window is narrow but isn't a phone: keep the keyboard hints. */
+    .native .kb {
+      display: inline;
+    }
+    .native .touch-btn {
+      display: none;
     }
   }
 </style>

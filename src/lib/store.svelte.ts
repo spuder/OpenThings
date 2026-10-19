@@ -637,6 +637,12 @@ class Store {
     });
   }
 
+  /** Toast naming the list a to-do landed in, for keyboard and palette actions that move it out of sight. */
+  announceWhen(id: ID) {
+    const t = this.task(id);
+    if (t) this.notify(V.describeWhen(t, this.day));
+  }
+
   setToday(id: ID) {
     this.setWhen(id, { date: this.day, evening: false, someday: false, inbox: false });
   }

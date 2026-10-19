@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { thisWeek } from './views';
+import { describeWhen, thisWeek } from './views';
 import type { Task } from './types';
 
 const base = {
@@ -44,5 +44,21 @@ describe('thisWeek', () => {
 
   it('on Sunday shows only today', () => {
     expect(thisWeek(tasks, '2026-10-18', new Set()).map((x) => x.date)).toEqual(['2026-10-18']);
+  });
+});
+
+describe('describeWhen', () => {
+  const day = '2026-10-14'; // a Wednesday
+  it('names the list the to-do moved to', () => {
+    expect(describeWhen(t('a', { when_date: day }), day)).toBe('Moved to Today');
+    expect(describeWhen(t('a', { when_date: day, evening: 1 }), day)).toBe('Moved to This Evening');
+    expect(describeWhen(t('a', { someday: 1 }), day)).toBe('Moved to Someday');
+    expect(describeWhen(t('a', { project_id: 'p' }), day)).toBe('Moved to Anytime');
+    expect(describeWhen(t('a', {}), day)).toBe('Moved to Inbox');
+  });
+  it('includes the day for future dates', () => {
+    expect(describeWhen(t('a', { when_date: '2026-10-15' }), day)).toBe('Moved to Upcoming · Tomorrow');
+    expect(describeWhen(t('a', { when_date: '2026-10-16' }), day)).toBe('Moved to Upcoming · Friday');
+    expect(describeWhen(t('a', { when_date: '2026-11-02' }), day)).toBe('Moved to Upcoming · Nov 2');
   });
 });

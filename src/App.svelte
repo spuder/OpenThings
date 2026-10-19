@@ -19,8 +19,26 @@
   import FocusView from './lib/ui/FocusView.svelte';
   import BottomBar from './lib/ui/BottomBar.svelte';
   import QuickFind from './lib/ui/QuickFind.svelte';
+  import { isNarrow } from './lib/env';
+  import { classifySwipe, swipeIgnored } from './lib/gesture';
 
   store.init().then(() => store.start());
+
+  // Phone: swipe right anywhere to open the list drawer, swipe left to close it.
+  let touch: { x: number; y: number; t: number } | null = null;
+  function onTouchStart(e: TouchEvent) {
+    touch = e.touches.length === 1 && isNarrow() && !store.overlay && !swipeIgnored(e.target)
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp }
+      : null;
+  }
+  function onTouchEnd(e: TouchEvent) {
+    if (!touch) return;
+    const p = e.changedTouches[0];
+    const swipe = classifySwipe(p.clientX - touch.x, p.clientY - touch.y, e.timeStamp - touch.t);
+    touch = null;
+    if (swipe === 'right' && !store.sidebarOpen) store.sidebarOpen = true;
+    else if (swipe === 'left' && store.sidebarOpen) store.sidebarOpen = false;
+  }
 
   const v = $derived(store.view);
   const iconName = $derived(v.kind === 'project' ? '' : v.kind);
@@ -39,7 +57,7 @@
   };
 </script>
 
-<svelte:window onkeydown={handleKey} />
+<svelte:window onkeydown={handleKey} ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={() => (touch = null)} />
 
 {#if store.ready}
   <div class="app">
@@ -335,7 +353,8 @@
       z-index: 14;
     }
     .content {
-      padding: 4px 16px 32px;
+      /* Room for the add button so it never covers the last row. */
+      padding: 4px 16px 96px;
     }
     .view-head {
       margin: 6px 0 12px;

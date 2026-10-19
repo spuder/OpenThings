@@ -16,7 +16,10 @@
 </script>
 
 <div class="bar" role="toolbar" aria-label="To-do actions">
-  <button onclick={() => run('create.quickadd')} title={`New to-do${key('create.quickadd')}`} aria-label="New to-do">
+  <button class="fab" onclick={() => run('create.quickadd')} aria-label="New to-do">
+    <Icon name="plus" size={26} />
+  </button>
+  <button class="add" onclick={() => run('create.quickadd')} title={`New to-do${key('create.quickadd')}`} aria-label="New to-do">
     <Icon name="plus" size={20} />
   </button>
   <button onclick={() => run('task.when')} disabled={!canAct} title={`When${key('task.when')}`} aria-label="When">
@@ -32,9 +35,11 @@
 
 <style>
   .bar {
+    position: relative;
+    z-index: 4;
     flex-shrink: 0;
-    height: calc(52px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
+    /* Sit closer to the home indicator than the full safe-area inset: the bar is short and the inset is ~34px. */
+    padding: 2px 0 max(2px, calc(env(safe-area-inset-bottom) - 18px));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -43,8 +48,8 @@
     background: var(--bg);
   }
   button {
-    width: 40px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     display: grid;
     place-items: center;
     border-radius: 8px;
@@ -58,6 +63,36 @@
   }
   button:hover:not(:disabled) {
     background: var(--chip);
+  }
+  .fab {
+    display: none;
+  }
+  @media (max-width: 760px) {
+    /* Phones: adding gets a big round button above the bar, bottom right, in thumb reach. */
+    .add {
+      display: none;
+    }
+    .fab {
+      display: grid;
+      position: absolute;
+      right: 18px;
+      bottom: calc(100% + 18px);
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+      transition: transform 0.12s var(--ease);
+    }
+    .fab :global(svg) {
+      stroke: #fff;
+    }
+    .fab:hover:not(:disabled) {
+      background: var(--accent);
+    }
+    .fab:active {
+      transform: scale(0.92);
+    }
   }
   button:disabled {
     opacity: 0.35;

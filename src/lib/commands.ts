@@ -308,19 +308,6 @@ export const commands: Command[] = [
   { id: 'app.theme', title: 'Toggle dark mode', group: 'App', keys: ['shift+d'], run: () => { theme.toggle(); store.notify(theme.isDark ? 'Dark mode' : 'Light mode'); } },
   { id: 'app.mute', title: 'Toggle sounds', group: 'App', keys: ['shift+m'], run: () => store.toggleMute() },
   { id: 'app.export', title: 'Export JSON backup', group: 'App', keys: ['mod+shift+e'], run: () => store.exportJson() },
-  {
-    id: 'app.import-things',
-    title: 'Import from Things 3…',
-    group: 'App',
-    keys: [],
-    // Desktop / web only: the picker reads a file from the computer.
-    when: () => !isTouch,
-    run: () => {
-      store.go({ kind: 'settings' });
-      // The input only exists after Settings renders.
-      requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('things-import-file')?.click()));
-    },
-  },
   { id: 'app.reset', title: 'Reset demo data', group: 'App', keys: [], run: () => void store.resetDemo() },
 ];
 

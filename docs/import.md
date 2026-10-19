@@ -1,15 +1,16 @@
 # Importing from other task managers
 
-OpenThings can import an existing **Things 3** database. This document covers what
-is imported, what is deliberately left behind, and the evaluation of a Super
-Productivity importer.
+OpenThings can import an existing **Things 3** database, but only in the
+**macOS desktop app**. The browser version cannot read the Things group container,
+so its Settings page says that importing is desktop-only.
 
-Importing is **desktop / web only**. It reads a file from the computer, so it is
-hidden on touch-first devices (`isTouch` in `src/lib/env.ts`) and in the phone apps.
+This document covers what is imported, what is deliberately left behind, and the
+evaluation of a Super Productivity importer.
 
 The code lives in `src/lib/import/`. It reads the source database in memory and
 only ever writes through `db.bulkInsert`, which records the normal op log and
-syncs like any other change.
+syncs like any other change. The desktop shell finds the database and passes the
+bytes to the same importer; the web build has no import UI.
 
 ## Things 3
 
@@ -18,24 +19,19 @@ keeps on the user's own Mac. That is the user's data, not an API: the importer i
 an independent implementation of the mapping, does not bundle Cultured Code code,
 and never writes to the source file.
 
-### Choosing the file
+### Using it
 
 1. **Quit Things first.** The database is in WAL mode, and recent changes may live
    in `main.sqlite-wal`; quitting lets Things checkpoint them into `main.sqlite`.
-2. In OpenThings: **Settings → Data → Import from Things 3**, then choose
-   `main.sqlite` from:
+2. In the macOS app: **Settings → Data**. The app looks for
+   `~/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac/ThingsData-*/Things Database.thingsdatabase/main.sqlite`
+   and shows the path it found.
+3. Click **Find Things on this Mac**, review the preview, then **Import**.
+   Importing **adds** to the current data; it does not replace or delete anything.
+   Export a JSON backup first if unsure.
 
-   ```
-   ~/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac/
-     ThingsData-XXXXX/Things Database.thingsdatabase/main.sqlite
-   ```
-
-   In the file picker, press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd> to paste the path.
-3. Review the preview, then **Import**. Importing **adds** to the current data; it
-   does not replace or delete anything. Export a JSON backup first if unsure.
-
-The database is read in the browser with `sql.js`. Nothing is uploaded, and the
-original file is untouched.
+The database is read in memory with `sql.js` inside the app. Nothing is uploaded,
+and the original file is untouched.
 
 ### What is imported
 

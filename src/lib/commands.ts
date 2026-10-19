@@ -133,7 +133,7 @@ export const commands: Command[] = [
     group: 'Create',
     keys: ['q', 'n', 'mod+n', 'ctrl+space'],
     run: () => {
-      store.quickAddPrefill = '';
+      store.quickAddPrefill = store.contextToken();
       store.overlay = 'quickadd';
     },
   },

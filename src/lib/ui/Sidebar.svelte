@@ -86,7 +86,7 @@
         </li>
         {#each projectsIn(a.id) as p (p.id)}
           <li class="has-menu">
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
@@ -188,6 +188,10 @@
   }
   .area {
     margin-top: 6px;
+  }
+  /* Projects inside an area sit a step in, so they read as belonging to it. */
+  .row.in-area {
+    padding-left: 24px;
   }
   footer {
     display: flex;
@@ -339,6 +343,9 @@
       padding: 9px 10px;
       font-size: 15.5px;
       gap: 12px;
+    }
+    .row.in-area {
+      padding-left: 30px;
     }
     footer {
       padding-bottom: calc(10px + env(safe-area-inset-bottom));

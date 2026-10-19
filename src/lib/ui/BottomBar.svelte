@@ -28,7 +28,7 @@
   <button onclick={() => run('task.move')} disabled={!canAct} title={`Move${key('task.move')}`} aria-label="Move">
     <Icon name="arrow" size={20} />
   </button>
-  <button onclick={() => run('app.find')} title={`Quick Find${key('app.find')}`} aria-label="Quick Find">
+  <button class="find" onclick={() => run('app.find')} title={`Quick Find${key('app.find')}`} aria-label="Quick Find">
     <Icon name="search" size={20} />
   </button>
 </div>
@@ -68,15 +68,33 @@
     display: none;
   }
   @media (max-width: 760px) {
-    /* Phones: adding gets a big round button above the bar, bottom right, in thumb reach. */
-    .add {
+    /* Phones: no toolbar. Floating round buttons above the home indicator: Find bottom left, add bottom right. */
+    .bar {
+      height: 0;
+      padding: 0;
+      border: none;
+    }
+    button:not(.fab, .find) {
       display: none;
+    }
+    .find {
+      position: fixed;
+      left: 18px;
+      bottom: calc(21px + env(safe-area-inset-bottom));
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--card);
+      box-shadow: var(--card-shadow);
+    }
+    .find:hover:not(:disabled) {
+      background: var(--card);
     }
     .fab {
       display: grid;
-      position: absolute;
+      position: fixed;
       right: 18px;
-      bottom: calc(100% + 18px);
+      bottom: calc(14px + env(safe-area-inset-bottom));
       width: 58px;
       height: 58px;
       border-radius: 50%;

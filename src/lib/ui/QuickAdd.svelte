@@ -1,10 +1,13 @@
 <script lang="ts">
-  import { fly, fade } from 'svelte/transition';
+  import { fly, fade, slide } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { parseQuickAdd, type TokenKind } from '../parse';
   import { relLabel } from '../dates';
 
   let value = $state(store.quickAddPrefill);
+  // Opened with the current list pre-filled (+Project, @today): that text is the context now, so
+  // deleting it sends the to-do to the Inbox instead of falling back to the current list.
+  const context = store.quickAddPrefill && store.quickAddPrefill === store.contextToken() ? store.quickAddPrefill : '';
   let input: HTMLInputElement | undefined = $state();
   let added = $state(0);
 
@@ -12,6 +15,7 @@
 
   const contextLabel = $derived.by(() => {
     if (parsed.project || parsed.when || parsed.dump) return null;
+    if (context) return 'Inbox';
     const v = store.view;
     switch (v.kind) {
       case 'today': return 'Today';
@@ -36,10 +40,36 @@
 
   function submit(keepOpen: boolean) {
     if (!parsed.title) return;
-    store.addParsed(parsed);
+    store.addParsed(parsed, { useContext: !context });
     added++;
-    value = keepOpen ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : '') : '';
+    value = keepOpen ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : context) : '';
     if (!keepOpen) close();
+  }
+
+  // Syntax keys: shown in the placeholder while empty, then as tappable chips below the input once you type.
+  const keys: { label: string; insert: string }[] = [
+    { label: '#tag', insert: '#' },
+    { label: '+Project', insert: '+' },
+    { label: '@tomorrow', insert: '@' },
+    { label: '%9am', insert: '%' },
+    { label: '!fri', insert: '!' },
+    { label: '~30m', insert: '~' },
+    { label: '*weekly', insert: '*' },
+    { label: '@dump', insert: '@dump ' },
+  ];
+
+  /** #urgent / #important: tap to add, tap again to remove. */
+  function toggleFlag(name: 'urgent' | 'important') {
+    const re = new RegExp(`(^|\\s)#${name}(?=\\s|$)`, 'gi');
+    if (re.test(value)) value = value.replace(re, '$1').replace(/\s{2,}/g, ' ').trimStart();
+    else insertKey(`#${name} `);
+    input?.focus();
+  }
+
+  function insertKey(text: string) {
+    value = value + (value && !value.endsWith(' ') ? ' ' : '') + text;
+    input?.focus();
+    queueMicrotask(() => input?.setSelectionRange(value.length, value.length));
   }
 
   function close() {
@@ -87,10 +117,28 @@
     bind:this={input}
     bind:value
     onkeydown={onKey}
-    placeholder="New to-do   #tag  +Project  @tomorrow  %9am  !fri  ~30m  *weekly  ^ui  @dump"
+    placeholder={`New to-do   ${keys.map((k) => k.label).join('  ')}`}
     spellcheck="false"
     aria-label="New to-do"
   />
+  {#if value}
+    <div class="keys" transition:slide={{ duration: 160 }}>
+      {#each keys as k, i (k.label)}
+        <button
+          type="button"
+          class="key"
+          in:fly={{ y: -10, duration: 180, delay: i * 18 }}
+          onpointerdown={(e) => e.preventDefault()}
+          onclick={() => insertKey(k.insert)}
+          aria-label={`Insert ${k.label}`}>{k.label}</button
+        >
+      {/each}
+    </div>
+  {/if}
+  <div class="keys flags">
+    <button type="button" class="key flag" class:on={parsed.important} style:--c="var(--important)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('important')} aria-pressed={parsed.important}>#important</button>
+    <button type="button" class="key flag" class:on={parsed.urgent} style:--c="var(--urgent)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('urgent')} aria-pressed={parsed.urgent}>#urgent</button>
+  </div>
   <div class="preview">
     {#if parsed.title}
       <span class="title">{parsed.title}</span>
@@ -104,11 +152,13 @@
     {#each parsed.warnings as w}<span class="warn">{w}</span>{/each}
   </div>
   <div class="foot">
-    <span><kbd>↵</kbd> add</span>
-    <span><kbd>⇧↵</kbd> add another</span>
-    <span><kbd>Esc</kbd> close</span>
+    <span class="kb"><kbd>↵</kbd> add</span>
+    <span class="kb"><kbd>⇧↵</kbd> add another</span>
+    <span class="kb"><kbd>Esc</kbd> close</span>
+    <button type="button" class="touch-btn" onclick={close}>Cancel</button>
     {#if parsed.notes}<span class="notes">Notes: {parsed.notes}</span>{/if}
     {#if added}<span class="added" in:fade>{added} added</span>{/if}
+    <button type="button" class="touch-btn add-btn" disabled={!parsed.title} onclick={() => submit(false)}>Add</button>
   </div>
 </div>
 
@@ -190,6 +240,35 @@
     white-space: nowrap;
     max-width: 220px;
   }
+  .keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 2px 0 10px;
+  }
+  .key {
+    font-size: 12.5px;
+    color: var(--text-2);
+    background: var(--chip);
+    border-radius: 7px;
+    padding: 3px 8px;
+  }
+  .key:hover {
+    color: var(--text);
+  }
+  .key.flag {
+    color: var(--c);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent);
+    transition: background 0.12s, color 0.12s;
+  }
+  .key.flag.on {
+    color: #fff;
+    background: var(--c);
+  }
+  .touch-btn {
+    display: none;
+  }
   .added {
     margin-left: auto;
     color: var(--logbook);
@@ -197,8 +276,44 @@
   }
   @media (max-width: 760px) {
     .panel {
-      top: calc(8px + env(safe-area-inset-top));
+      /* About two thirds up the screen: in thumb reach, still clear of the on-screen keyboard. */
+      top: 30dvh;
       width: calc(100vw - 16px);
+    }
+    /* Keyboard up: sit right on top of it so the buttons are never hidden. */
+    :global(html.kb-open) .panel {
+      top: auto;
+      bottom: calc(var(--kb) + 8px);
+      max-height: calc(100dvh - var(--kb) - env(safe-area-inset-top) - 16px);
+      overflow-y: auto;
+    }
+    .key {
+      font-size: 14px;
+      padding: 7px 11px;
+    }
+    /* No Esc or Enter keys to point at: real buttons instead. */
+    .kb {
+      display: none;
+    }
+    .touch-btn {
+      display: block;
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: 9px;
+      font-size: 15px;
+      color: var(--text-2);
+    }
+    .add-btn {
+      margin-left: auto;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .add-btn:disabled {
+      opacity: 0.4;
+    }
+    .added + .add-btn {
+      margin-left: 0;
     }
   }
 </style>

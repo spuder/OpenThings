@@ -21,8 +21,10 @@
   import QuickFind from './lib/ui/QuickFind.svelte';
   import { isNarrow } from './lib/env';
   import { classifySwipe, swipeIgnored } from './lib/gesture';
+  import { installKeyboardInset } from './lib/keyboard';
 
   store.init().then(() => store.start());
+  installKeyboardInset();
 
   // Phone: swipe right anywhere to open the list drawer, swipe left to close it.
   let touch: { x: number; y: number; t: number } | null = null;
@@ -38,6 +40,25 @@
     touch = null;
     if (swipe === 'right' && !store.sidebarOpen) store.sidebarOpen = true;
     else if (swipe === 'left' && store.sidebarOpen) store.sidebarOpen = false;
+  }
+
+  // Tapping or clicking outside an open to-do closes it. A drag (scrolling) doesn't count.
+  let outside: { x: number; y: number } | null = null;
+  function onPointerDown(e: PointerEvent) {
+    const t = e.target instanceof Element ? e.target : null;
+    outside = store.expandedId && !store.overlay && t && !t.closest('.task.expanded, [role="dialog"], [role="menu"]')
+      ? { x: e.clientX, y: e.clientY }
+      : null;
+  }
+  function onPointerUp(e: PointerEvent) {
+    if (!outside) return;
+    const moved = Math.hypot(e.clientX - outside.x, e.clientY - outside.y);
+    outside = null;
+    if (moved > 10 || !store.expandedId) return;
+    // Blur first so the open to-do's fields save, as Escape does.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('.task.expanded')) active.blur();
+    store.expandedId = null;
   }
 
   const v = $derived(store.view);
@@ -57,7 +78,7 @@
   };
 </script>
 
-<svelte:window onkeydown={handleKey} ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={() => (touch = null)} />
+<svelte:window onkeydown={handleKey} ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={() => (touch = null)} onpointerdown={onPointerDown} onpointerup={onPointerUp} onpointercancel={() => (outside = null)} />
 
 {#if store.ready}
   <div class="app">
@@ -354,7 +375,7 @@
     }
     .content {
       /* Room for the add button so it never covers the last row. */
-      padding: 4px 16px 96px;
+      padding: 4px 16px calc(96px + var(--kb, 0px));
     }
     .view-head {
       margin: 6px 0 12px;

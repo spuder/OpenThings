@@ -7,6 +7,12 @@ import type { Task } from './types';
 const REF = '2026-10-18';
 
 describe('parseQuickAdd', () => {
+  it('reads the pre-filled list context back (multi-word project, today)', () => {
+    const p = parseQuickAdd('+Garage-cleanout Buy boxes', REF);
+    expect(p.project).toBe('Garage cleanout');
+    expect(p.title).toBe('Buy boxes');
+    expect(parseQuickAdd('@today Call Sam', REF).when?.date).toBe(REF);
+  });
   it('extracts tags, project, when, deadline, estimate', () => {
     const p = parseQuickAdd('Print dino stands #printing #shop +Jurassic-Stacks @tomorrow !fri ~1h30m', REF);
     expect(p.title).toBe('Print dino stands');
@@ -207,5 +213,19 @@ describe('habit schedules', () => {
     expect(p.required).toBe(10);
     expect(p.done).toBe(3);
     expect(p.missed).toBe(7); // Oct 8, 9, 12, 13, 14, 15, 16
+  });
+});
+
+describe('built-in #urgent / #important', () => {
+  it('set the Eisenhower flags instead of adding tags', () => {
+    const p = parseQuickAdd('Pay rent #urgent #important #home', REF);
+    expect(p.urgent).toBe(true);
+    expect(p.important).toBe(true);
+    expect(p.tags).toEqual(['home']);
+  });
+
+  it('combine with ^ syntax', () => {
+    const p = parseQuickAdd('Pay rent ^u #important', REF);
+    expect(p.urgent && p.important).toBe(true);
   });
 });

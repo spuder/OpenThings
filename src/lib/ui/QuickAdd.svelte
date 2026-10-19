@@ -197,6 +197,17 @@
   </div>
   {#if value && !simple}
     <div class="keys" transition:slide={{ duration: 160 }}>
+      {#if completion}
+        <!-- Touch has no Tab or →: tap the suggestion to take the whole tag and keep typing. -->
+        <button
+          type="button"
+          class="key suggest"
+          in:fade={{ duration: 120 }}
+          onpointerdown={(e) => e.preventDefault()}
+          onclick={() => complete(completion.suggestion, true)}
+          aria-label={`Complete tag #${completion.suggestion}`}>#{completion.suggestion}</button
+        >
+      {/if}
       {#each keys as k, i (k.label)}
         <button
           type="button"
@@ -355,6 +366,11 @@
   .key:hover {
     color: var(--text);
   }
+  .key.suggest {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    font-weight: 600;
+  }
   .key.flag {
     color: var(--c);
     background: transparent;
@@ -389,6 +405,12 @@
     .key {
       font-size: 14px;
       padding: 7px 11px;
+    }
+    .key.suggest {
+      min-height: 44px;
+    }
+    .keys {
+      align-items: center;
     }
     /* No Esc or Enter keys to point at: real buttons instead. */
     .kb {

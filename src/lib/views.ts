@@ -1,6 +1,6 @@
 /** Pure view filters over task rows, so they can be unit tested. */
 import type { Task } from './types';
-import { addDays, parseYmd } from './dates';
+import { addDays, parseYmd, relLabel } from './dates';
 
 export const DUMP_TTL_MS = 48 * 60 * 60 * 1000;
 
@@ -281,4 +281,12 @@ export function challengeProgress(
     end,
     finished: today > end || done >= required,
   };
+}
+
+/** Toast text after a to-do is rescheduled, naming the list it now shows up in. */
+export function describeWhen(t: Task, day: string): string {
+  if (t.someday) return 'Moved to Someday';
+  if (t.when_date && t.when_date > day) return `Moved to Upcoming · ${relLabel(t.when_date, day)}`;
+  if (t.when_date) return t.evening ? 'Moved to This Evening' : 'Moved to Today';
+  return t.project_id || t.area_id ? 'Moved to Anytime' : 'Moved to Inbox';
 }

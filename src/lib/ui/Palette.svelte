@@ -74,19 +74,27 @@
       }
       case 'move': {
         if (!task) return [];
-        const out: Item[] = [{ label: 'Inbox', run: () => store.moveTo(task.id, { inbox: true }) }];
+        const moveTo = (name: string, target: Parameters<typeof store.moveTo>[1]) => {
+          store.moveTo(task.id, target);
+          store.notify(`Moved to ${name}`);
+        };
+        const toDump = (name: string, sectionId: string | null) => {
+          store.moveToDumpSection(task.id, sectionId);
+          store.notify(`Moved to ${name}`);
+        };
+        const out: Item[] = [{ label: 'Inbox', run: () => moveTo('Inbox', { inbox: true }) }];
         for (const a of store.areas) {
-          out.push({ label: a.name, hint: 'Area', run: () => store.moveTo(task.id, { area_id: a.id }) });
+          out.push({ label: a.name, hint: 'Area', run: () => moveTo(a.name, { area_id: a.id }) });
           for (const p of store.projects.filter((p) => p.area_id === a.id && !p.completed_at)) {
-            out.push({ label: p.name, hint: `Project in ${a.name}`, run: () => store.moveTo(task.id, { project_id: p.id }) });
+            out.push({ label: p.name, hint: `Project in ${a.name}`, run: () => moveTo(p.name, { project_id: p.id }) });
           }
         }
         for (const p of store.projects.filter((p) => !p.area_id && !p.completed_at)) {
-          out.push({ label: p.name, hint: 'Project', run: () => store.moveTo(task.id, { project_id: p.id }) });
+          out.push({ label: p.name, hint: 'Project', run: () => moveTo(p.name, { project_id: p.id }) });
         }
         if (task.dump) {
-          out.push({ label: 'Brain Dump', hint: 'No section', run: () => store.moveToDumpSection(task.id, null) });
-          for (const s of store.dumpSections) out.push({ label: `Brain Dump / ${s.name}`, hint: 'Section', run: () => store.moveToDumpSection(task.id, s.id) });
+          out.push({ label: 'Brain Dump', hint: 'No section', run: () => toDump('Brain Dump', null) });
+          for (const s of store.dumpSections) out.push({ label: `Brain Dump / ${s.name}`, hint: 'Section', run: () => toDump(`Brain Dump / ${s.name}`, s.id) });
         }
         return out.filter((i) => fuzzy(`${i.label} ${i.hint ?? ''}`, q));
       }
@@ -94,10 +102,14 @@
         if (!task) return [];
         return dateItems((date, extra) => {
           store.setWhen(task.id, { date, evening: extra === 'evening', someday: extra === 'someday', inbox: false });
+          store.announceWhen(task.id);
         }, true);
       case 'deadline':
         if (!task) return [];
-        return dateItems((date) => store.update(task.id, { deadline: date }), false);
+        return dateItems((date) => {
+          store.update(task.id, { deadline: date });
+          store.notify(date ? `Deadline: ${relLabel(date, store.day)}` : 'Deadline cleared');
+        }, false);
       case 'tag': {
         if (!task) return [];
         const have = new Set(store.tagsFor(task.id).map((t) => t.id));

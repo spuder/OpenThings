@@ -31,6 +31,7 @@
   const empty: Record<string, string> = {
     inbox: 'Inbox zero. Press Q to capture something.',
     today: 'Nothing scheduled for today.',
+    week: 'Nothing scheduled for the rest of this week.',
     upcoming: 'Nothing scheduled in the next 30 days.',
     anytime: 'No open to-dos.',
     someday: 'No someday ideas yet.',
@@ -107,7 +108,7 @@
                 <TaskList
                   groups={store.groups}
                   showWhen={['anytime', 'someday', 'project', 'area', 'inbox'].includes(v.kind)}
-                  showContainer={['today', 'upcoming', 'logbook', 'inbox', 'anytime'].includes(v.kind)}
+                  showContainer={['today', 'week', 'upcoming', 'logbook', 'inbox', 'anytime'].includes(v.kind)}
                   empty={empty[v.kind]}
                 />
               {/if}

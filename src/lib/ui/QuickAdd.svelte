@@ -148,7 +148,8 @@
     spellcheck="false"
     aria-label="New to-do"
   />
-  {#if value && !simple}
+  <!-- Tappable syntax chips are for touch; the desktop quick-add window is keyboard-only and small. -->
+  {#if value && !simple && !native}
     <div class="keys" transition:slide={{ duration: 160 }}>
       {#each keys as k, i (k.label)}
         <button
@@ -163,10 +164,12 @@
     </div>
   {/if}
   {#if !simple}
+  {#if !native}
   <div class="keys flags">
     <button type="button" class="key flag" class:on={parsed.important} style:--c="var(--important)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('important')} aria-pressed={parsed.important}>#important</button>
     <button type="button" class="key flag" class:on={parsed.urgent} style:--c="var(--urgent)" onpointerdown={(e) => e.preventDefault()} onclick={() => toggleFlag('urgent')} aria-pressed={parsed.urgent}>#urgent</button>
   </div>
+  {/if}
   <div class="preview">
     {#if parsed.title}
       <span class="title">{parsed.title}</span>
@@ -352,6 +355,13 @@
     }
     .added + .add-btn {
       margin-left: 0;
+    }
+    /* The desktop quick-add window is narrow but isn't a phone: keep the keyboard hints. */
+    .native .kb {
+      display: inline;
+    }
+    .native .touch-btn {
+      display: none;
     }
   }
 </style>

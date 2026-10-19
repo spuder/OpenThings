@@ -63,29 +63,6 @@ export function upcoming(tasks: Task[], day: string, keep: Set<string>, horizonD
     .map(([date, ts]) => ({ date, tasks: ts.sort(bySort) }));
 }
 
-/**
- * This Week: open to-dos scheduled (When) or due (Deadline) from now through Sunday of the current week.
- * Overdue items fold into today, like the Today list. Grouped by day; a to-do appears once, on its
- * earlier of When and Deadline.
- */
-export function thisWeek(tasks: Task[], day: string, keep: Set<string>): { date: string; tasks: Task[] }[] {
-  const end = addDays(weekStart(day), 6);
-  const groups = new Map<string, Task[]>();
-  for (const t of tasks) {
-    if (!visible(t, keep) || t.dump || t.someday) continue;
-    const dates = [t.when_date, t.deadline].filter((d): d is string => d !== null);
-    if (!dates.length) continue;
-    const first = dates.sort()[0];
-    if (first > end) continue;
-    const k = first < day ? day : first;
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k)!.push(t);
-  }
-  return [...groups.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, ts]) => ({ date, tasks: ts.sort(bySort) }));
-}
-
 /** Anytime: everything actionable now that isn't in the Inbox, Someday, or scheduled for later. */
 export function anytime(tasks: Task[], day: string, keep: Set<string>): Task[] {
   return tasks

@@ -8,7 +8,6 @@
   import { reminderLabel } from '../parse';
   import { theme, type ThemePref } from '../theme.svelte';
   import { isTouch } from '../env';
-  import { FEATURES, features } from '../features.svelte';
   const themes: [ThemePref, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
   let url = $state(sync.serverUrl ?? '');
@@ -265,17 +264,6 @@ curl '${base}/api/v1/tasks?view=today'`);
   </section>
 
   <section>
-    <h2>Features</h2>
-    {#each FEATURES as f (f.id)}
-      <label class="toggle feature">
-        <input type="checkbox" checked={features.enabled(f.id)} onchange={(e) => store.setFeature(f.id, e.currentTarget.checked)} />
-        <span><strong>{f.label}</strong><small>{f.description}</small></span>
-      </label>
-    {/each}
-    <p class="note">Turning a feature off hides it from the sidebar, Quick Find and shortcuts. Nothing is deleted, though Brain Dump items still expire after 48 hours. Saved on this device only.</p>
-  </section>
-
-  <section>
     <h2>Sounds</h2>
     <label class="toggle">
       <input type="checkbox" checked={!store.muted} onchange={() => store.toggleMute()} />
@@ -495,24 +483,6 @@ curl '${base}/api/v1/tasks?view=today'`);
     gap: 10px;
     align-items: center;
     font-size: 14px;
-  }
-  .feature {
-    align-items: flex-start;
-    padding: 8px 0;
-    min-height: 44px;
-  }
-  .feature input {
-    margin-top: 2px;
-    flex: none;
-  }
-  .feature span {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .feature small {
-    font-size: 12.5px;
-    color: var(--text-3);
   }
   .toggle input {
     width: 18px;

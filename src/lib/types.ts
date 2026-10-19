@@ -107,7 +107,6 @@ export interface DumpSection {
 export type ViewKey =
   | { kind: 'inbox' }
   | { kind: 'today' }
-  | { kind: 'week' }
   | { kind: 'upcoming' }
   | { kind: 'anytime' }
   | { kind: 'someday' }

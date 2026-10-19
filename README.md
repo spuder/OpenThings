@@ -55,8 +55,6 @@
 
 - **Lists:** Inbox, Today with This Evening, Upcoming, Anytime, Someday, Logbook.
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
-- **This Week** (optional, off by default): everything scheduled or due from today through Sunday, grouped by day; overdue items fold into today. `G W` to open.
-- **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default) and This Week (off).
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
 - **Habits** with a 21-day grid (7 on phones) and streaks. Optional **challenges** of a fixed length: 30, 60, 75 days or any number, with day count, missed days and end date. Press `C` on a habit, or name it `Cold shower 75d`. **Schedules:** every day, weekdays, specific days, or N times a week on any days (`W` on a habit, or name it `Gym 5x` / `Journal weekdays`); streaks and missed days follow the schedule.
 - **Matrix:** Eisenhower quadrants from urgent / important flags.
@@ -101,7 +99,6 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop ^i`
 | `Q` / `N` | Quick add |
 | `B` | Add to brain dump |
 | `Alt+1…9` or `G` then `I T U A S L D H M` | Inbox, Today, Upcoming, Anytime, Someday, Logbook, Dump, Habits, Matrix |
-| `G W` | This Week (when turned on in Settings → Features) |
 | `J` / `K` | Move selection |
 | `Enter` | Open / close task |
 | `X` | Complete |

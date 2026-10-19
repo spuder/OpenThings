@@ -5,7 +5,6 @@
   import type { Task, ViewKey } from '../types';
   import Icon from './Icon.svelte';
   import ProgressPie from './ProgressPie.svelte';
-  import { viewEnabled } from '../features.svelte';
 
   interface Result {
     key: string;
@@ -32,7 +31,6 @@
   const builtins: { v: ViewKey; label: string; icon: string }[] = [
     { v: { kind: 'inbox' }, label: 'Inbox', icon: 'inbox' },
     { v: { kind: 'today' }, label: 'Today', icon: 'today' },
-    { v: { kind: 'week' }, label: 'This Week', icon: 'week' },
     { v: { kind: 'upcoming' }, label: 'Upcoming', icon: 'upcoming' },
     { v: { kind: 'anytime' }, label: 'Anytime', icon: 'anytime' },
     { v: { kind: 'someday' }, label: 'Someday', icon: 'someday' },
@@ -45,7 +43,6 @@
   ];
 
   function viewResult(v: ViewKey, group: Result['group']): Result | null {
-    if (!viewEnabled(v.kind)) return null;
     const go = () => store.go(v);
     const count = store.openCount(v) || undefined;
     const b = builtins.find((x) => x.v.kind === v.kind);

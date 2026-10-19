@@ -20,7 +20,6 @@ import type {
 } from './types';
 import * as V from './views';
 import { mergeTags } from './schema';
-import { seed } from './seed';
 import { sync } from './sync/engine.svelte';
 import { installBridge } from './sync/bridge';
 import { isTouch } from './env';
@@ -139,8 +138,7 @@ class Store {
   // ---------- lifecycle ----------
 
   async init() {
-    const { fresh } = await db.openDb();
-    if (fresh) seed();
+    await db.openDb();
     this.purgeDump();
     this.purgeTrash();
     this.load();
@@ -1072,11 +1070,6 @@ class Store {
     this.notify(this.muted ? 'Sounds off' : 'Sounds on');
   }
 
-  async resetDemo() {
-    await db.resetDb();
-    location.reload();
-  }
-
   exportJson() {
     const blob = new Blob([db.exportJson()], { type: 'application/json' });
     const a = document.createElement('a');
@@ -1096,7 +1089,7 @@ class Store {
       for (const row of items) rows.push({ tbl, row: row as unknown as db.Row & { id: string } });
     };
     // Tags are unique by name; reuse any that already exist so importing twice
-    // (or into demo data) doesn't hit the unique constraint.
+    // (or into existing data) doesn't hit the unique constraint.
     const tags = mergeImportedTags(db.all<Tag>('SELECT * FROM tags'), plan.tags, plan.taskTags);
     add('areas', plan.areas);
     add('projects', plan.projects);

@@ -308,7 +308,6 @@ export const commands: Command[] = [
   { id: 'app.theme', title: 'Toggle dark mode', group: 'App', keys: ['shift+d'], run: () => { theme.toggle(); store.notify(theme.isDark ? 'Dark mode' : 'Light mode'); } },
   { id: 'app.mute', title: 'Toggle sounds', group: 'App', keys: ['shift+m'], run: () => store.toggleMute() },
   { id: 'app.export', title: 'Export JSON backup', group: 'App', keys: ['mod+shift+e'], run: () => store.exportJson() },
-  { id: 'app.reset', title: 'Reset demo data', group: 'App', keys: [], run: () => void store.resetDemo() },
 ];
 
 // ---------- key matching ----------

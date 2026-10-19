@@ -77,7 +77,6 @@ npx cap sync ios   # copy the build into the iOS project (open it in Xcode on a 
 | `src/lib/parse.ts` | Quick-add syntax parser and recurrence helpers |
 | `src/lib/commands.ts` | Command registry and keyboard handling |
 | `src/lib/sound.ts` | Synthesized UI sounds |
-| `src/lib/seed.ts` | Demo data for a fresh install |
 | `src/lib/sync/` | Sync protocol types, sync engine (status, push/pull), native bridge — see `docs/sync.md` |
 | `server/` | Bun server: `db.ts` (op store + materialized state), `service.ts` (to-do actions mirroring the store), `app.ts` (HTTP routes, REST), `mcp.ts` (MCP tools), `index.ts` (entry) — see `docs/api.md` |
 | `src/lib/import/` | Importers for other task managers; Things 3 database reader and mapping — see `docs/import.md` |

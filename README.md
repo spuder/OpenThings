@@ -142,7 +142,7 @@ npm run check
 npm run build
 ```
 
-To start over with the demo data, run **Reset demo data** from the command palette.
+A fresh install starts empty — there is no demo data.
 
 ## iOS app
 

@@ -86,16 +86,16 @@ windowrule {
 
 **macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. The build is not notarized, so the first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
 
-**Arch:** download `OpenThings-arch-x86_64` from the same run. Either run the AppImage, or install the package:
+**Arch:** run the AppImage from [Releases](https://github.com/spuder/OpenThings/releases), or install the package from a checkout (`makepkg` downloads the release tarball and checks it):
 
 ```sh
-# from a checkout, building from the release tarball the run produced
 cd packaging/arch/openthings-bin
-cp ~/Downloads/openthings-0.1.0-linux-x86_64.tar.gz .
 makepkg -si
 ```
 
-The `openthings` (source) and `openthings-bin` PKGBUILDs in `packaging/arch/` are ready for the AUR once a `v0.1.0` tag and release exist: run `updpkgsums` and `makepkg --printsrcinfo > .SRCINFO` first. CI checks that both build with `makepkg` in an `archlinux:latest` container and that `.SRCINFO` matches.
+To try a build from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) instead, download `OpenThings-arch-x86_64`, copy its `openthings-<version>-linux-x86_64.tar.gz` into `packaging/arch/openthings-bin/` and run `makepkg -si --skipchecksums` (its checksum differs from the release's).
+
+The `openthings` (source) and `openthings-bin` PKGBUILDs in `packaging/arch/` carry the checksums of the `v0.1.0` tag tarball and release asset. For a new release, bump `pkgver`, run `updpkgsums` and `makepkg --printsrcinfo > .SRCINFO`. CI checks that both build with `makepkg` in an `archlinux:latest` container (from this checkout's files, so with `--skipchecksums`) and that `.SRCINFO` matches.
 
 ## Releasing
 

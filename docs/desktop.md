@@ -142,7 +142,7 @@ npm run tauri build -- --bundles appimage   # Linux
 npm run tauri build -- --target universal-apple-darwin --bundles app,dmg   # macOS
 ```
 
-Tray icons are drawn by `scripts/make-tray-icons.py`; app icons come from `public/icon-512.png` via `npx tauri icon`.
+Tray icons are drawn by `scripts/make-tray-icons.py`; app icons are generated from the logo by `scripts/make-app-icons.sh` (full-bleed for Linux and Windows, padded to Apple's icon grid for macOS).
 
 ## Manual test checklist
 

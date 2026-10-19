@@ -295,6 +295,35 @@ h1 {
   color: var(--text-2);
 }
 
+/* ---------- desktop ---------- */
+.desktop {
+  padding: 96px 0;
+}
+.desktop-shots {
+  display: grid;
+  gap: 28px;
+  justify-items: center;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.desk-shot {
+  margin: 0;
+}
+.desk-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.desk-shot.quick {
+  max-width: 640px;
+}
+.desk-shot figcaption {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
 /* ---------- chips ---------- */
 .chips-band {
   padding: 72px 0 24px;

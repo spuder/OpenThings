@@ -7,7 +7,7 @@
 <p align="center">
   <b>A self-hosted, local-first task manager with a calm, keyboard-first design.</b><br>
   Plan your day with Today, Upcoming and Areas, then focus with a built-in Pomodoro, habits, reminders and an Eisenhower matrix.
-  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host, and as an iPhone app.
+  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host, and as an iPhone app and a desktop app for macOS and Arch Linux.
 </p>
 
 <p align="center">
@@ -15,6 +15,7 @@
   <a href="https://github.com/spuder/OpenThings/pkgs/container/openthings"><img alt="Docker: ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2f6fed?style=for-the-badge&logo=docker&logoColor=white&labelColor=555"></a>
   <a href="#self-hosting"><img alt="Self-host: compose.yaml" src="https://img.shields.io/badge/self--host-compose.yaml-e3743b?style=for-the-badge&logo=tailscale&logoColor=white&labelColor=555"></a>
   <a href="#ios-app"><img alt="iOS: build from source" src="https://img.shields.io/badge/iOS-build%20from%20source-111111?style=for-the-badge&logo=apple&logoColor=white&labelColor=555"></a>
+  <a href="#desktop-app"><img alt="Desktop: macOS and Arch Linux" src="https://img.shields.io/badge/desktop-macOS%20%7C%20Arch-6b5bd6?style=for-the-badge&logo=tauri&logoColor=white&labelColor=555"></a>
 </p>
 
 <p align="center">
@@ -141,6 +142,14 @@ npm run build
 To start over with the demo data, run **Reset demo data** from the command palette.
 
 ## Desktop app
+
+<p align="center">
+  <img src="docs/screenshots/desktop-today.png" alt="OpenThings desktop app on macOS, Today list" width="760">
+</p>
+
+| Quick add from anywhere (⌃⌥Space) | Settings → Desktop |
+| --- | --- |
+| ![Floating quick-add window with a parsed date, tag and reminder](docs/screenshots/desktop-quickadd.png) | ![Desktop settings: global shortcut and launch at login](docs/screenshots/desktop-settings.png) |
 
 A native shell ([Tauri](https://tauri.app)) around the same app, for **macOS** and **Arch Linux** (Omarchy / Hyprland). It adds a global quick-add hotkey with a floating quick-add window, a menu-bar / tray icon with sync status, reminders as native notifications even with the window closed, a macOS menu bar, launch at login, and `openthings://` links. Details and a test checklist: [docs/desktop.md](docs/desktop.md).
 

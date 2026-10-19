@@ -21,6 +21,7 @@
       <nav aria-label="Main">
         <a href="#features">Features</a>
         <a href="#iphone">iPhone</a>
+        <a href="#desktop">Desktop</a>
         <a href="#self-host">Self-host</a>
         <a href="#roadmap">Roadmap</a>
         <a href="https://github.com/spuder/OpenThings">GitHub</a>
@@ -43,7 +44,7 @@
           <a class="btn" href="app/">Try it in your browser</a>
           <a class="btn btn-ghost" href="#self-host">Host it yourself</a>
         </div>
-        <p class="fine reveal">Free and MIT licensed. The demo keeps everything in your browser. Also on <a href="#iphone">iPhone</a>.</p>
+        <p class="fine reveal">Free and MIT licensed. The demo keeps everything in your browser. Also on <a href="#iphone">iPhone</a> and as a <a href="#desktop">Mac and Linux app</a>.</p>
 
         <div class="showcase reveal">
           <figure class="window">
@@ -68,7 +69,7 @@
       <div class="wrap chips">
         <span>Today &amp; This Evening</span><span>Upcoming</span><span>Areas &amp; Projects</span><span>Quick add</span>
         <span>Brain dump</span><span>Focus mode</span><span>Habits</span><span>Reminders</span>
-        <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span><span>iPhone app</span>
+        <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span><span>iPhone app</span><span>Mac &amp; Linux app</span>
       </div>
     </section>
 
@@ -183,6 +184,34 @@
       </div>
     </section>
 
+    <!-- Desktop -->
+    <section class="desktop" id="desktop">
+      <div class="wrap">
+        <div class="copy center-copy reveal">
+          <p class="kicker" style="--k: var(--purple)">Mac &amp; Linux</p>
+          <h2>Quick add from anywhere</h2>
+          <p>The desktop app for macOS and Arch Linux (Omarchy / Hyprland) adds a global shortcut, <kbd>⌃</kbd><kbd>⌥</kbd><kbd>Space</kbd>, that opens a small quick-add window over whatever you're doing. It keeps running in the menu bar, so reminders arrive as native notifications with the window closed. It also brings a real menu bar, launch at login, <code>openthings://</code> links, and Things 3 import on the Mac.</p>
+          <div class="cta">
+            <a class="btn" href="https://github.com/spuder/OpenThings/actions/workflows/desktop.yml">Download a preview build</a>
+            <a class="btn btn-ghost" href="https://github.com/spuder/OpenThings/blob/main/docs/desktop.md">Desktop docs</a>
+          </div>
+          <p class="fine">Preview builds come from GitHub Actions (sign in to download). The Mac build isn't notarized yet, so the first launch needs <em>Open Anyway</em> in Privacy &amp; Security.</p>
+        </div>
+        <div class="desktop-shots">
+          <figure class="desk-shot reveal">
+            <picture>
+              <source srcset="img/desktop-today-dark.webp" media="(prefers-color-scheme: dark)">
+              <img src="img/desktop-today-light.webp" alt="The OpenThings desktop app on macOS showing Today" width="1400" height="967" loading="lazy">
+            </picture>
+          </figure>
+          <figure class="desk-shot quick reveal">
+            <img src="img/desktop-quickadd.webp" alt="The floating quick-add window with a parsed date, tag and reminder" width="1000" height="259" loading="lazy">
+            <figcaption>The quick-add window reads the same short syntax as the app.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
     <!-- Small features grid -->
     <section class="grid-section">
       <div class="wrap">
@@ -233,7 +262,7 @@
           <article class="card reveal"><span class="tag">Planned</span><h3>REST API &amp; MCP</h3><p>Automate with scripts and Home Assistant, or let AI assistants manage your to-dos.</p></article>
           <article class="card reveal"><span class="tag">Planned</span><h3>Calendar time-blocking</h3><p>Drag to-dos onto your day and sync blocks to any CalDAV calendar.</p></article>
           <article class="card reveal"><span class="tag">Testing</span><h3>iPhone &amp; Android</h3><p>The <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iPhone app</a> runs today; App Store next. Android is coming and <a href="https://github.com/spuder/OpenThings/issues/6">needs testers</a>.</p></article>
-          <article class="card reveal"><span class="tag">Planned</span><h3>Desktop app</h3><p>A global quick-add hotkey on macOS and Linux.</p></article>
+          <article class="card reveal"><span class="tag">Preview</span><h3>Desktop app</h3><p>The <a href="#desktop">Mac and Arch Linux app</a> works today; signed releases and the AUR are next.</p></article>
         </div>
       </div>
     </section>
@@ -255,7 +284,7 @@
   <footer class="footer">
     <div class="wrap footer-inner">
       <p>OpenThings is an independent open-source project (MIT). It is not affiliated with or endorsed by Cultured Code or Super Productivity.</p>
-      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iOS app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/sync.md">Sync</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
+      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iOS app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/desktop.md">Desktop app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/sync.md">Sync</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
     </div>
   </footer>
 

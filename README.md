@@ -70,6 +70,7 @@
 - **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle. On desktop, `⇧T` opens a theme switcher with all 23 [Omarchy](https://omarchy.org) themes (Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine…), previewed live as you move through them.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
 - **Sync status** on every screen, and a **Settings** page: sync setup (see [docs/sync.md](docs/sync.md)), notifications, and the planned REST API and MCP endpoints with ready-to-copy config.
+- **Import from Things 3** (desktop web): Settings → Data reads your Things `main.sqlite` and brings across areas, projects, headings, to-dos, tags and checklists. Repeat rules and reminders are left behind, and nothing is uploaded. See [docs/import.md](docs/import.md).
 - **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe right** for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
 - **Quick add** with short syntax (below), from anywhere with `Q`. It starts with the list you're in (`+Project` or `@today`) after the cursor, so you can change it. Once you type, the syntax keys appear as tappable chips, and `#important` / `#urgent` are one tap away. In Brain Dump it's a plain box: no syntax, just write.
 - **Quick Find** (`/` or `Ctrl/⌘ F`): recent lists with counts, then search lists, projects, areas, `#tags` and to-dos as you type.
@@ -180,7 +181,7 @@ The image is a static build served by nginx. Until the sync server exists, **eac
 4. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
 5. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
 6. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
-7. Things 3 import, CLI.
+7. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 
 ## License
 

@@ -12,6 +12,7 @@
   import { MAX_SCHEDULED } from '../native/snapshot';
   import { isTouch } from '../env';
   import { FEATURES, features } from '../features.svelte';
+  import { readThingsDatabase, type ThingsImport } from '../import/things';
   const native = isNativeShell();
   const themes: [ThemePref, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
@@ -104,6 +105,51 @@ curl '${base}/api/v1/tasks?view=today'`);
     ['check_habit', 'Check in a habit for a day'],
     ['start_timer / stop_timer', 'Time tracking'],
   ];
+
+  let thingsPlan = $state.raw<ThingsImport | null>(null);
+  let thingsBusy = $state(false);
+  let thingsFileName = $state('');
+  let thingsMsg = $state<{ ok: boolean; text: string } | null>(null);
+
+  async function chooseThings(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    thingsBusy = true;
+    thingsMsg = null;
+    thingsPlan = null;
+    try {
+      const plan = await readThingsDatabase(new Uint8Array(await file.arrayBuffer()));
+      if (!plan.stats.todos && !plan.stats.projects) {
+        thingsMsg = { ok: false, text: 'That database is readable, but has no to-dos or projects to import.' };
+        return;
+      }
+      thingsFileName = file.name;
+      thingsPlan = plan;
+    } catch (e) {
+      thingsMsg = { ok: false, text: (e as Error).message };
+    } finally {
+      thingsBusy = false;
+    }
+  }
+
+  function importThings() {
+    if (!thingsPlan) return;
+    const plan = thingsPlan;
+    try {
+      store.importThings(plan);
+      const n = plan.stats.todos;
+      thingsMsg = {
+        ok: true,
+        text: `Imported ${n.toLocaleString()} to-do${n === 1 ? '' : 's'}, ${plan.stats.projects.toLocaleString()} project${plan.stats.projects === 1 ? '' : 's'} and ${plan.stats.areas.toLocaleString()} area${plan.stats.areas === 1 ? '' : 's'}. Your Things database was not changed.`,
+      };
+      thingsPlan = null;
+      thingsFileName = '';
+    } catch (e) {
+      thingsMsg = { ok: false, text: `Couldn't import: ${(e as Error).message}` };
+    }
+  }
 </script>
 
 <div class="settings">
@@ -307,6 +353,66 @@ curl '${base}/api/v1/tasks?view=today'`);
       <button class="btn" onclick={() => store.exportJson()}>Export JSON backup</button>
       <button class="btn danger" onclick={() => confirm('Erase all local data and restore the demo?') && store.resetDemo()}>Reset to demo data</button>
     </div>
+
+    {#if !isTouch}
+      <h3>Import from Things 3</h3>
+      <p class="lead">
+        Reads areas, projects, headings, to-dos, tags and checklists from a Things 3 database. Quit Things first so the file is complete, then choose <code>main.sqlite</code> inside <code>Things Database.thingsdatabase</code>.
+      </p>
+      <div class="row-actions">
+        <label class="btn file">
+          <input
+            id="things-import-file"
+            type="file"
+            accept=".sqlite,.db,application/x-sqlite3"
+            onchange={chooseThings}
+            disabled={thingsBusy}
+          />
+          {thingsBusy ? 'Reading…' : 'Choose Things database…'}
+        </label>
+        {#if thingsPlan}
+          <button class="btn primary" onclick={importThings} disabled={thingsBusy}>
+            {#if thingsPlan.stats.todos}
+              Import {thingsPlan.stats.todos.toLocaleString()} to-do{thingsPlan.stats.todos === 1 ? '' : 's'}
+            {:else}
+              Import {thingsPlan.stats.projects.toLocaleString()} project{thingsPlan.stats.projects === 1 ? '' : 's'}
+            {/if}
+          </button>
+        {/if}
+      </div>
+      {#if thingsPlan}
+        <dl class="import-summary">
+          <dt>{thingsFileName || 'Things database'}</dt>
+          <dd>
+            {thingsPlan.stats.todos.toLocaleString()} to-dos ({thingsPlan.stats.open.toLocaleString()} open,
+            {thingsPlan.stats.completed.toLocaleString()} completed)
+          </dd>
+          <dt>Structure</dt>
+          <dd>
+            {thingsPlan.stats.projects.toLocaleString()} project{thingsPlan.stats.projects === 1 ? '' : 's'} ·
+            {thingsPlan.stats.areas.toLocaleString()} area{thingsPlan.stats.areas === 1 ? '' : 's'} ·
+            {thingsPlan.stats.headings.toLocaleString()} heading{thingsPlan.stats.headings === 1 ? '' : 's'}
+          </dd>
+          <dt>Also</dt>
+          <dd>
+            {thingsPlan.stats.checklist.toLocaleString()} checklist item{thingsPlan.stats.checklist === 1 ? '' : 's'} ·
+            {thingsPlan.stats.tags.toLocaleString()} tag{thingsPlan.stats.tags === 1 ? '' : 's'}
+          </dd>
+          {#if thingsPlan.stats.skippedTrashed + thingsPlan.stats.skippedEmpty + thingsPlan.stats.skippedOrphans > 0}
+            <dt>Skipped</dt>
+            <dd>
+              {(thingsPlan.stats.skippedTrashed + thingsPlan.stats.skippedEmpty + thingsPlan.stats.skippedOrphans).toLocaleString()}
+              item{(thingsPlan.stats.skippedTrashed + thingsPlan.stats.skippedEmpty + thingsPlan.stats.skippedOrphans) === 1 ? '' : 's'} (trash, empty or in a trashed project)
+            </dd>
+          {/if}
+        </dl>
+        {#each thingsPlan.warnings as warning (warning)}
+          <p class="note">{warning}</p>
+        {/each}
+        <p class="note">This adds to your current data and can't be undone. Export a backup first if you're unsure.</p>
+      {/if}
+      {#if thingsMsg}<p class="result" class:ok={thingsMsg.ok}>{thingsMsg.text}</p>{/if}
+    {/if}
   </section>
 </div>
 
@@ -366,6 +472,27 @@ curl '${base}/api/v1/tasks?view=today'`);
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 10px;
+  }
+  .file {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg);
+    cursor: pointer;
+  }
+  .file input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+  }
+  .file:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .import-summary {
+    margin-top: 16px;
   }
   .btn {
     font-size: 13px;

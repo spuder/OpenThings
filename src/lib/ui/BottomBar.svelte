@@ -15,7 +15,7 @@
   };
 </script>
 
-<div class="bar" role="toolbar" aria-label="To-do actions">
+<div class="bar" class:drawer={store.sidebarOpen} role="toolbar" aria-label="To-do actions">
   <button class="fab" onclick={() => run('create.quickadd')} aria-label="New to-do">
     <Icon name="plus" size={26} />
   </button>
@@ -110,6 +110,17 @@
     }
     .fab:active {
       transform: scale(0.92);
+    }
+    /* Out of the way while the list drawer is open. */
+    .find,
+    .fab {
+      transition: transform 0.16s var(--ease), opacity 0.16s;
+    }
+    .drawer .find,
+    .drawer .fab {
+      opacity: 0;
+      transform: scale(0.8);
+      pointer-events: none;
     }
   }
   button:disabled {

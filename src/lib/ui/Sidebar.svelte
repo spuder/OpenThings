@@ -331,13 +331,15 @@
       transition: transform 0.24s var(--ease);
       box-shadow: none;
       padding-left: env(safe-area-inset-left);
+      /* The list scrolls below the status bar, not under the clock. */
+      padding-top: env(safe-area-inset-top);
     }
     .sidebar.open {
       transform: none;
       box-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
     }
     .scroll {
-      padding-top: calc(16px + env(safe-area-inset-top));
+      padding-top: 16px;
     }
     .row {
       padding: 9px 10px;

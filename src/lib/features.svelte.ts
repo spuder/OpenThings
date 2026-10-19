@@ -2,16 +2,18 @@
 
 export type FeatureId = 'dump' | 'week';
 
-export const FEATURES: { id: FeatureId; label: string; description: string; default: boolean }[] = [
+export const FEATURES: { id: FeatureId; label: string; icon: string; description: string; default: boolean }[] = [
   {
     id: 'dump',
     label: 'Brain Dump',
+    icon: 'dump',
     description: 'A scratch list where unchecked items fade and are deleted after 48 hours.',
     default: true,
   },
   {
     id: 'week',
     label: 'This Week',
+    icon: 'week',
     description: 'A list of everything scheduled or due from today through Sunday, grouped by day.',
     default: false,
   },

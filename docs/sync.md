@@ -16,7 +16,7 @@ Status: **implemented.** Client in `src/lib/sync/`, server in `server/` (Bun + S
 
 ```
 GET  /api/health
-  -> { "ok": true, "server": "openthings", "protocol": 0, "version": "x.y.z" }
+  -> { "ok": true, "server": "openthings", "protocol": 0, "version": "x.y.z", "auth": false }
 
 POST /api/sync
   <- { "protocol": 0, "device": "a1b2c3d4e5f6", "cursor": "<opaque>" | null, "ops": [Op, …] }
@@ -26,9 +26,16 @@ POST /api/sync
 - The server stores pushed ops (dedupe on `hlc + device`), then returns ops from **other** devices after `cursor`, oldest first, in batches of 1000. `more: true` means call again.
 - `cursor` is opaque to clients. The server uses `<database id>.<sequence>`; a cursor from another (or a reset) server database starts over from the beginning.
 - Malformed ops (bad HLC, table or column names that aren't identifiers, non-scalar values) are ignored; the rest of the request still applies. A different `protocol` is rejected with 400.
-- Auth: none in v0. The server is only reachable on the tailnet (DockTail). Device tokens are planned before anything is exposed more widely.
-- Browsers: requests with an `Origin` other than the server's own, the native shells (`capacitor://localhost`, Tauri) and `localhost` are refused with 403 unless listed in `OPENTHINGS_ALLOWED_ORIGINS`.
 - The web app is served by the same container, so the default server URL can be the page's own origin ("Use this site" in Settings).
+
+## Auth and access
+
+All optional; with none set, anyone who can reach the server can sync, which is fine on a tailnet.
+
+- **Token** (`OPENTHINGS_TOKEN`): every request to `/api/sync`, `/api/v1/…` and `/mcp` must send `Authorization: Bearer <token>`, or it gets 401 with `WWW-Authenticate: Bearer`. Several comma-separated tokens are all accepted (one per device, or old and new while rotating). `/api/health` stays open and reports `"auth": true`, so a client can tell it needs one. Tokens are compared as SHA-256 hashes in constant time. CORS preflights (`OPTIONS`) don't need the token, since browsers never send it there.
+- **Client:** the token is entered in Settings → Sync and stored in the device's local `meta` table (`sync.token`), which never syncs. The engine sends it on every sync. "Test connection" checks it with an authenticated `GET /api/v1`, which changes nothing.
+- **Hosts** (`OPENTHINGS_HOSTNAMES`): requests whose `Host` (or `X-Forwarded-Host`, behind a proxy) isn't listed, or loopback, get 421. This blocks DNS rebinding: a page on `evil.example` that re-points its own name at your server is same-origin with itself, so the Origin check alone would let it through when port 8080 is reachable on your LAN.
+- **Browsers:** requests with an `Origin` other than the server's own, the native shells (`capacitor://localhost`, Tauri) and `localhost` are refused with 403 unless listed in `OPENTHINGS_ALLOWED_ORIGINS`.
 
 ## Server
 

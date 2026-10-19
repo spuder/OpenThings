@@ -5,7 +5,8 @@
  *   GET  {server}/api/health  -> HealthResponse
  *   POST {server}/api/sync    SyncRequest -> SyncResponse
  *
- * Auth: none in v0; the server is only reachable on the tailnet (DockTail).
+ * Auth: optional. When the server sets OPENTHINGS_TOKEN, every request except /api/health sends
+ * `Authorization: Bearer <token>`; a missing or wrong token gets 401.
  */
 import type { Op } from '../schema';
 
@@ -16,6 +17,8 @@ export interface HealthResponse {
   server: 'openthings';
   protocol: number;
   version?: string;
+  /** True when the server requires a bearer token (absent on older servers). */
+  auth?: boolean;
 }
 
 export interface SyncRequest {

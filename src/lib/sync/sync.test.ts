@@ -143,6 +143,7 @@ describe('SyncEngine', () => {
     const received: SyncRequest[] = [];
     const transport: Transport = {
       health: async () => ({ ok: true, server: 'openthings', protocol: PROTOCOL_VERSION }),
+      verify: async () => {},
       sync: async (_url, body) => {
         received.push(body);
         return {
@@ -183,6 +184,7 @@ describe('SyncEngine', () => {
       sync: async () => {
         throw new Error("Can't reach the server");
       },
+      verify: async () => {},
     });
     engine.init();
     addTask('d2', 'x');
@@ -192,6 +194,36 @@ describe('SyncEngine', () => {
     expect(engine.error).toMatch(/reach/);
     expect(engine.pending).toBeGreaterThan(0);
     await expect(engine.test('https://nowhere.invalid')).rejects.toThrow();
+  });
+
+  it('sends the saved token and checks it when testing', async () => {
+    const tokens: (string | null)[] = [];
+    const verified: (string | null)[] = [];
+    const engine = new SyncEngine({
+      health: async () => ({ ok: true, server: 'openthings', protocol: PROTOCOL_VERSION, auth: true }),
+      sync: async (_url, _body, token) => {
+        tokens.push(token);
+        return { accepted: 0, cursor: 'c', ops: [] };
+      },
+      verify: async (_url, token) => {
+        verified.push(token);
+        if (token !== 'good') throw new Error('The server rejected the token');
+      },
+    });
+    engine.init();
+    await expect(engine.test('https://ot.example', null)).rejects.toThrow(/requires a token/);
+    await expect(engine.test('https://ot.example', 'bad')).rejects.toThrow(/rejected/);
+    await expect(engine.test('https://ot.example', ' good ')).resolves.toMatchObject({ auth: true });
+    expect(verified).toEqual(['bad', 'good']);
+
+    engine.configure('https://ot.example', true, ' good ');
+    await engine.kick();
+    expect(tokens.at(-1)).toBe('good');
+    expect(db.metaGet('sync.token')).toBe('good');
+    engine.configure('https://ot.example', true); // keeps the token
+    expect(engine.token).toBe('good');
+    engine.configure('https://ot.example', false, '');
+    expect(engine.token).toBeNull();
   });
 
   it('normalizes server URLs', () => {

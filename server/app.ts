@@ -2,6 +2,7 @@
  * HTTP routes: the web app (static files), sync (/api/health, /api/sync), the REST API (/api/v1)
  * and MCP (/mcp). `createApp` returns a fetch handler so tests can call it without a socket.
  */
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { join, normalize } from 'node:path';
 import { PROTOCOL_VERSION, type HealthResponse, type SyncResponse } from '../src/lib/sync/protocol';
 import { validOp, type ServerDb } from './db';
@@ -16,10 +17,25 @@ export interface AppOptions {
   version?: string;
   /** Extra browser origins allowed to call the API (the app's own origin always is). */
   allowedOrigins?: string[];
+  /** When non-empty, /api/sync, /api/v1 and /mcp require `Authorization: Bearer <one of these>`. */
+  tokens?: string[];
+  /** When non-empty, only these Host names (plus loopback) are served, which stops DNS rebinding. */
+  hostnames?: string[];
 }
 
 /** Origins of the native shells and local development, always allowed. */
 const BUILTIN_ORIGINS = [/^capacitor:\/\/localhost$/, /^ionic:\/\/localhost$/, /^tauri:\/\/localhost$/, /^https?:\/\/tauri\.localhost$/, /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/];
+
+/** Loopback names are always served: the container health check uses them, and rebinding can't produce them. */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+const sha256 = (s: string) => createHash('sha256').update(s).digest();
+
+/** Host name without the port, lowercased; IPv6 keeps its brackets. */
+export function hostname(host: string | null): string {
+  const h = (host ?? '').trim().toLowerCase();
+  return h.startsWith('[') ? h.slice(0, h.indexOf(']') + 1) : h.replace(/:\d+$/, '');
+}
 
 const MAX_BODY = 32 * 1024 * 1024;
 
@@ -54,6 +70,8 @@ export function createApp(opts: AppOptions) {
   const service = opts.service ?? new Service(db);
   const version = opts.version ?? '0.0.0';
   const extraOrigins = new Set(opts.allowedOrigins ?? []);
+  const tokenHashes = (opts.tokens ?? []).filter(Boolean).map(sha256);
+  const hostnames = new Set((opts.hostnames ?? []).map(hostname).filter(Boolean));
   const gzipCache = new Map<string, Uint8Array<ArrayBuffer>>();
 
   /** Same host as the request (behind a TLS proxy the scheme differs, so compare hosts). */
@@ -68,6 +86,21 @@ export function createApp(opts: AppOptions) {
 
   function originAllowed(origin: string, req: Request) {
     return sameOrigin(origin, req) || extraOrigins.has(origin) || BUILTIN_ORIGINS.some((re) => re.test(origin));
+  }
+
+  function hostAllowed(req: Request) {
+    if (!hostnames.size) return true;
+    const h = hostname(req.headers.get('x-forwarded-host') ?? req.headers.get('host'));
+    return hostnames.has(h) || LOOPBACK_HOSTS.has(h);
+  }
+
+  /** Compare hashes in constant time so response timing doesn't leak the token. */
+  function authorized(req: Request) {
+    if (!tokenHashes.length) return true;
+    const m = /^Bearer\s+(\S+)\s*$/i.exec(req.headers.get('authorization') ?? '');
+    if (!m) return false;
+    const given = sha256(m[1]);
+    return tokenHashes.some((t) => timingSafeEqual(t, given));
   }
 
   function withCors(res: Response, origin: string | null): Response {
@@ -178,7 +211,7 @@ export function createApp(opts: AppOptions) {
     const path = url.pathname.replace(/\/+$/, '');
 
     if (path === '/api/health' && req.method === 'GET') {
-      const body: HealthResponse = { ok: true, server: 'openthings', protocol: PROTOCOL_VERSION, version };
+      const body: HealthResponse = { ok: true, server: 'openthings', protocol: PROTOCOL_VERSION, version, auth: tokenHashes.length > 0 };
       return json(body);
     }
 
@@ -258,6 +291,7 @@ export function createApp(opts: AppOptions) {
 
   return async function fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    if (!hostAllowed(req)) return err('Unknown host (set OPENTHINGS_HOSTNAMES)', 421);
     const isApi = url.pathname === '/api' || url.pathname.startsWith('/api/') || url.pathname === '/mcp' || url.pathname.startsWith('/mcp/');
     if (!isApi) return serveStatic(req, url);
 
@@ -272,12 +306,18 @@ export function createApp(opts: AppOptions) {
           status: 204,
           headers: {
             'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-            'access-control-allow-headers': req.headers.get('access-control-request-headers') ?? 'content-type',
+            'access-control-allow-headers': req.headers.get('access-control-request-headers') ?? 'content-type, authorization',
             'access-control-max-age': '86400',
           },
         }),
         cors,
       );
+    }
+
+    if (url.pathname.replace(/\/+$/, '') !== '/api/health' && !authorized(req)) {
+      const res = err(req.headers.has('authorization') ? 'Invalid token' : 'This server requires a token: send Authorization: Bearer <token>', 401);
+      res.headers.set('www-authenticate', 'Bearer realm="OpenThings"');
+      return withCors(res, cors);
     }
 
     try {

@@ -4,19 +4,19 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Op } from '../src/lib/schema';
-import { createApp } from './app';
+import { createApp, type AppOptions } from './app';
 import { ServerDb } from './db';
 import { Service } from './service';
 
 const TODAY = '2026-10-18';
 
-function setup() {
+function setup(extra: Pick<AppOptions, 'tokens' | 'hostnames'> = {}) {
   const db = new ServerDb();
   const service = new Service(db, () => TODAY);
-  const app = createApp({ db, service, version: 'test' });
+  const app = createApp({ db, service, version: 'test', ...extra });
   const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
     const res = await app(
-      new Request(`http://ot.test${path}`, {
+      new Request(`http://${headers.host ?? 'ot.test'}${path}`, {
         method,
         headers: { host: 'ot.test', 'content-type': 'application/json', ...headers },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -39,7 +39,7 @@ describe('sync', () => {
   it('reports health', async () => {
     const { call } = setup();
     const r = await call('GET', '/api/health');
-    expect(r.body).toEqual({ ok: true, server: 'openthings', protocol: 0, version: 'test' });
+    expect(r.body).toEqual({ ok: true, server: 'openthings', protocol: 0, version: 'test', auth: false });
   });
 
   it('relays ops between devices, not back to the sender', async () => {
@@ -242,6 +242,90 @@ describe('origins', () => {
     expect(same.status).toBe(200);
     expect(same.headers.get('access-control-allow-origin')).toBeNull();
     expect((await call('POST', '/mcp', { jsonrpc: '2.0', id: 1, method: 'ping' }, { origin: 'https://evil.example' })).status).toBe(403);
+  });
+});
+
+describe('token auth', () => {
+  const bearer = (t: string) => ({ authorization: `Bearer ${t}` });
+
+  it('is off by default', async () => {
+    const { call } = setup();
+    expect((await call('GET', '/api/v1/tasks')).status).toBe(200);
+  });
+
+  it('requires a token on sync, REST and MCP but not health or the web app', async () => {
+    const { call } = setup({ tokens: ['s3cret'] });
+    const health = await call('GET', '/api/health');
+    expect(health.status).toBe(200);
+    expect(health.body.auth).toBe(true);
+    for (const [m, path, body] of [
+      ['POST', '/api/sync', { protocol: 0, device: 'devA', cursor: null, ops: [] }],
+      ['GET', '/api/v1/tasks', undefined],
+      ['GET', '/api/v1', undefined],
+      ['POST', '/mcp', { jsonrpc: '2.0', id: 1, method: 'ping' }],
+    ] as const) {
+      const r = await call(m, path, body);
+      expect(r.status).toBe(401);
+      expect(r.headers.get('www-authenticate')).toContain('Bearer');
+      expect(r.body.error).toContain('requires a token');
+    }
+    expect((await call('GET', '/today')).status).toBe(404); // static, no staticDir in tests: not a 401
+  });
+
+  it('accepts a matching token, any of several, case-insensitive scheme', async () => {
+    const { call } = setup({ tokens: ['phone-token', 'laptop-token'] });
+    expect((await call('GET', '/api/v1/tasks', undefined, bearer('phone-token'))).status).toBe(200);
+    expect((await call('GET', '/api/v1/tasks', undefined, { authorization: 'bearer laptop-token' })).status).toBe(200);
+    const r = await call('POST', '/api/sync', { protocol: 0, device: 'devA', cursor: null, ops: [] }, bearer('phone-token'));
+    expect(r.status).toBe(200);
+    const m = await call('POST', '/mcp', { jsonrpc: '2.0', id: 1, method: 'ping' }, bearer('laptop-token'));
+    expect(m.body).toEqual({ jsonrpc: '2.0', id: 1, result: {} });
+  });
+
+  it('rejects a wrong or malformed token', async () => {
+    const { call } = setup({ tokens: ['s3cret'] });
+    for (const authorization of ['Bearer nope', 'Bearer s3cret2', 'Basic s3cret', 's3cret', 'Bearer ']) {
+      const r = await call('GET', '/api/v1/tasks', undefined, { authorization });
+      expect(r.status).toBe(401);
+    }
+    expect((await call('GET', '/api/v1/tasks', undefined, bearer('nope'))).body.error).toBe('Invalid token');
+  });
+
+  it('lets CORS preflights through and keeps CORS headers on 401', async () => {
+    const { call } = setup({ tokens: ['s3cret'] });
+    const pre = await call('OPTIONS', '/api/sync', undefined, { origin: 'capacitor://localhost', 'access-control-request-headers': 'authorization, content-type' });
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get('access-control-allow-headers')).toContain('authorization');
+    const denied = await call('GET', '/api/v1/tasks', undefined, { origin: 'capacitor://localhost' });
+    expect(denied.status).toBe(401);
+    expect(denied.headers.get('access-control-allow-origin')).toBe('capacitor://localhost');
+    const ok = await call('GET', '/api/v1/tasks', undefined, { origin: 'capacitor://localhost', ...bearer('s3cret') });
+    expect(ok.status).toBe(200);
+  });
+});
+
+describe('host allowlist', () => {
+  it('serves any host when unset', async () => {
+    const { call } = setup();
+    expect((await call('GET', '/api/health', undefined, { host: 'rebound.example' })).status).toBe(200);
+  });
+
+  it('only serves listed hosts and loopback', async () => {
+    const { call } = setup({ hostnames: ['openthings.tail1234.ts.net', 'ot.test'] });
+    expect((await call('GET', '/api/v1/tasks')).status).toBe(200);
+    expect((await call('GET', '/api/v1/tasks', undefined, { host: 'OpenThings.tail1234.ts.net:443' })).status).toBe(200);
+    expect((await call('GET', '/api/health', undefined, { host: '127.0.0.1:8080' })).status).toBe(200);
+    expect((await call('GET', '/api/health', undefined, { host: 'localhost:8080' })).status).toBe(200);
+    // DNS rebinding: the attacker's page is same-origin with its own name, which now points here.
+    const rebound = await call('GET', '/api/v1/tasks', undefined, { host: 'rebound.example:8080', origin: 'http://rebound.example:8080' });
+    expect(rebound.status).toBe(421);
+    expect((await call('GET', '/', undefined, { host: '192.168.1.20:8080' })).status).toBe(421);
+  });
+
+  it('checks the forwarded host behind a proxy', async () => {
+    const { call } = setup({ hostnames: ['openthings.tail1234.ts.net'] });
+    expect((await call('GET', '/api/v1/tasks', undefined, { host: 'ot.test', 'x-forwarded-host': 'openthings.tail1234.ts.net' })).status).toBe(200);
+    expect((await call('GET', '/api/v1/tasks', undefined, { host: 'openthings.tail1234.ts.net', 'x-forwarded-host': 'evil.example' })).status).toBe(421);
   });
 });
 

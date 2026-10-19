@@ -9,10 +9,14 @@ import { PROTOCOL_VERSION, type HealthResponse, type SyncRequest, type SyncRespo
 
 export interface Transport {
   health(url: string): Promise<HealthResponse>;
-  sync(url: string, body: SyncRequest): Promise<SyncResponse>;
+  sync(url: string, body: SyncRequest, token: string | null): Promise<SyncResponse>;
+  /** Make an authenticated request that changes nothing, to check a token. */
+  verify(url: string, token: string | null): Promise<void>;
 }
 
 const TIMEOUT_MS = 10_000;
+
+const auth = (token: string | null): Record<string, string> => (token ? { authorization: `Bearer ${token}` } : {});
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const ctrl = new AbortController();
@@ -27,6 +31,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     const body = (await res.json().catch(() => {
       throw new Error('The server sent a response that is not valid JSON');
     })) as T & { error?: string };
+    if (res.status === 401) throw new Error(body.error === 'Invalid token' ? 'The server rejected the token' : 'The server requires a token');
     if (!res.ok) throw new Error(body.error ?? `Server responded ${res.status}`);
     return body;
   } catch (e) {
@@ -40,7 +45,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const httpTransport: Transport = {
   health: (url) => request<HealthResponse>(`${url}/api/health`),
-  sync: (url, body) => request<SyncResponse>(`${url}/api/sync`, { method: 'POST', body: JSON.stringify(body) }),
+  sync: (url, body, token) => request<SyncResponse>(`${url}/api/sync`, { method: 'POST', body: JSON.stringify(body), headers: auth(token) }),
+  verify: async (url, token) => void (await request(`${url}/api/v1`, { headers: auth(token) })),
 };
 
 export function normalizeUrl(input: string): string {
@@ -57,6 +63,8 @@ export class SyncEngine {
   status = $state<SyncStatus>('local');
   enabled = $state(false);
   serverUrl = $state<string | null>(null);
+  /** Bearer token for servers that set OPENTHINGS_TOKEN; stays on this device. */
+  token = $state<string | null>(null);
   pending = $state(0);
   lastSyncedAt = $state<string | null>(null);
   error = $state<string | null>(null);
@@ -91,6 +99,7 @@ export class SyncEngine {
   init() {
     this.device = db.deviceId();
     this.serverUrl = db.metaGet('sync.url');
+    this.token = db.metaGet('sync.token');
     this.enabled = db.metaGet('sync.enabled') === '1' && !!this.serverUrl;
     this.lastSyncedAt = db.metaGet('sync.last_ok');
     this.pending = db.pendingCount();
@@ -149,15 +158,24 @@ export class SyncEngine {
     clearTimeout(this.debounce);
   }
 
-  /** Check a server without saving it. */
-  async test(url: string): Promise<HealthResponse> {
-    const h = await this.transport.health(normalizeUrl(url));
+  /** Check a server (and token, if it needs one) without saving it. */
+  async test(url: string, token: string | null = this.token): Promise<HealthResponse> {
+    const u = normalizeUrl(url);
+    const h = await this.transport.health(u);
     if (h.server !== 'openthings') throw new Error('That URL is not an OpenThings server');
     if (h.protocol !== PROTOCOL_VERSION) throw new Error(`Server speaks protocol ${h.protocol}, this app speaks ${PROTOCOL_VERSION}`);
+    const t = token?.trim() || null;
+    if (h.auth && !t) throw new Error('The server requires a token');
+    if (h.auth || t) await this.transport.verify(u, t);
     return h;
   }
 
-  configure(url: string | null, enabled: boolean) {
+  /** `token` undefined keeps the saved one; null or '' clears it. */
+  configure(url: string | null, enabled: boolean, token?: string | null) {
+    if (token !== undefined) {
+      this.token = token?.trim() || null;
+      db.metaSet('sync.token', this.token);
+    }
     const u = url ? normalizeUrl(url) : null;
     if (u !== this.serverUrl) {
       // A different server starts from scratch: pull everything, push everything.
@@ -203,7 +221,7 @@ export class SyncEngine {
           device: this.device,
           cursor: db.metaGet('sync.cursor'),
           ops: ops.map(({ seq: _seq, ...o }) => o),
-        });
+        }, this.token);
         if (ops.length) db.markPushed(ops.at(-1)!.seq!);
         if (res.ops.length && db.applyRemoteOps(res.ops) > 0) this.onRemoteChanges();
         db.metaSet('sync.cursor', res.cursor);

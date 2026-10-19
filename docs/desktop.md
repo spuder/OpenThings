@@ -82,7 +82,7 @@ windowrule {
 
 ## Install
 
-**macOS with Homebrew:** `brew install --cask spuder/openthings/openthings` (the [tap](https://github.com/spuder/homebrew-openthings) also links the `openthings` CLI).
+**macOS with Homebrew:** `brew tap spuder/openthings && brew trust spuder/openthings && brew install --cask openthings` (the [tap](https://github.com/spuder/homebrew-openthings) also links the `openthings` CLI).
 
 **macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. Releases and manual runs are notarized and open normally. Builds from pull requests are only ad-hoc signed, so their first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
 

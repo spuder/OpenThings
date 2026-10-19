@@ -161,9 +161,11 @@ A native shell ([Tauri](https://tauri.app)) around the same app, for **macOS** a
 
 ```sh
 brew tap spuder/openthings
+brew trust spuder/openthings
 brew install --cask openthings
-brew trust --cask spuder/openthings/openthings
 ```
+
+Recent Homebrew versions refuse to load casks from untrusted taps, so the `brew trust` step must come before `brew install`. Without it the install fails with `Refusing to load cask ... from untrusted tap` and nothing is installed.
 
 The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings) and also puts the `openthings` CLI on your PATH. Update with `brew upgrade --cask openthings`.
 

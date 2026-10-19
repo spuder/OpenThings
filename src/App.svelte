@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fade, fly } from 'svelte/transition';
   import { store } from './lib/store.svelte';
-  import { handleKey, openListMenu } from './lib/commands';
+  import { commands, handleKey, openListMenu } from './lib/commands';
   import { formatDuration, longLabel } from './lib/dates';
   import Sidebar from './lib/ui/Sidebar.svelte';
   import TaskList from './lib/ui/TaskList.svelte';
@@ -27,19 +27,25 @@
   installKeyboardInset();
 
   // Phone: swipe right anywhere to open the list drawer, swipe left to close it.
-  let touch: { x: number; y: number; t: number } | null = null;
+  // Pull down while the list is scrolled to the top to open Quick Find.
+  let touch: { x: number; y: number; t: number; atTop: boolean } | null = null;
   function onTouchStart(e: TouchEvent) {
-    touch = e.touches.length === 1 && isNarrow() && !store.overlay && !swipeIgnored(e.target)
-      ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp }
-      : null;
+    if (e.touches.length !== 1 || !isNarrow() || store.overlay || swipeIgnored(e.target)) {
+      touch = null;
+      return;
+    }
+    const scroller = e.target instanceof Element ? e.target.closest('main .scroll') : null;
+    touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp, atTop: !!scroller && scroller.scrollTop <= 0 };
   }
   function onTouchEnd(e: TouchEvent) {
     if (!touch) return;
     const p = e.changedTouches[0];
     const swipe = classifySwipe(p.clientX - touch.x, p.clientY - touch.y, e.timeStamp - touch.t);
+    const atTop = touch.atTop;
     touch = null;
     if (swipe === 'right' && !store.sidebarOpen) store.sidebarOpen = true;
     else if (swipe === 'left' && store.sidebarOpen) store.sidebarOpen = false;
+    else if (swipe === 'down' && atTop && !store.sidebarOpen) commands.find((c) => c.id === 'app.find')?.run();
   }
 
   // Tapping or clicking outside an open to-do closes it. A drag (scrolling) doesn't count.

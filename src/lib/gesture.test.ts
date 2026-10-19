@@ -11,9 +11,14 @@ describe('classifySwipe', () => {
     expect(classifySwipe(40, 0, 100)).toBeNull();
   });
 
-  it('ignores mostly vertical movement (scrolling)', () => {
+  it('ignores diagonal movement', () => {
     expect(classifySwipe(80, 60, 200)).toBeNull();
-    expect(classifySwipe(10, 300, 200)).toBeNull();
+  });
+
+  it('detects a long quick vertical pull, but not a short one', () => {
+    expect(classifySwipe(10, 300, 200)).toBe('down');
+    expect(classifySwipe(-5, -120, 200)).toBe('up');
+    expect(classifySwipe(0, 50, 200)).toBeNull();
   });
 
   it('ignores slow drags', () => {

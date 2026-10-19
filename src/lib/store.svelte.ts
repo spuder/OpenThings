@@ -493,13 +493,16 @@ class Store {
   }
 
   /** Placement implied by the current view, used when quick add has no explicit target. */
-  /** Quick-add text that states where a new to-do goes from the current list, so it's visible and editable. */
+  /**
+   * Quick-add text that states where a new to-do goes from the current list, so it's visible and editable.
+   * Leading space: it sits after the title, with the cursor in front of it.
+   */
   contextToken(): string {
     const v = this.view;
-    if (v.kind === 'today') return '@today ';
+    if (v.kind === 'today') return ' @today';
     if (v.kind === 'project') {
       const p = this.projects.find((x) => x.id === v.id);
-      if (p) return `+${p.name.trim().replace(/\s+/g, '-')} `;
+      if (p) return ` +${p.name.trim().replace(/\s+/g, '-')}`;
     }
     return '';
   }

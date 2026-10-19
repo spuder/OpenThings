@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { parseQuickAdd, type TokenKind } from '../parse';
@@ -27,11 +28,16 @@
     }
   });
 
+  // Focus once on open. A pre-filled list goes after the title, so the cursor starts in front of it.
   $effect(() => {
-    input?.focus();
-    const end = value.length;
-    input?.setSelectionRange(end, end);
+    if (!input) return;
+    input.focus();
+    untrack(() => placeCursor(context ? 0 : value.length));
   });
+
+  function placeCursor(pos: number) {
+    queueMicrotask(() => input?.setSelectionRange(pos, pos));
+  }
 
   function label(kind: TokenKind, l: string) {
     if ((kind === 'when' || kind === 'deadline') && /^\d{4}-/.test(l)) return relLabel(l, store.day);
@@ -43,7 +49,8 @@
     store.addParsed(parsed, { useContext: !context });
     added++;
     value = keepOpen ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : context) : '';
-    if (!keepOpen) close();
+    if (keepOpen) placeCursor(context ? 0 : value.length);
+    else close();
   }
 
   // Syntax keys: shown in the placeholder while empty, then as tappable chips below the input once you type.
@@ -60,16 +67,19 @@
 
   /** #urgent / #important: tap to add, tap again to remove. */
   function toggleFlag(name: 'urgent' | 'important') {
+    // Goes at the end with the other tokens; the cursor stays where you're typing.
+    const pos = input?.selectionStart ?? value.length;
     const re = new RegExp(`(^|\\s)#${name}(?=\\s|$)`, 'gi');
-    if (re.test(value)) value = value.replace(re, '$1').replace(/\s{2,}/g, ' ').trimStart();
-    else insertKey(`#${name} `);
+    if (re.test(value)) value = value.replace(re, '$1').replace(/\s{2,}/g, ' ');
+    else value = value + (value && !value.endsWith(' ') ? ' ' : '') + `#${name}`;
     input?.focus();
+    placeCursor(Math.min(pos, value.length));
   }
 
   function insertKey(text: string) {
     value = value + (value && !value.endsWith(' ') ? ' ' : '') + text;
     input?.focus();
-    queueMicrotask(() => input?.setSelectionRange(value.length, value.length));
+    placeCursor(value.length);
   }
 
   function close() {

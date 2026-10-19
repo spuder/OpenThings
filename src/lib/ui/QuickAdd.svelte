@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { store } from '../store.svelte';
-  import { parseQuickAdd, type TokenKind } from '../parse';
+  import { parseQuickAdd, tagCompletion, type TokenKind } from '../parse';
   import { relLabel } from '../dates';
 
   // Brain Dump is for getting things out of your head: a plain box, no syntax, chips or tags.
@@ -15,12 +15,46 @@
   const context = store.quickAddPrefill && store.quickAddPrefill === store.contextToken() ? store.quickAddPrefill : '';
   let input: HTMLInputElement | undefined = $state();
   let added = $state(0);
+  /** Caret position while it's a plain cursor (no selection) in the focused input; null otherwise. */
+  let caret = $state<number | null>(null);
+  let scrollX = $state(0);
 
   const parsed = $derived(
     simple
       ? { ...parseQuickAdd('', store.day), title: value.trim(), dump: prefill.dump, dumpSection: prefill.dumpSection }
       : parseQuickAdd(value, store.day),
   );
+
+  // Most used tags first; the built-in flags last.
+  const tagNames = $derived.by(() => {
+    const uses = new Map<string, number>();
+    for (const tt of store.taskTags) uses.set(tt.tag_id, (uses.get(tt.tag_id) ?? 0) + 1);
+    const names = [...store.tags].sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0) || a.name.localeCompare(b.name)).map((t) => t.name);
+    return [...names, 'urgent', 'important'];
+  });
+
+  // Inline tag completion: the rest of the best match shows as ghost text after the cursor. It's
+  // never inserted while you type, so the cursor stays put; Tab takes one step, → takes it all.
+  const completion = $derived(simple || caret === null ? null : tagCompletion(value, caret, tagNames));
+
+  function syncCaret() {
+    if (!input) return;
+    const { selectionStart: a, selectionEnd: b } = input;
+    caret = a !== null && a === b && document.activeElement === input ? a : null;
+    scrollX = input.scrollLeft;
+  }
+
+  /** Replace the partial tag with `to`; a finished tag from Tab gets a space so you can type on. */
+  function complete(to: string, spaceIfDone: boolean) {
+    const c = completion; // re-derives as soon as value changes
+    if (!c) return;
+    const end = c.start + c.typed.length;
+    const rest = value.slice(end);
+    const done = spaceIfDone && to === c.suggestion;
+    value = value.slice(0, c.start) + to + (done && !rest.startsWith(' ') ? ' ' : '') + rest;
+    caret = c.start + to.length + (done ? 1 : 0);
+    placeCursor(caret);
+  }
 
   const contextLabel = $derived.by(() => {
     if (parsed.project || parsed.when || parsed.dump) return null;
@@ -96,7 +130,13 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (completion && e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      complete(completion.step, true);
+    } else if (completion && e.key === 'ArrowRight' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      complete(completion.suggestion, false);
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       close();
     } else if (e.key === 'Enter') {
@@ -131,14 +171,30 @@
 
 <div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
 <div class="panel" transition:fly={{ y: -10, duration: 180 }} role="dialog" aria-label="Quick add" aria-modal="true">
-  <input
-    bind:this={input}
-    bind:value
-    onkeydown={onKey}
-    placeholder={simple ? 'Write anything…' : `New to-do   ${keys.map((k) => k.label).join('  ')}`}
-    spellcheck="false"
-    aria-label="New to-do"
-  />
+  <div class="field">
+    <input
+      bind:this={input}
+      bind:value
+      class:ghosted={!!completion}
+      onkeydown={onKey}
+      oninput={syncCaret}
+      onkeyup={syncCaret}
+      onpointerup={syncCaret}
+      onselect={syncCaret}
+      onfocus={syncCaret}
+      onblur={() => (caret = null)}
+      onscroll={syncCaret}
+      placeholder={simple ? 'Write anything…' : `New to-do   ${keys.map((k) => k.label).join('  ')}`}
+      spellcheck="false"
+      autocomplete="off"
+      aria-label="New to-do"
+      aria-autocomplete="inline"
+    />
+    {#if completion}
+      <!-- Draws the whole line with the ghost spliced in; the input's own text is hidden meanwhile. -->
+      <div class="ghost" aria-hidden="true"><span style:transform="translateX({-scrollX}px)"><span class="text">{value.slice(0, caret ?? 0)}</span>{completion.ghost}<span class="text">{value.slice(caret ?? 0)}</span></span></div>
+    {/if}
+  </div>
   {#if value && !simple}
     <div class="keys" transition:slide={{ duration: 160 }}>
       {#each keys as k, i (k.label)}
@@ -172,6 +228,7 @@
   </div>
   {/if}
   <div class="foot">
+    {#if completion}<span class="kb"><kbd>⇥</kbd> #{completion.step}</span>{/if}
     <span class="kb"><kbd>↵</kbd> add</span>
     <span class="kb"><kbd>⇧↵</kbd> add another</span>
     <span class="kb"><kbd>Esc</kbd> close</span>
@@ -201,7 +258,11 @@
     z-index: 21;
     padding: 14px 16px 10px;
   }
-  input {
+  .field {
+    position: relative;
+  }
+  input,
+  .ghost {
     width: 100%;
     border: none;
     outline: none;
@@ -210,6 +271,24 @@
     font-weight: 500;
     /* 16px+ prevents iOS zoom on focus. */
     padding: 4px 0 8px;
+  }
+  .ghost {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: pre;
+    color: var(--text-3);
+  }
+  .ghost > span {
+    display: inline-block;
+  }
+  .ghost .text {
+    color: var(--text);
+  }
+  input.ghosted {
+    color: transparent;
+    caret-color: var(--text);
   }
   input::placeholder {
     color: var(--text-3);

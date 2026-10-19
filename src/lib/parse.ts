@@ -1,5 +1,5 @@
 /**
- * Quick-add parser. Shared by the quick-add window, in-app entry, and (later) CLI and HTTP API.
+ * Quick-add parser. Shared by the quick-add window, in-app entry, and the server's REST API and MCP tools.
  *
  *   #tag              tag (letters, digits, - _ /)
  *   +Project          project or area (hyphens/underscores match spaces)
@@ -75,7 +75,7 @@ export function parseDateWord(word: string, ref: string): string | null {
   return d ? ymd(d) : null;
 }
 
-function parseWhen(word: string, ref: string): When | null {
+export function parseWhen(word: string, ref: string): When | null {
   const w = word.toLowerCase();
   if (w === 'tonight' || w === 'evening' || w === 'eve') return { date: ref, evening: true, someday: false, inbox: false };
   if (w === 'someday' || w === 'later') return { date: null, evening: false, someday: true, inbox: false };
@@ -85,13 +85,13 @@ function parseWhen(word: string, ref: string): When | null {
   return d ? { date: d, evening: false, someday: false, inbox: false } : null;
 }
 
-function parseEstimate(s: string): number | null {
+export function parseEstimate(s: string): number | null {
   const m = /^(?:(\d+)h)?(?:(\d+)m?)?$/.exec(s.toLowerCase());
   if (!m || (!m[1] && !m[2])) return null;
   return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0);
 }
 
-function parseRepeat(s: string): string | null {
+export function parseRepeat(s: string): string | null {
   const w = s.toLowerCase();
   const named: Record<string, string> = {
     daily: 'FREQ=DAILY;INTERVAL=1',
@@ -297,4 +297,35 @@ export function parseQuickAdd(input: string, ref: string = todayFn(), now: Date 
     }
   }
   return out;
+}
+
+export interface HabitInput {
+  name: string;
+  /** Challenge length in days, or null. */
+  target: number | null;
+  /** Schedule string (see views.ts parseSchedule), or null for daily. */
+  schedule: string | null;
+}
+
+/**
+ * Trailing words set habit options: "Cold shower 75d" (75-day challenge), "Gym 5x" (5 times a week),
+ * "Journal weekdays", combinable: "Gym 4x 60d".
+ */
+export function parseHabit(input: string): HabitInput {
+  let name = input.trim();
+  let target: number | null = null;
+  let schedule: string | null = null;
+  for (let i = 0; i < 3; i++) {
+    let m: RegExpExecArray | null;
+    if ((m = /\s+(\d{1,3})\s*d(?:ays?)?$/i.exec(name)) && !target) {
+      target = Number(m[1]);
+    } else if ((m = /\s+([1-7])\s*x(?:\s*\/?\s*w(?:ee)?k)?$/i.exec(name)) && !schedule) {
+      schedule = m[1] === '7' ? 'daily' : `times:${m[1]}`;
+    } else if ((m = /\s+(weekdays|weekends|daily)$/i.exec(name)) && !schedule) {
+      const w = m[1].toLowerCase();
+      schedule = w === 'weekdays' ? 'days:1,2,3,4,5' : w === 'weekends' ? 'days:0,6' : 'daily';
+    } else break;
+    name = name.slice(0, m.index).trim();
+  }
+  return { name, target, schedule };
 }

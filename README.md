@@ -24,6 +24,7 @@
   <a href="#features">Features</a> ·
   <a href="#roadmap">Roadmap</a> ·
   <a href="docs/sync.md">Sync protocol</a> ·
+  <a href="docs/api.md">REST &amp; MCP</a> ·
   <a href="docs/ios.md">iOS app</a> ·
   <a href="AGENTS.md">Contributing</a> ·
   <a href="https://github.com/spuder/OpenThings/issues">Issues</a>
@@ -43,7 +44,7 @@
   <img src="docs/screenshots/today.png" alt="OpenThings Today view" width="860">
 </p>
 
-> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives in your browser (SQLite in IndexedDB); the sync client is built, the sync server is not yet. An **iOS app** (Capacitor, with widgets, share sheet and Shortcuts) runs on iPhone (tested on an iPhone 15); build it yourself with Xcode, see [iOS app](#ios-app). **Android** is coming and [needs testers](https://github.com/spuder/OpenThings/issues/6).
+> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives on each device (SQLite in IndexedDB) and syncs through the server in the Docker image, which also offers a REST API and an MCP endpoint for AI assistants. An **iOS app** (Capacitor, with widgets, share sheet and Shortcuts) runs on iPhone (tested on an iPhone 15); build it yourself with Xcode, see [iOS app](#ios-app). **Android** is coming and [needs testers](https://github.com/spuder/OpenThings/issues/6).
 >
 > Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently and not affiliated with either. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
 
@@ -69,14 +70,15 @@
 - **Areas and projects** can be renamed, moved or deleted from the ⋯ button or right-click in the sidebar (or `⇧L`).
 - **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle. On desktop, `⇧T` opens a theme switcher with all 23 [Omarchy](https://omarchy.org) themes (Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine…), previewed live as you move through them.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
-- **Sync status** on every screen, and a **Settings** page: sync setup (see [docs/sync.md](docs/sync.md)), notifications, and the planned REST API and MCP endpoints with ready-to-copy config.
+- **Sync** between your devices through your own server, with status on every screen. Works offline; changes merge per field when you reconnect. See [docs/sync.md](docs/sync.md).
+- **REST API** for scripts, Home Assistant, n8n and Shortcuts, and an **MCP endpoint** so AI assistants (Claude and other MCP clients) can read and manage your to-dos. Quick-add syntax works in both. Settings has ready-to-copy config; reference in [docs/api.md](docs/api.md).
 - **Import from Things 3** (macOS desktop app): Settings → Data finds your Things database automatically and brings across areas, projects, headings, to-dos, tags and checklists. Repeat rules and reminders are left behind, and nothing is uploaded. The web version explains that importing is desktop-only. See [docs/import.md](docs/import.md).
 - **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe right** for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
 - **Quick add** with short syntax (below), from anywhere with `Q`. It starts with the list you're in (`+Project` or `@today`) after the cursor, so you can change it. Once you type, the syntax keys appear as tappable chips, and `#important` / `#urgent` are one tap away. In Brain Dump it's a plain box: no syntax, just write.
 - **Quick Find** (`/` or `Ctrl/⌘ F`): recent lists with counts, then search lists, projects, areas, `#tags` and to-dos as you type.
 - **Bottom toolbar** on desktop with New to-do, When, Move and Quick Find; hide the sidebar with `Ctrl/⌘ /`.
 - **Command palette** (`Ctrl/⌘ K`) and a shortcut sheet (`?`).
-- **Local-first data:** SQLite (WASM) with an op log of every change, ready for a sync server. JSON export.
+- **Local-first data:** SQLite (WASM) with an op log of every change, which is what syncs. JSON export.
 - Light and dark mode.
 
 ## Quick add syntax
@@ -132,8 +134,10 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 
 ```sh
 npm install
-npm run dev     # http://localhost:5173
-npm test
+npm run dev          # http://localhost:5173 (proxies /api and /mcp to the server)
+npm run server       # sync, REST and MCP server on http://localhost:8080, needs Bun; serves dist/
+npm test             # app tests (Vitest)
+npm run test:server  # server tests (Bun)
 npm run check
 npm run build
 ```
@@ -146,7 +150,7 @@ To start over with the demo data, run **Reset demo data** from the command palet
 | --- | --- | --- | --- |
 | ![Today on iPhone](docs/screenshots/phone-today.png) | ![Quick add on iPhone](docs/screenshots/phone-quickadd.png) | ![List drawer on iPhone](docs/screenshots/phone-lists.png) | ![Brain dump on iPhone](docs/screenshots/phone-dump.png) |
 
-The iPhone/iPad app is this same web app in a [Capacitor](https://capacitorjs.com) shell, plus native pieces: reminders scheduled as iOS notifications (they arrive with the app closed), Home and Lock Screen widgets (Today, sync status), a Share Sheet extension (to Inbox or Brain Dump), and Shortcuts/Siri actions (**Add To-Do** with quick-add syntax, **Open Today**). Data stays on the device. Architecture and a device test checklist: [docs/ios.md](docs/ios.md). It isn't on the App Store yet, so for now you build it yourself.
+The iPhone/iPad app is this same web app in a [Capacitor](https://capacitorjs.com) shell, plus native pieces: reminders scheduled as iOS notifications (they arrive with the app closed), Home and Lock Screen widgets (Today, sync status), a Share Sheet extension (to Inbox or Brain Dump), and Shortcuts/Siri actions (**Add To-Do** with quick-add syntax, **Open Today**). Data stays on the device, and syncs with your server if you turn sync on in Settings. Architecture and a device test checklist: [docs/ios.md](docs/ios.md). It isn't on the App Store yet, so for now you build it yourself.
 
 **Android** is planned from the same Capacitor setup. If you'd like to test it, comment on [issue #6](https://github.com/spuder/OpenThings/issues/6).
 
@@ -171,17 +175,41 @@ docker compose up -d
 
 `compose.yaml` pulls `ghcr.io/spuder/openthings:latest` and carries [DockTail](https://github.com/marvinvr/docktail) labels, so with DockTail running on the host the app appears at `https://openthings.<tailnet>.ts.net` with no published ports. Without DockTail, add `ports: ["8080:8080"]`. To build locally: `docker build -t openthings .`
 
-The image is a static build served by nginx. Until the sync server exists, **each browser keeps its own data** in IndexedDB, so hosting it centrally gives every device the same app but not the same tasks. Use **Export JSON backup** (`Ctrl/⌘ ⇧ E`) to save a copy.
+The container is one [Bun](https://bun.sh) process that serves:
+
+| Path | What |
+| --- | --- |
+| `/` | The web app |
+| `/api/health`, `/api/sync` | Sync between devices ([docs/sync.md](docs/sync.md)) |
+| `/api/v1/…` | REST API ([docs/api.md](docs/api.md)) |
+| `/mcp` | MCP endpoint (Streamable HTTP) for AI assistants ([docs/api.md](docs/api.md#mcp)) |
+
+To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the iOS app) and **Turn on sync**. Each device still keeps a full copy and works offline.
+
+To connect Claude Code:
+
+```sh
+claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/mcp
+```
+
+| Setting | Default | |
+| --- | --- | --- |
+| Volume `/data` | | The server's SQLite database (`openthings.sqlite`). Back it up; it holds every device's changes. |
+| `TZ` | `UTC` | Time zone for "today" in the REST API and MCP tools, e.g. `America/Denver`. |
+| `OPENTHINGS_ALLOWED_ORIGINS` | | Extra web origins allowed to call the API from a browser, comma-separated. The server's own origin and the iOS app always are. |
+| `PORT` | `8080` | |
+
+There's no login: anyone who can reach the server can read and change your to-dos, so keep it on your tailnet (as DockTail does) or another private network. Browsers on other websites are refused, so a page you visit can't reach it through your browser. Device tokens are planned before anything is exposed more widely.
+
+Run the server locally with `npm run build && npm run server` (http://localhost:8080); `npm run dev` proxies `/api` and `/mcp` to it.
 
 ## Roadmap
 
-1. **Sync server:** TypeScript on Bun, SQLite, one Docker container on Tailscale. Serves this web app, and clients push and pull the op log. Replaces the nginx image.
-2. **REST API** on the server: tasks, projects, areas, habits, brain dump, time entries. Quick add accepts the same syntax as the app.
-3. **MCP server** on the same container, so AI assistants can read and manage tasks (list Today, add with quick-add syntax, complete, move, start timers). It's a thin layer over the REST API and goes through the same op log.
-4. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
-5. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
-6. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
-7. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
+1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
+2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
+3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
+4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
+5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 
 ## License
 

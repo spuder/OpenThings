@@ -28,3 +28,4 @@ dist-ssr
 
 # Native shells
 ios/App/Config/OpenThings.local.xcconfig
+/data

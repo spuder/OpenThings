@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as db from '../db';
+import { mergeTags } from '../schema';
 import { SyncEngine, normalizeUrl, type Transport } from './engine.svelte';
 import { PROTOCOL_VERSION, type SyncRequest } from './protocol';
 
@@ -33,6 +34,32 @@ const hlcAt = (ms: number, dev = 'otherdevice1') => `${String(ms).padStart(15, '
 
 beforeEach(async () => {
   await db.openDb({ memory: true });
+});
+
+describe('remote ops that collide', () => {
+  it('keeps same-named tags from two devices and merges them when read', () => {
+    db.insert('tags', { id: 'local-home', name: 'home' });
+    const remote = (hlc: string, tbl: string, row_id: string, payload: db.Row) => ({ hlc, device: 'otherdevice1', tbl, row_id, kind: 'insert' as const, payload });
+    addTask('t1', 'Water plants');
+    db.applyRemoteOps([
+      remote(hlcAt(1), 'tags', 'a-remote-home', { id: 'a-remote-home', name: 'Home' }),
+      remote(hlcAt(2), 'task_tags', 'tt1', { id: 'tt1', task_id: 't1', tag_id: 'a-remote-home' }),
+    ]);
+    const merged = mergeTags(db.all<{ id: string; name: string }>('SELECT * FROM tags'), db.all<{ task_id: string; tag_id: string }>('SELECT * FROM task_tags'));
+    expect(merged.tags.map((t) => t.id)).toEqual(['a-remote-home']);
+    expect(merged.links).toEqual([{ id: 'tt1', task_id: 't1', tag_id: 'a-remote-home' }]);
+  });
+
+  it("skips an op that can't apply without blocking the rest", () => {
+    const applied = db.applyRemoteOps([
+      { hlc: hlcAt(1), device: 'otherdevice1', tbl: 'tasks', row_id: 'bad', kind: 'insert', payload: { id: 'bad' } }, // title is NOT NULL
+      { hlc: hlcAt(2), device: 'otherdevice1', tbl: 'tags', row_id: 'g1', kind: 'insert', payload: { id: 'g1', name: 'ok' } },
+    ]);
+    expect(applied).toBe(1);
+    expect(db.one('SELECT 1 AS x FROM tasks WHERE id = ?', ['bad'])).toBeUndefined();
+    // Both are recorded, so the next sync doesn't fetch them again.
+    expect(db.one<{ n: number }>('SELECT COUNT(*) AS n FROM ops WHERE remote = 1')?.n).toBe(2);
+  });
 });
 
 describe('op log', () => {

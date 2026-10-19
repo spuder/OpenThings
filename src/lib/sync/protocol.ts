@@ -1,5 +1,5 @@
 /**
- * Sync protocol, version 0 (draft). Shared by the web client now and the Bun server later.
+ * Sync protocol, version 0 (draft). Shared by the web client and the server (server/).
  * See docs/sync.md.
  *
  *   GET  {server}/api/health  -> HealthResponse
@@ -7,7 +7,7 @@
  *
  * Auth: none in v0; the server is only reachable on the tailnet (DockTail).
  */
-import type { Op } from '../db';
+import type { Op } from '../schema';
 
 export const PROTOCOL_VERSION = 0;
 

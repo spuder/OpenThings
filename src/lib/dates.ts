@@ -72,3 +72,10 @@ export function formatDuration(ms: number): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
+
+/** Move a reminder by the number of days between two schedule dates, keeping its time of day. */
+export function shiftReminder(iso: string, fromDay: string, toDay: string): string {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + daysBetween(fromDay, toDay));
+  return d.toISOString();
+}

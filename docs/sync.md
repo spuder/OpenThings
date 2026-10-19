@@ -1,6 +1,6 @@
 # Sync (protocol v0, draft)
 
-Status: the **client is implemented** (`src/lib/sync/`); the **server is not built yet**. Turning sync on today shows "Can't reach the server" and local changes keep waiting in the op log.
+Status: **implemented.** Client in `src/lib/sync/`, server in `server/` (Bun + SQLite), shipped in the Docker image. Schema and op format are shared in `src/lib/schema.ts`.
 
 ## Model
 
@@ -9,6 +9,8 @@ Status: the **client is implemented** (`src/lib/sync/`); the **server is not bui
 - A `delete` wins over a later-arriving `insert` of the same row.
 - Remote ops are stored with `remote = 1` and never pushed back.
 - Only the tables in `SYNC_TABLES` sync. `ops` and `meta` never leave the device. Table and column names in remote ops are checked against the local schema; unknown ones are skipped.
+- Remote ops apply one at a time. One that can't apply (a constraint, a missing required column) is skipped and still recorded, so it never blocks later syncs.
+- Tags with the same name (ignoring case), created on two devices before they synced, are both kept; readers merge them (`mergeTags`), and the smallest id wins everywhere.
 
 ## Endpoints
 
@@ -21,10 +23,21 @@ POST /api/sync
   -> { "accepted": 12, "ops": [Op, …], "cursor": "<opaque>", "more": false }
 ```
 
-- The server stores pushed ops (dedupe on `hlc + device`), then returns ops from **other** devices after `cursor`, oldest first, in batches. `more: true` means call again.
-- `cursor` is opaque to clients (a server sequence number is fine).
+- The server stores pushed ops (dedupe on `hlc + device`), then returns ops from **other** devices after `cursor`, oldest first, in batches of 1000. `more: true` means call again.
+- `cursor` is opaque to clients. The server uses `<database id>.<sequence>`; a cursor from another (or a reset) server database starts over from the beginning.
+- Malformed ops (bad HLC, table or column names that aren't identifiers, non-scalar values) are ignored; the rest of the request still applies. A different `protocol` is rejected with 400.
 - Auth: none in v0. The server is only reachable on the tailnet (DockTail). Device tokens are planned before anything is exposed more widely.
-- The web app may be served by the same container, so the default server URL can be the page's own origin ("Use this site" in Settings).
+- Browsers: requests with an `Origin` other than the server's own, the native shells (`capacitor://localhost`, Tauri) and `localhost` are refused with 403 unless listed in `OPENTHINGS_ALLOWED_ORIGINS`.
+- The web app is served by the same container, so the default server URL can be the page's own origin ("Use this site" in Settings).
+
+## Server
+
+`server/` is one Bun process (`server/index.ts`) with the web app, sync, the [REST API and MCP](api.md):
+
+- `server/db.ts`: every op from every device in `ops`, plus the current state materialized in the same tables as the app, with the same rules (per-field last writer wins by HLC, delete wins, updates that arrive before their insert still apply).
+- REST and MCP writes go through `ServerDb.insert / update / remove`, which record ops under the server's own device id (`srv…`). Devices pull them like any other device's changes.
+- `server/service.ts`: to-do actions, mirroring the app's store and reusing `parse.ts`, `views.ts` and `dates.ts`.
+- Tests: `npm run test:server` (Bun).
 
 ## Client behavior
 

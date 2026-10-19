@@ -1,6 +1,6 @@
 # Desktop app (Tauri)
 
-Status: **macOS and Arch Linux (Omarchy / Hyprland)**. Builds are unsigned (macOS: ad-hoc signed, not notarized). Ubuntu/Fedora packaging is on the backlog.
+Status: **macOS and Arch Linux (Omarchy / Hyprland)**. macOS releases are signed with a Developer ID and notarized ([below](#signing-and-notarization)); pull request builds are ad-hoc signed. Ubuntu/Fedora packaging is on the backlog.
 
 The desktop app is the same web app in a native window, plus what a browser can't do. Data stays local: SQLite in IndexedDB inside the app's webview (fixed origin `tauri://localhost`; on Linux the data lives in `~/.local/share/io.github.spuder.openthings/`), so it persists across launches and updates. It is separate from any browser's copy; use Export JSON in the browser and the sync server (when it ships) to move data.
 
@@ -82,9 +82,9 @@ windowrule {
 
 ## Install
 
-**macOS with Homebrew:** `brew install --cask spuder/openthings/openthings` (the [tap](https://github.com/spuder/homebrew-openthings) also links the `openthings` CLI). The same first-open step below applies.
+**macOS with Homebrew:** `brew install --cask spuder/openthings/openthings` (the [tap](https://github.com/spuder/homebrew-openthings) also links the `openthings` CLI).
 
-**macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. The build is not notarized, so the first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
+**macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. Releases and manual runs are notarized and open normally. Builds from pull requests are only ad-hoc signed, so their first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
 
 **Arch:** download `OpenThings-arch-x86_64` from the same run. Either run the AppImage, or install the package:
 
@@ -100,6 +100,36 @@ The `openthings` (source) and `openthings-bin` PKGBUILDs in `packaging/arch/` ar
 ## Releasing
 
 Bump `version` in `src-tauri/tauri.conf.json` (and `src-tauri/Cargo.toml`), then push a matching tag, e.g. `git tag v0.1.0 && git push origin v0.1.0`. The Desktop workflow's `release` job checks the tag matches the version, publishes a GitHub release with the `.dmg`, `.app.zip`, AppImage and Linux tarball, and pushes the new version and `.dmg` checksum to `Casks/openthings.rb` in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings). It pushes with a write deploy key on that repo, stored here as the `TAP_DEPLOY_KEY` secret; to rotate it, make a new key pair, replace the deploy key and the secret.
+
+## Signing and notarization
+
+The `macos` job signs and notarizes on `v*` tags and manual runs (Actions → Desktop → Run workflow) when these repository secrets exist. Pull requests and forks get ad-hoc signed builds, and the `release` job refuses to publish a tag whose macOS build wasn't notarized.
+
+| Secret | What |
+| --- | --- |
+| `APPLE_CERTIFICATE` | base64 of a `.p12` export of a **Developer ID Application** certificate and its private key |
+| `APPLE_CERTIFICATE_PASSWORD` | the password set when exporting the `.p12` |
+| `APP_STORE_CONNECT_API_KEY_ID` | App Store Connect API key ID (Developer role or higher) |
+| `APP_STORE_CONNECT_API_ISSUER_ID` | the key's issuer ID |
+| `APP_STORE_CONNECT_API_KEY_CONTENT` | contents of the key's `AuthKey_<id>.p8` |
+
+The API key secrets have the same names and values as in OpenSpool, so the same Apple Developer account and key can be reused. To set them up:
+
+1. **Certificate** (once per account): in Xcode → Settings → Accounts → Manage Certificates → + → *Developer ID Application* (needs the Account Holder), or at [developer.apple.com/account/resources/certificates](https://developer.apple.com/account/resources/certificates). In Keychain Access, under *My Certificates*, right-click *Developer ID Application: …* → Export → `.p12` with a password.
+2. Store them:
+
+   ```sh
+   base64 -i DeveloperID.p12 | gh secret set APPLE_CERTIFICATE --repo spuder/OpenThings
+   gh secret set APPLE_CERTIFICATE_PASSWORD --repo spuder/OpenThings
+   gh secret set APP_STORE_CONNECT_API_KEY_ID --repo spuder/OpenThings
+   gh secret set APP_STORE_CONNECT_API_ISSUER_ID --repo spuder/OpenThings
+   gh secret set APP_STORE_CONNECT_API_KEY_CONTENT --repo spuder/OpenThings < AuthKey_XXXXXXXXXX.p8
+   ```
+
+   GitHub secrets can't be read back, so copy the API key values from where you saved them for OpenSpool (or make a new key in App Store Connect → Users and Access → Integrations).
+3. Run the Desktop workflow by hand and check the *Notarize .dmg* step passes `spctl`.
+
+How it works: the job imports the certificate into a temporary keychain and passes its identity to Tauri as `APPLE_SIGNING_IDENTITY` (overriding the ad-hoc `"-"` in `tauri.conf.json`). With `APPLE_API_KEY` / `APPLE_API_ISSUER` / `APPLE_API_KEY_PATH` set, Tauri signs the `.app` with the hardened runtime, notarizes it and staples the ticket. Tauri doesn't notarize the `.dmg`, so the job signs, notarizes (`notarytool`) and staples it too, then deletes the keychain and key.
 
 ## Building
 
@@ -118,7 +148,7 @@ Tray icons are drawn by `scripts/make-tray-icons.py`; app icons come from `publi
 
 macOS (not yet run on real hardware):
 
-- [ ] First launch: Gatekeeper "Open Anyway" works; window opens to an empty database (no demo data).
+- [ ] First launch of a notarized release opens without a Gatekeeper prompt; window opens to an empty database (no demo data).
 - [ ] Quit and relaunch: data, window size and position are kept.
 - [ ] ⌃⌥Space from another app opens the floating quick-add window; typing `Test @tomorrow %9am #x` previews tokens; ↵ adds it and the window hides; the to-do is in Upcoming with the tag and reminder. ⇧↵ adds and keeps the window open. Esc or clicking elsewhere hides it. Pressing ⌃⌥Space again hides it.
 - [ ] Settings → Desktop: record a new shortcut (e.g. ⌃⌥⌘T); the old one stops working, the new one works after relaunch. "Reset" and "Turn off" work. A shortcut taken by another app shows an error.
@@ -143,7 +173,6 @@ Arch / Hyprland:
 
 ## Not done yet / follow-ups
 
-- Code signing and notarization (Apple Developer ID).
 - Ubuntu/Fedora packages (.deb/.rpm), Flatpak.
 - A Windows build (the code compiles for Windows in principle; untested).
 - Auto-update (tauri-plugin-updater) once releases are signed.

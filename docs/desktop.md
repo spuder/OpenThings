@@ -112,7 +112,7 @@ Tray icons are drawn by `scripts/make-tray-icons.py`; app icons come from `publi
 
 macOS (not yet run on real hardware):
 
-- [ ] First launch: Gatekeeper "Open Anyway" works; window opens; demo data shows.
+- [ ] First launch: Gatekeeper "Open Anyway" works; window opens to an empty database (no demo data).
 - [ ] Quit and relaunch: data, window size and position are kept.
 - [ ] ⌃⌥Space from another app opens the floating quick-add window; typing `Test @tomorrow %9am #x` previews tokens; ↵ adds it and the window hides; the to-do is in Upcoming with the tag and reminder. ⇧↵ adds and keeps the window open. Esc or clicking elsewhere hides it. Pressing ⌃⌥Space again hides it.
 - [ ] Settings → Desktop: record a new shortcut (e.g. ⌃⌥⌘T); the old one stops working, the new one works after relaunch. "Reset" and "Turn off" work. A shortcut taken by another app shows an error.

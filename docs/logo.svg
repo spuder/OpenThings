@@ -5,7 +5,11 @@
       <stop offset="1" stop-color="#2f6fed"/>
     </linearGradient>
   </defs>
-  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#g)"/>
-  <rect x="8" y="8" width="112" height="56" rx="28" fill="#ffffff" opacity="0.08"/>
-  <path d="M40 66 L56 82 L90 46" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="0.5" y="0.5" width="127" height="127" rx="35.5" fill="#000000"/>
+  <rect x="2" y="2" width="124" height="124" rx="34" fill="#ffffff"/>
+  <g transform="translate(64 64) scale(0.9286) translate(-64 -64)">
+    <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#g)"/>
+    <rect x="8" y="8" width="112" height="56" rx="28" fill="#ffffff" opacity="0.08"/>
+    <path d="M40 66 L56 82 L90 46" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
 </svg>

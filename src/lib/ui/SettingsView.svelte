@@ -14,6 +14,7 @@
   import { MAX_SCHEDULED } from '../native/snapshot';
   import { isTouch } from '../env';
   import { FEATURES, features } from '../features.svelte';
+  import Icon from './Icon.svelte';
   const native = isNativeShell();
   // In the iOS and desktop shells the page origin (capacitor://, tauri://) isn't a server address.
   const servedBySite = !native && !isDesktop;
@@ -294,7 +295,7 @@ curl '${base}/api/v1/tasks?view=today'`);
     {#each FEATURES as f (f.id)}
       <label class="toggle feature">
         <input type="checkbox" checked={features.enabled(f.id)} onchange={(e) => store.setFeature(f.id, e.currentTarget.checked)} />
-        <span><strong>{f.label}</strong><small>{f.description}</small></span>
+        <span><strong class="feature-name"><Icon name={f.icon} size={16} />{f.label}</strong><small>{f.description}</small></span>
       </label>
     {/each}
     <p class="note">Turning a feature off hides it from the sidebar, Quick Find and shortcuts. Nothing is deleted, though Brain Dump items still expire after 48 hours. Saved on this device only.</p>
@@ -541,6 +542,11 @@ curl '${base}/api/v1/tasks?view=today'`);
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+  .feature-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
   .feature small {
     font-size: 12.5px;

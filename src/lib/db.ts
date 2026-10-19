@@ -382,15 +382,6 @@ export async function saveNow() {
   if (db && !memoryOnly) await idbPut(db.export());
 }
 
-export async function resetDb() {
-  const idb = await idbOpen();
-  await new Promise<void>((resolve) => {
-    const tx = idb.transaction(IDB_STORE, 'readwrite');
-    tx.objectStore(IDB_STORE).delete(IDB_KEY);
-    tx.oncomplete = () => resolve();
-  });
-}
-
 export function exportJson(): string {
   const tables = ['areas', 'projects', 'headings', 'tasks', 'checklist', 'tags', 'task_tags', 'habits', 'habit_checks', 'time_entries', 'dump_sections'];
   const out: Record<string, Row[]> = {};

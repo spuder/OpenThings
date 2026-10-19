@@ -306,7 +306,6 @@ curl '${base}/api/v1/tasks?view=today'`);
     <h2>Data</h2>
     <div class="row-actions">
       <button class="btn" onclick={() => store.exportJson()}>Export JSON backup</button>
-      <button class="btn danger" onclick={() => confirm('Erase all local data and restore the demo?') && store.resetDemo()}>Reset to demo data</button>
     </div>
 
     {#if !isTouch}

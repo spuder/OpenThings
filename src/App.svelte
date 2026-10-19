@@ -22,6 +22,7 @@
   import { isNarrow } from './lib/env';
   import { classifySwipe, swipeIgnored } from './lib/gesture';
   import { installKeyboardInset } from './lib/keyboard';
+  import ThemePicker from './lib/ui/ThemePicker.svelte';
 
   store.init().then(() => store.start());
   installKeyboardInset();
@@ -75,6 +76,7 @@
   const empty: Record<string, string> = {
     inbox: 'Inbox zero. Press Q to capture something.',
     today: 'Nothing scheduled for today.',
+    week: 'Nothing scheduled for the rest of this week.',
     upcoming: 'Nothing scheduled in the next 30 days.',
     anytime: 'No open to-dos.',
     someday: 'No someday ideas yet.',
@@ -151,7 +153,7 @@
                 <TaskList
                   groups={store.groups}
                   showWhen={['anytime', 'someday', 'project', 'area', 'inbox'].includes(v.kind)}
-                  showContainer={['today', 'upcoming', 'logbook', 'inbox', 'anytime'].includes(v.kind)}
+                  showContainer={['today', 'week', 'upcoming', 'logbook', 'inbox', 'anytime'].includes(v.kind)}
                   empty={empty[v.kind]}
                 />
               {/if}
@@ -169,6 +171,7 @@
   {#if store.overlay === 'help'}<Help />{/if}
   {#if store.overlay === 'focus'}<FocusView />{/if}
   {#if store.overlay === 'find'}<QuickFind />{/if}
+  {#if store.overlay === 'themes'}<ThemePicker />{/if}
 
   {#if store.toast}
     {#key store.toast.id}

@@ -26,6 +26,7 @@ import { isTouch } from './env';
 import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
+import { features, viewEnabled, type FeatureId } from './features.svelte';
 
 export interface Group {
   key: string;
@@ -36,7 +37,7 @@ export interface Group {
   items: Task[];
 }
 
-export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find';
+export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes';
 
 export interface FocusSession {
   taskId: ID;
@@ -253,6 +254,7 @@ class Store {
   recentViews = $state<ViewKey[]>(loadRecent());
 
   go(v: ViewKey) {
+    if (!viewEnabled(v.kind)) v = { kind: 'today' };
     this.view = v;
     if (v.kind !== 'settings') {
       const key = JSON.stringify(v);
@@ -269,6 +271,12 @@ class Store {
     this.selectedId = isTouch ? null : (this.selectable[0] ?? null);
   }
 
+  /** Turn an optional feature on or off; leaves its view if you're in it. */
+  setFeature(id: FeatureId, on: boolean) {
+    features.set(id, on);
+    if (!on && !viewEnabled(this.view.kind)) this.go({ kind: 'today' });
+  }
+
   isView(v: ViewKey) {
     if (v.kind !== this.view.kind) return false;
     if ('id' in v && 'id' in this.view) return v.id === this.view.id;
@@ -280,6 +288,7 @@ class Store {
     switch (v.kind) {
       case 'inbox': return 'Inbox';
       case 'today': return 'Today';
+      case 'week': return 'This Week';
       case 'upcoming': return 'Upcoming';
       case 'anytime': return 'Anytime';
       case 'someday': return 'Someday';
@@ -330,6 +339,13 @@ class Store {
         if (t.evening.length) out.push({ key: 'evening', title: 'This Evening', items: t.evening });
         return out;
       }
+      case 'week':
+        return V.thisWeek(ts, day, keep).map((g) => ({
+          key: g.date,
+          title: relLabel(g.date, day),
+          subtitle: longLabel(g.date),
+          items: g.tasks,
+        }));
       case 'upcoming':
         return V.upcoming(ts, day, keep).map((g) => ({
           key: g.date,
@@ -441,6 +457,7 @@ class Store {
       }
       case 'anytime': return V.anytime(ts, this.day, none).length;
       case 'upcoming': return V.upcoming(ts, this.day, none).reduce((n, g) => n + g.tasks.length, 0);
+      case 'week': return V.thisWeek(ts, this.day, none).reduce((n, g) => n + g.tasks.length, 0);
       case 'someday': return V.someday(ts, none).length;
       case 'tag': {
         const ids = new Set(this.taskTags.filter((tt) => tt.tag_id === v.id).map((tt) => tt.task_id));
@@ -509,7 +526,9 @@ class Store {
   private contextDefaults(): Partial<Task> {
     const v = this.view;
     switch (v.kind) {
-      case 'today': return { when_date: this.day };
+      case 'today':
+      case 'week':
+        return { when_date: this.day };
       case 'someday': return { someday: 1 };
       case 'project': return { project_id: v.id };
       case 'area': return { area_id: v.id };

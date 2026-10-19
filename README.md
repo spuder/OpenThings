@@ -57,6 +57,8 @@
 
 - **Lists:** Inbox, Today with This Evening, Upcoming, Anytime, Someday, Logbook.
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
+- **This Week** (optional, off by default): everything scheduled or due from today through Sunday, grouped by day; overdue items fold into today. `G W` to open.
+- **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default) and This Week (off).
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
 - **Habits** with a 21-day grid (7 on phones) and streaks. Optional **challenges** of a fixed length: 30, 60, 75 days or any number, with day count, missed days and end date. Press `C` on a habit, or name it `Cold shower 75d`. **Schedules:** every day, weekdays, specific days, or N times a week on any days (`W` on a habit, or name it `Gym 5x` / `Journal weekdays`); streaks and missed days follow the schedule.
 - **Matrix:** Eisenhower quadrants from urgent / important flags.
@@ -65,7 +67,7 @@
 - **Completion chimes**, synthesized in the browser (toggle with ⇧M).
 - **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. In the [iOS app](#ios-app) they are scheduled with the system and arrive even when the app is closed. Settings shows permission and upcoming reminders.
 - **Areas and projects** can be renamed, moved or deleted from the ⋯ button or right-click in the sidebar (or `⇧L`).
-- **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle.
+- **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle. On desktop, `⇧T` opens a theme switcher with all 23 [Omarchy](https://omarchy.org) themes (Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine…), previewed live as you move through them.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
 - **Sync status** on every screen, and a **Settings** page: sync setup (see [docs/sync.md](docs/sync.md)), notifications, and the planned REST API and MCP endpoints with ready-to-copy config.
 - **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe right** for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
@@ -101,6 +103,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `Q` / `N` | Quick add |
 | `B` | Add to brain dump |
 | `Alt+1…9` or `G` then `I T U A S L D H M` | Inbox, Today, Upcoming, Anytime, Someday, Logbook, Dump, Habits, Matrix |
+| `G W` | This Week (when turned on in Settings → Features) |
 | `J` / `K` | Move selection |
 | `Enter` | Open / close task |
 | `X` | Complete |
@@ -113,6 +116,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `P` / `⇧P` | Timer / quick Pomodoro |
 | `⇧L` | Rename / move / delete the current area or project |
 | `⇧D` | Toggle dark mode |
+| `⇧T` | Theme switcher (Omarchy themes, desktop) |
 | `Alt+↑` / `Alt+↓` | Reorder |
 | `⌫` | Move to Trash |
 | `Alt+0` / `G X` | Trash (`⇧R` restore) |

@@ -5,7 +5,9 @@
  */
 import { store } from './store.svelte';
 import { theme } from './theme.svelte';
+import { isNarrow, isTouch } from './env';
 import type { ViewKey } from './types';
+import { features, viewEnabled } from './features.svelte';
 
 export interface Command {
   id: string;
@@ -106,17 +108,19 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
   store.overlay = 'palette';
 }
 
-const nav = (title: string, v: ViewKey, n: number, letter: string): Command => ({
+const nav = (title: string, v: ViewKey, n: number | null, letter: string): Command => ({
   id: `go.${v.kind}`,
   title: `Go to ${title}`,
   group: 'Navigate',
-  keys: [`alt+${n}`, `g ${letter}`],
+  keys: n === null ? [`g ${letter}`] : [`alt+${n}`, `g ${letter}`],
+  when: () => viewEnabled(v.kind),
   run: () => store.go(v),
 });
 
 export const commands: Command[] = [
   nav('Inbox', { kind: 'inbox' }, 1, 'i'),
   nav('Today', { kind: 'today' }, 2, 't'),
+  nav('This Week', { kind: 'week' }, null, 'w'),
   nav('Upcoming', { kind: 'upcoming' }, 3, 'u'),
   nav('Anytime', { kind: 'anytime' }, 4, 'a'),
   nav('Someday', { kind: 'someday' }, 5, 's'),
@@ -142,6 +146,7 @@ export const commands: Command[] = [
     title: 'Add to brain dump',
     group: 'Create',
     keys: ['b'],
+    when: () => features.enabled('dump'),
     run: () => {
       store.quickAddPrefill = '@dump ';
       store.overlay = 'quickadd';
@@ -291,6 +296,15 @@ export const commands: Command[] = [
   { id: 'app.sidebar', title: 'Show / hide sidebar', group: 'App', keys: ['mod+/'], run: () => store.toggleSidebar() },
   { id: 'app.palette', title: 'Command palette', group: 'App', keys: ['mod+k', 'mod+shift+p', ':'], run: () => openPalette('commands'), hidden: true },
   { id: 'app.help', title: 'Keyboard shortcuts', group: 'App', keys: ['?'], run: () => (store.overlay = store.overlay === 'help' ? null : 'help') },
+  {
+    id: 'app.themes',
+    title: 'Choose theme (Omarchy themes)…',
+    group: 'App',
+    keys: ['shift+t'],
+    // Desktop only: the picker is built for a keyboard and a wide screen.
+    when: () => !isTouch && !isNarrow(),
+    run: () => (store.overlay = 'themes'),
+  },
   { id: 'app.theme', title: 'Toggle dark mode', group: 'App', keys: ['shift+d'], run: () => { theme.toggle(); store.notify(theme.isDark ? 'Dark mode' : 'Light mode'); } },
   { id: 'app.mute', title: 'Toggle sounds', group: 'App', keys: ['shift+m'], run: () => store.toggleMute() },
   { id: 'app.export', title: 'Export JSON backup', group: 'App', keys: ['mod+shift+e'], run: () => store.exportJson() },

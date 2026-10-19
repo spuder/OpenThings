@@ -10,6 +10,8 @@
   import { isNativeShell } from '../native/shell';
   import { nativeStatus } from '../native/status.svelte';
   import { MAX_SCHEDULED } from '../native/snapshot';
+  import { isTouch } from '../env';
+  import { FEATURES, features } from '../features.svelte';
   const native = isNativeShell();
   const themes: [ThemePref, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
@@ -268,10 +270,27 @@ curl '${base}/api/v1/tasks?view=today'`);
     </header>
     <div class="segmented" role="radiogroup" aria-label="Theme">
       {#each themes as [value, label]}
-        <button role="radio" aria-checked={theme.pref === value} class:on={theme.pref === value} onclick={() => theme.set(value)}>{label}</button>
+        <button role="radio" aria-checked={!theme.omarchy && theme.pref === value} class:on={!theme.omarchy && theme.pref === value} onclick={() => theme.set(value)}>{label}</button>
       {/each}
     </div>
-    <p class="note">System follows your device's light/dark setting. This choice is saved on this device only.</p>
+    {#if !isTouch}
+      <div class="omarchy">
+        <span>Omarchy theme: <strong>{theme.palette?.name ?? 'None'}</strong></span>
+        <button class="btn" onclick={() => (store.overlay = 'themes')}>Choose theme… <kbd>⇧T</kbd></button>
+      </div>
+    {/if}
+    <p class="note">System follows your device's light/dark setting. Choices are saved on this device only.</p>
+  </section>
+
+  <section>
+    <h2>Features</h2>
+    {#each FEATURES as f (f.id)}
+      <label class="toggle feature">
+        <input type="checkbox" checked={features.enabled(f.id)} onchange={(e) => store.setFeature(f.id, e.currentTarget.checked)} />
+        <span><strong>{f.label}</strong><small>{f.description}</small></span>
+      </label>
+    {/each}
+    <p class="note">Turning a feature off hides it from the sidebar, Quick Find and shortcuts. Nothing is deleted, though Brain Dump items still expire after 48 hours. Saved on this device only.</p>
   </section>
 
   <section>
@@ -461,6 +480,14 @@ curl '${base}/api/v1/tasks?view=today'`);
     color: var(--habits);
     white-space: nowrap;
   }
+  .omarchy {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 14px;
+  }
   .segmented {
     display: inline-flex;
     background: var(--chip);
@@ -486,6 +513,24 @@ curl '${base}/api/v1/tasks?view=today'`);
     gap: 10px;
     align-items: center;
     font-size: 14px;
+  }
+  .feature {
+    align-items: flex-start;
+    padding: 8px 0;
+    min-height: 44px;
+  }
+  .feature input {
+    margin-top: 2px;
+    flex: none;
+  }
+  .feature span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .feature small {
+    font-size: 12.5px;
+    color: var(--text-3);
   }
   .toggle input {
     width: 18px;

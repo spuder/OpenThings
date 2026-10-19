@@ -6,6 +6,7 @@
     inbox: 'var(--inbox)',
     today: 'var(--star)',
     upcoming: 'var(--upcoming)',
+    week: 'var(--upcoming)',
     anytime: 'var(--anytime)',
     someday: 'var(--someday)',
     logbook: 'var(--logbook)',
@@ -32,6 +33,10 @@
     <rect x="3" y="4" width="14" height="13" rx="2.5" />
     <path d="M3 8h14M7 2.5v3M13 2.5v3" />
     <circle cx="10" cy="12.5" r="1.4" fill={color} stroke="none" />
+  {:else if name === 'week'}
+    <rect x="3" y="4" width="14" height="13" rx="2.5" />
+    <path d="M3 8h14M7 2.5v3M13 2.5v3" />
+    <path d="M6 12.5h8" stroke-width="2.4" />
   {:else if name === 'anytime'}
     <path d="M10 3 17 6.6 10 10.2 3 6.6z" />
     <path d="M3 10.2l7 3.6 7-3.6M3 13.8l7 3.6 7-3.6" />

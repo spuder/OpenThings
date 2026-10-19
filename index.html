@@ -18,6 +18,12 @@
       try {
         var t = localStorage.getItem('openthings.theme');
         if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+        var o = JSON.parse(localStorage.getItem('openthings.themeVars') || 'null');
+        if (o && o.vars) {
+          for (var k in o.vars) document.documentElement.style.setProperty(k, o.vars[k]);
+          document.documentElement.dataset.theme = o.mode;
+          document.documentElement.style.colorScheme = o.mode;
+        }
       } catch (e) {}
     </script>
   </head>

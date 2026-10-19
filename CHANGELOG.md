@@ -1,0 +1,35 @@
+# Changelog
+
+Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
+
+## [v0.2.0](https://github.com/spuder/OpenThings/releases/tag/v0.2.0) - 2026-10-19
+
+### What's Changed
+
+* macOS releases can be signed and notarized when the required Apple credentials are configured. The release workflow now checks notarization. By @spuder in https://github.com/spuder/OpenThings/pull/25
+* Updated Arch Linux package checksums and installation guidance. By @spuder in https://github.com/spuder/OpenThings/pull/26
+* Fixed Homebrew instructions so users trust the tap before installing. By @Copilot in https://github.com/spuder/OpenThings/pull/29
+
+The notarization workflow has not yet been verified with Apple credentials.
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.1.0...v0.2.0
+
+## [v0.1.0](https://github.com/spuder/OpenThings/releases/tag/v0.1.0)
+
+### What's Changed
+
+* Site: remove em dashes from the webpage copy by @spuder in https://github.com/spuder/OpenThings/pull/9
+* Settings → Features: toggle Brain Dump and a new This Week view by @spuder in https://github.com/spuder/OpenThings/pull/10
+* iOS app: Capacitor shell, local notifications, widgets, share sheet, Shortcuts by @spuder in https://github.com/spuder/OpenThings/pull/4
+* Import Things 3 databases by @spuder in https://github.com/spuder/OpenThings/pull/14
+* Remove demo data and the reset button by @spuder in https://github.com/spuder/OpenThings/pull/15
+* Show feature icons in Settings and recolor This Week by @spuder in https://github.com/spuder/OpenThings/pull/18
+* Show a toast when shortcuts move or flag a to-do by @spuder in https://github.com/spuder/OpenThings/pull/16
+* Progressive tag autocomplete in quick add by @spuder in https://github.com/spuder/OpenThings/pull/17
+* Tap to accept the tag suggestion in quick add by @spuder in https://github.com/spuder/OpenThings/pull/19
+* Desktop app (Tauri): macOS and Arch Linux / Hyprland by @spuder in https://github.com/spuder/OpenThings/pull/5
+* Add a white and black outline to the logo by @spuder in https://github.com/spuder/OpenThings/pull/22
+* Sync server, REST API and MCP endpoint by @spuder in https://github.com/spuder/OpenThings/pull/20
+* Publish macOS builds through a Homebrew tap by @spuder in https://github.com/spuder/OpenThings/pull/23
+
+**Full Changelog**: https://github.com/spuder/OpenThings/commits/v0.1.0

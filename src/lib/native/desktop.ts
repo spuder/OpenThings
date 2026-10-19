@@ -121,7 +121,7 @@ interface MainHooks {
 }
 
 /**
- * Wire the main window to the shell. Call before the store initialises, so `notifier.native` is
+ * Wire the main window to the shell. Call before the store initialises, so the native notifier is
  * set by the time reminders start firing.
  */
 export function setupMainWindow(notifier: { useNative(n: NativeNotifier): void }, hooks: () => MainHooks) {
@@ -130,6 +130,9 @@ export function setupMainWindow(notifier: { useNative(n: NativeNotifier): void }
     permission: async () => 'granted',
     request: async () => 'granted',
     show: (title, body, taskId) => invoke('show_notification', { title, body, taskId: taskId ?? null }),
+    // Nothing is scheduled with the OS ahead of time: the app fires due reminders (including ones
+    // missed while it was closed) and calls show; the Rust backstop only covers the last 5 minutes.
+    schedulesAhead: false,
   });
 
   void listen<string>('ot://command', (id) => hooks().runCommand(id));

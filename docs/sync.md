@@ -56,6 +56,6 @@ window.addEventListener('openthings:sync', (e) => e.detail);  // SyncState on ev
 Planned uses:
 
 - **Tauri:** tray / menu-bar icon reflects status; tray menu has "Sync now".
-- **Capacitor:** on each event, write the state to the shared App Group (iOS) or SharedPreferences (Android) so home-screen widgets can show "Synced 2m ago" or "Offline".
+- **Capacitor (iOS, implemented):** on each event the app writes a snapshot to the shared App Group so widgets show "Synced 2m ago" or "Offline"; see [ios.md](ios.md). Android (SharedPreferences) is planned.
 
 Types: `src/lib/sync/protocol.ts` (`SyncState`, `SyncStatus`, request/response shapes).

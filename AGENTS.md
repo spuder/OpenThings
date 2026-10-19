@@ -48,7 +48,9 @@ When in doubt, write it from scratch and say so in the PR description.
 - `chrono-node` for natural-language date fallback in quick add
 - Vitest for unit tests, Playwright (dev only) for screenshots
 
-Planned (see the architecture doc): Tauri desktop shell, Capacitor iOS/Android, a TypeScript/Bun sync server in Docker on Tailscale.
+- Capacitor 8 for the iOS app (`ios/`, Swift Package Manager, no CocoaPods); see `docs/ios.md`
+
+Planned (see the architecture doc): Tauri desktop shell, Capacitor Android, a TypeScript/Bun sync server in Docker on Tailscale.
 
 ## Commands
 
@@ -58,6 +60,7 @@ npm run dev        # http://localhost:5173
 npm test           # vitest
 npm run check      # svelte-check + tsc
 npm run build
+npx cap sync ios   # copy the build into the iOS project (open it in Xcode on a Mac)
 ```
 
 ## Code map
@@ -76,6 +79,12 @@ npm run build
 | `src/lib/features.svelte.ts` | Optional features toggled in Settings (Brain Dump, This Week); `viewEnabled()` gates sidebar, Quick Find, nav commands and `store.go` |
 | `src/lib/env.ts` | Touch / narrow-screen detection |
 | `src/lib/reminders.svelte.ts` | Due/upcoming reminder logic and notification delivery (service worker `public/sw.js`) |
+| `src/lib/native/` | Native shell integration. `shell.ts` detects Capacitor; `capacitor.svelte.ts` (lazy-loaded, native only) schedules local notifications, writes the widget snapshot, imports to-dos from extensions; `snapshot.ts` is the pure, tested part |
+| `capacitor.config.ts` | Capacitor config; fixed `capacitor://localhost` origin so IndexedDB persists |
+| `ios/App/App/` | iOS app target: `OpenThingsPlugin.swift` (JS `OpenThingsNative`, App Group I/O), `OpenThingsViewController.swift`, `OpenThingsIntents.swift` (Shortcuts) |
+| `ios/App/Shared/` | Swift shared by app and extensions: App Group paths, snapshot and pending-item formats |
+| `ios/App/OpenThingsWidgets/`, `ios/App/OpenThingsShare/` | Widget and Share Sheet extensions |
+| `ios/App/Config/OpenThings.xcconfig` | Bundle id, App Group, URL scheme, team: the one place to change them |
 | `src/lib/ui/*` | Svelte components |
 | `site/` | Product website for GitHub Pages (plain HTML/CSS); the app demo is built into `/app/` by `.github/workflows/pages.yml` |
 
@@ -89,5 +98,6 @@ npm run build
 - Schema changes are additive, in `migrate()` in `db.ts`, so existing browser databases upgrade in place.
 - The UI must work at phone width (≤ 760px) and with touch: no hover-only controls, 44px touch targets, no reliance on double click.
 - Brain Dump items are tasks with `dump = 1`. Unchecked ones are deleted for good 48 hours after `created_at`. Moving one to any list clears `dump`.
+- **Native code stays in `ios/` and `src/lib/native/`.** Web code that touches it is guarded by `isNativeShell()` and loads the Capacitor module lazily, so web, PWA and Docker builds are unaffected. Native shells use the `window.OpenThings` bridge; they don't reimplement sync or reminders. Extensions never write the database: they queue items in the App Group and the app imports them through the store (op log).
 - Optional features are listed in `FEATURES` in `features.svelte.ts`. A new optional view must be gated through `viewEnabled()`.
 - Keep the UI calm: few elements per row, short animations (`transform`/`opacity`), no new colors without a token in `app.css`.

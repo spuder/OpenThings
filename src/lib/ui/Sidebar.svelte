@@ -20,7 +20,8 @@
     openListMenu({ kind, id });
   };
 
-  const top: { v: ViewKey; label: string; icon: string; count?: boolean }[][] = [
+  type Item = { v: ViewKey; label: string; icon: string; count?: boolean };
+  const top: Item[][] = [
     [{ v: { kind: 'inbox' }, label: 'Inbox', icon: 'inbox', count: true }],
     [
       { v: { kind: 'today' }, label: 'Today', icon: 'today', count: true },
@@ -30,14 +31,15 @@
       { v: { kind: 'someday' }, label: 'Someday', icon: 'someday' },
     ],
     [
-      { v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' },
-      { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
-    ],
-    [
       { v: { kind: 'dump' }, label: 'Brain Dump', icon: 'dump', count: true },
       { v: { kind: 'habits' }, label: 'Habits', icon: 'habits' },
       { v: { kind: 'matrix' }, label: 'Matrix', icon: 'matrix' },
     ],
+  ];
+  /** Finished and deleted to-dos: after your lists, out of the way. */
+  const bottom: Item[] = [
+    { v: { kind: 'logbook' }, label: 'Logbook', icon: 'logbook' },
+    { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
   ];
 
   const looseProjects = $derived(store.projects.filter((p) => !p.area_id && !p.completed_at));
@@ -48,19 +50,26 @@
 
 <nav class="sidebar" class:open={store.sidebarOpen} class:hidden={store.sidebarHidden} aria-label="Lists">
   <div class="scroll">
-    {#each top as section}
-      <ul>
-        {#each section.filter((i) => viewEnabled(i.v.kind)) as item}
-          {@const n = item.count ? store.openCount(item.v) : 0}
-          <li>
-            <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>
-              <Icon name={item.icon} />
-              <span class="label">{item.label}</span>
-              {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
-            </button>
-          </li>
-        {/each}
-      </ul>
+    {#snippet section(items: Item[], cls = '')}
+      {@const visible = items.filter((item) => viewEnabled(item.v.kind))}
+      {#if visible.length}
+        <ul class={cls}>
+          {#each visible as item}
+            {@const n = item.count ? store.openCount(item.v) : 0}
+            <li>
+              <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>
+                <Icon name={item.icon} />
+                <span class="label">{item.label}</span>
+                {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    {/snippet}
+
+    {#each top as items}
+      {@render section(items)}
     {/each}
 
     {#if looseProjects.length}
@@ -88,7 +97,7 @@
         </li>
         {#each projectsIn(a.id) as p (p.id)}
           <li class="has-menu">
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
@@ -97,6 +106,8 @@
         {/each}
       </ul>
     {/each}
+
+    {@render section(bottom, 'bottom')}
   </div>
 
   <footer>
@@ -190,6 +201,13 @@
   }
   .area {
     margin-top: 6px;
+  }
+  .bottom {
+    margin-top: 24px;
+  }
+  /* Projects inside an area sit a step in, so they read as belonging to it. */
+  .row.in-area {
+    padding-left: 24px;
   }
   footer {
     display: flex;
@@ -329,18 +347,23 @@
       transition: transform 0.24s var(--ease);
       box-shadow: none;
       padding-left: env(safe-area-inset-left);
+      /* The list scrolls below the status bar, not under the clock. */
+      padding-top: env(safe-area-inset-top);
     }
     .sidebar.open {
       transform: none;
       box-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
     }
     .scroll {
-      padding-top: calc(16px + env(safe-area-inset-top));
+      padding-top: 16px;
     }
     .row {
       padding: 9px 10px;
       font-size: 15.5px;
       gap: 12px;
+    }
+    .row.in-area {
+      padding-left: 30px;
     }
     footer {
       padding-bottom: calc(10px + env(safe-area-inset-bottom));

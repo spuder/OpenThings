@@ -1,0 +1,31 @@
+// OpenThings iOS build settings: the ONE place to change identifiers.
+// Used by the app, the widget extension and the share extension (all configurations).
+//
+// To run on your own iPhone, either edit the values below or (better, keeps git clean) create
+// ios/App/Config/OpenThings.local.xcconfig with your overrides, e.g.:
+//
+//   DEVELOPMENT_TEAM = ABCDE12345
+//   OT_BUNDLE_ID = com.example.openthings
+//
+// OpenThings.local.xcconfig is git-ignored. See docs/ios.md.
+
+// Bundle id of the app. Extensions append ".widgets" and ".share".
+OT_BUNDLE_ID = io.github.spuder.openthings
+
+// App Group shared by the app and its extensions (widgets snapshot, share/Shortcuts inbox).
+// Must exist in your Apple developer account and be enabled for all three bundle ids.
+OT_APP_GROUP = group.$(OT_BUNDLE_ID)
+
+// Custom URL scheme for widgets, notifications and Shortcuts: openthings://today, openthings://task/<id>
+OT_URL_SCHEME = openthings
+
+// Your Apple developer team id (Xcode → Settings → Accounts, or developer.apple.com → Membership).
+DEVELOPMENT_TEAM =
+
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+// Entitlements (App Group) used by all three targets, relative to ios/App.
+OT_ENTITLEMENTS = Config/OpenThings.entitlements
+
+#include? "OpenThings.local.xcconfig"

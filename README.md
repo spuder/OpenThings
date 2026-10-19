@@ -7,13 +7,14 @@
 <p align="center">
   <b>A self-hosted, local-first task manager with a calm, keyboard-first design.</b><br>
   Plan your day with Today, Upcoming and Areas, then focus with a built-in Pomodoro, habits, reminders and an Eisenhower matrix.
-  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host.
+  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host, and as an iPhone app.
 </p>
 
 <p align="center">
   <a href="https://spuder.github.io/OpenThings/app/"><img alt="Web: try in browser" src="https://img.shields.io/badge/web-try%20in%20browser-3fa66b?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=555"></a>
   <a href="https://github.com/spuder/OpenThings/pkgs/container/openthings"><img alt="Docker: ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2f6fed?style=for-the-badge&logo=docker&logoColor=white&labelColor=555"></a>
   <a href="#self-hosting"><img alt="Self-host: compose.yaml" src="https://img.shields.io/badge/self--host-compose.yaml-e3743b?style=for-the-badge&logo=tailscale&logoColor=white&labelColor=555"></a>
+  <a href="#ios-app"><img alt="iOS: build from source" src="https://img.shields.io/badge/iOS-build%20from%20source-111111?style=for-the-badge&logo=apple&logoColor=white&labelColor=555"></a>
 </p>
 
 <p align="center">
@@ -23,6 +24,7 @@
   <a href="#features">Features</a> ·
   <a href="#roadmap">Roadmap</a> ·
   <a href="docs/sync.md">Sync protocol</a> ·
+  <a href="docs/ios.md">iOS app</a> ·
   <a href="AGENTS.md">Contributing</a> ·
   <a href="https://github.com/spuder/OpenThings/issues">Issues</a>
 </p>
@@ -41,7 +43,7 @@
   <img src="docs/screenshots/today.png" alt="OpenThings Today view" width="860">
 </p>
 
-> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives in your browser (SQLite in IndexedDB); the sync client is built, the sync server and native apps are not yet.
+> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives in your browser (SQLite in IndexedDB); the sync client is built, the sync server is not yet. An **iOS app** (Capacitor, with widgets, share sheet and Shortcuts) runs on iPhone (tested on an iPhone 15); build it yourself with Xcode, see [iOS app](#ios-app). **Android** is coming and [needs testers](https://github.com/spuder/OpenThings/issues/6).
 >
 > Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently and not affiliated with either. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
 
@@ -63,15 +65,15 @@
 - **Focus mode:** select a to-do and press `F` for a full-screen Pomodoro (15/25/50 min) with breaks, session count, its checklist and a Complete button. It keeps running if you close it; a pill in the header takes you back.
 - **Time tracking** per task.
 - **Completion chimes**, synthesized in the browser (toggle with ⇧M).
-- **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. Settings shows permission and upcoming reminders.
+- **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. In the [iOS app](#ios-app) they are scheduled with the system and arrive even when the app is closed. Settings shows permission and upcoming reminders.
 - **Areas and projects** can be renamed, moved or deleted from the ⋯ button or right-click in the sidebar (or `⇧L`).
 - **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle. On desktop, `⇧T` opens a theme switcher with all 23 [Omarchy](https://omarchy.org) themes (Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine…), previewed live as you move through them.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
 - **Sync status** on every screen, and a **Settings** page: sync setup (see [docs/sync.md](docs/sync.md)), notifications, and the planned REST API and MCP endpoints with ready-to-copy config.
-- **Mobile:** responsive layout, list drawer, tap to open tasks, larger touch targets, installable as a home-screen app.
-- **Quick add** with short syntax (below), from anywhere with `Q`.
+- **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe right** for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
+- **Quick add** with short syntax (below), from anywhere with `Q`. It starts with the list you're in (`+Project` or `@today`) after the cursor, so you can change it. Once you type, the syntax keys appear as tappable chips, and `#important` / `#urgent` are one tap away. In Brain Dump it's a plain box: no syntax, just write.
 - **Quick Find** (`/` or `Ctrl/⌘ F`): recent lists with counts, then search lists, projects, areas, `#tags` and to-dos as you type.
-- **Bottom toolbar** with New to-do, When, Move and Quick Find; hide the sidebar with `Ctrl/⌘ /`.
+- **Bottom toolbar** on desktop with New to-do, When, Move and Quick Find; hide the sidebar with `Ctrl/⌘ /`.
 - **Command palette** (`Ctrl/⌘ K`) and a shortcut sheet (`?`).
 - **Local-first data:** SQLite (WASM) with an op log of every change, ready for a sync server. JSON export.
 - Light and dark mode.
@@ -89,10 +91,10 @@
 | `%9am` `%18:30` `%in30m` `%fri-9am` | Reminder |
 | `~30m` `~1h30m` | Time estimate |
 | `*daily` `*weekly` `*weekdays` `*2w` | Repeat |
-| `^u` `^i` `^ui` | Urgent / important |
+| `#urgent` `#important` (or `^u` `^i` `^ui`) | Urgent / important (Matrix) |
 | `… // notes` | Everything after `//` becomes notes |
 
-Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop ^i`
+Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #important`
 
 ## Keyboard
 
@@ -137,6 +139,26 @@ npm run build
 
 To start over with the demo data, run **Reset demo data** from the command palette.
 
+## iOS app
+
+| Today | Quick add | Lists | Brain Dump |
+| --- | --- | --- | --- |
+| ![Today on iPhone](docs/screenshots/phone-today.png) | ![Quick add on iPhone](docs/screenshots/phone-quickadd.png) | ![List drawer on iPhone](docs/screenshots/phone-lists.png) | ![Brain dump on iPhone](docs/screenshots/phone-dump.png) |
+
+The iPhone/iPad app is this same web app in a [Capacitor](https://capacitorjs.com) shell, plus native pieces: reminders scheduled as iOS notifications (they arrive with the app closed), Home and Lock Screen widgets (Today, sync status), a Share Sheet extension (to Inbox or Brain Dump), and Shortcuts/Siri actions (**Add To-Do** with quick-add syntax, **Open Today**). Data stays on the device. Architecture and a device test checklist: [docs/ios.md](docs/ios.md). It isn't on the App Store yet, so for now you build it yourself.
+
+**Android** is planned from the same Capacitor setup. If you'd like to test it, comment on [issue #6](https://github.com/spuder/OpenThings/issues/6).
+
+To run it on your iPhone you need a Mac with Xcode 26+ (widgets, share sheet and Shortcuts also need a paid Apple Developer account for the App Group):
+
+```sh
+npm ci && npm run build && npx cap sync ios
+echo 'DEVELOPMENT_TEAM = ABCDE12345' > ios/App/Config/OpenThings.local.xcconfig   # your team id
+npx cap open ios
+```
+
+In Xcode, check *Signing & Capabilities* on the **App**, **OpenThingsWidgets** and **OpenThingsShare** targets (team set, App Group `group.io.github.spuder.openthings` registered), pick your iPhone and press Run. Bundle id, App Group and URL scheme live in one file, `ios/App/Config/OpenThings.xcconfig` (override them in `OpenThings.local.xcconfig`, which is not committed). After web changes: `npm run build && npx cap sync ios`.
+
 ## Self-hosting
 
 Images are published to GHCR by GitHub Actions on every push to `main` (`latest`, `sha-<short>`) and on `v*` tags (`1.2.3`, `1.2`), for `linux/amd64` and `linux/arm64`.
@@ -157,7 +179,7 @@ The image is a static build served by nginx. Until the sync server exists, **eac
 3. **MCP server** on the same container, so AI assistants can read and manage tasks (list Today, add with quick-add syntax, complete, move, start timers). It's a thin layer over the REST API and goes through the same op log.
 4. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
 5. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
-6. **Mobile:** Capacitor iOS and Android, plus native widgets, Shortcuts and share sheet.
+6. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
 7. Things 3 import, CLI.
 
 ## License

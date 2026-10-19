@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fade, fly } from 'svelte/transition';
   import { store } from './lib/store.svelte';
-  import { handleKey, openListMenu } from './lib/commands';
+  import { commands, handleKey, openListMenu } from './lib/commands';
   import { formatDuration, longLabel } from './lib/dates';
   import Sidebar from './lib/ui/Sidebar.svelte';
   import TaskList from './lib/ui/TaskList.svelte';
@@ -19,9 +19,54 @@
   import FocusView from './lib/ui/FocusView.svelte';
   import BottomBar from './lib/ui/BottomBar.svelte';
   import QuickFind from './lib/ui/QuickFind.svelte';
+  import { isNarrow } from './lib/env';
+  import { classifySwipe, swipeIgnored } from './lib/gesture';
+  import { installKeyboardInset } from './lib/keyboard';
   import ThemePicker from './lib/ui/ThemePicker.svelte';
 
-  store.init().then(() => store.go({ kind: 'today' }));
+  store.init().then(() => store.start());
+  installKeyboardInset();
+
+  // Phone: swipe right anywhere to open the list drawer, swipe left to close it.
+  // Pull down while the list is scrolled to the top to open Quick Find.
+  let touch: { x: number; y: number; t: number; atTop: boolean } | null = null;
+  function onTouchStart(e: TouchEvent) {
+    if (e.touches.length !== 1 || !isNarrow() || store.overlay || swipeIgnored(e.target)) {
+      touch = null;
+      return;
+    }
+    const scroller = e.target instanceof Element ? e.target.closest('main .scroll') : null;
+    touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp, atTop: !!scroller && scroller.scrollTop <= 0 };
+  }
+  function onTouchEnd(e: TouchEvent) {
+    if (!touch) return;
+    const p = e.changedTouches[0];
+    const swipe = classifySwipe(p.clientX - touch.x, p.clientY - touch.y, e.timeStamp - touch.t);
+    const atTop = touch.atTop;
+    touch = null;
+    if (swipe === 'right' && !store.sidebarOpen) store.sidebarOpen = true;
+    else if (swipe === 'left' && store.sidebarOpen) store.sidebarOpen = false;
+    else if (swipe === 'down' && atTop && !store.sidebarOpen) commands.find((c) => c.id === 'app.find')?.run();
+  }
+
+  // Tapping or clicking outside an open to-do closes it. A drag (scrolling) doesn't count.
+  let outside: { x: number; y: number } | null = null;
+  function onPointerDown(e: PointerEvent) {
+    const t = e.target instanceof Element ? e.target : null;
+    outside = store.expandedId && !store.overlay && t && !t.closest('.task.expanded, [role="dialog"], [role="menu"]')
+      ? { x: e.clientX, y: e.clientY }
+      : null;
+  }
+  function onPointerUp(e: PointerEvent) {
+    if (!outside) return;
+    const moved = Math.hypot(e.clientX - outside.x, e.clientY - outside.y);
+    outside = null;
+    if (moved > 10 || !store.expandedId) return;
+    // Blur first so the open to-do's fields save, as Escape does.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('.task.expanded')) active.blur();
+    store.expandedId = null;
+  }
 
   const v = $derived(store.view);
   const iconName = $derived(v.kind === 'project' ? '' : v.kind);
@@ -41,7 +86,7 @@
   };
 </script>
 
-<svelte:window onkeydown={handleKey} />
+<svelte:window onkeydown={handleKey} ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={() => (touch = null)} onpointerdown={onPointerDown} onpointerup={onPointerUp} onpointercancel={() => (outside = null)} />
 
 {#if store.ready}
   <div class="app">
@@ -338,7 +383,8 @@
       z-index: 14;
     }
     .content {
-      padding: 4px 16px 32px;
+      /* Room for the add button so it never covers the last row. */
+      padding: 4px 16px calc(96px + var(--kb, 0px));
     }
     .view-head {
       margin: 6px 0 12px;

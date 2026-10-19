@@ -20,6 +20,7 @@
       <a class="brand" href="#top"><img src="img/logo.svg" alt="" width="28" height="28"> OpenThings</a>
       <nav aria-label="Main">
         <a href="#features">Features</a>
+        <a href="#iphone">iPhone</a>
         <a href="#self-host">Self-host</a>
         <a href="#roadmap">Roadmap</a>
         <a href="https://github.com/spuder/OpenThings">GitHub</a>
@@ -42,7 +43,7 @@
           <a class="btn" href="app/">Try it in your browser</a>
           <a class="btn btn-ghost" href="#self-host">Host it yourself</a>
         </div>
-        <p class="fine reveal">Free and MIT licensed. The demo keeps everything in your browser.</p>
+        <p class="fine reveal">Free and MIT licensed. The demo keeps everything in your browser. Also on <a href="#iphone">iPhone</a>.</p>
 
         <div class="showcase reveal">
           <figure class="window">
@@ -53,7 +54,10 @@
             </picture>
           </figure>
           <figure class="phone">
-            <img src="img/phone-today.webp" alt="OpenThings on a phone" width="390" height="664" loading="lazy">
+            <picture>
+              <source srcset="img/phone-today-dark.webp" media="(prefers-color-scheme: dark)">
+              <img src="img/phone-today.webp" alt="OpenThings on a phone" width="390" height="664" loading="lazy">
+            </picture>
           </figure>
         </div>
       </div>
@@ -64,7 +68,7 @@
       <div class="wrap chips">
         <span>Today &amp; This Evening</span><span>Upcoming</span><span>Areas &amp; Projects</span><span>Quick add</span>
         <span>Brain dump</span><span>Focus mode</span><span>Habits</span><span>Reminders</span>
-        <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span>
+        <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span><span>iPhone app</span>
       </div>
     </section>
 
@@ -157,6 +161,28 @@
       </div>
     </section>
 
+    <!-- iPhone -->
+    <section class="iphone" id="iphone">
+      <div class="wrap">
+        <div class="copy center-copy reveal">
+          <p class="kicker" style="--k: var(--blue)">iPhone</p>
+          <h2>Made for your thumb, too</h2>
+          <p>The same app on iPhone, with reminders that arrive when it's closed, Home and Lock Screen widgets, a Share Sheet to the Inbox or Brain Dump, and Shortcuts. Add with the big blue button, swipe right for your lists, and pull down to find anything.</p>
+          <div class="cta">
+            <a class="btn" href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">Build it for your iPhone</a>
+            <a class="btn btn-ghost" href="https://github.com/spuder/OpenThings/issues/6">Android: testers wanted</a>
+          </div>
+          <p class="fine">Not on the App Store yet. You build it with Xcode on a Mac.</p>
+        </div>
+        <div class="phones">
+          <figure class="phone-shot reveal"><img src="img/phone-today.webp" alt="Today on iPhone with Find and add buttons" width="390" height="664" loading="lazy"><figcaption>Today</figcaption></figure>
+          <figure class="phone-shot reveal"><img src="img/phone-quickadd.webp" alt="Quick add with syntax chips and important and urgent toggles" width="390" height="664" loading="lazy"><figcaption>Quick add</figcaption></figure>
+          <figure class="phone-shot reveal"><img src="img/phone-lists.webp" alt="The list drawer with areas and projects" width="390" height="664" loading="lazy"><figcaption>Your lists</figcaption></figure>
+          <figure class="phone-shot reveal"><img src="img/phone-dump.webp" alt="The brain dump on iPhone" width="390" height="664" loading="lazy"><figcaption>Brain dump</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
     <!-- Small features grid -->
     <section class="grid-section">
       <div class="wrap">
@@ -167,7 +193,7 @@
           <article class="card reveal"><h3>Sounds you'll like</h3><p>Soft bell chimes for completing, checking a habit and finishing a focus session. One key to mute.</p></article>
           <article class="card reveal"><h3>Trash with a safety net</h3><p>Deleted to-dos wait 30 days before they're gone, so mistakes are easy to undo.</p></article>
           <article class="card reveal"><h3>Light and dark</h3><p>Follows your system, or pick one. Comfortable either way.</p></article>
-          <article class="card reveal"><h3>On your phone</h3><p>A responsive layout with a list drawer and big touch targets. Add it to your home screen like an app.</p></article>
+          <article class="card reveal"><h3>On your phone</h3><p>Big touch targets, swipe for your lists, pull down to search, and the keyboard never hides what you're typing. In the browser or as an <a href="#iphone">iPhone app</a>.</p></article>
         </div>
       </div>
     </section>
@@ -206,7 +232,8 @@
           <article class="card reveal"><span class="tag">Next</span><h3>Sync server</h3><p>One container that keeps your devices in step and serves the app.</p></article>
           <article class="card reveal"><span class="tag">Planned</span><h3>REST API &amp; MCP</h3><p>Automate with scripts and Home Assistant, or let AI assistants manage your to-dos.</p></article>
           <article class="card reveal"><span class="tag">Planned</span><h3>Calendar time-blocking</h3><p>Drag to-dos onto your day and sync blocks to any CalDAV calendar.</p></article>
-          <article class="card reveal"><span class="tag">Planned</span><h3>Desktop &amp; mobile apps</h3><p>A global quick-add hotkey on macOS and Linux; widgets and Shortcuts on iOS and Android.</p></article>
+          <article class="card reveal"><span class="tag">Testing</span><h3>iPhone &amp; Android</h3><p>The <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iPhone app</a> runs today; App Store next. Android is coming and <a href="https://github.com/spuder/OpenThings/issues/6">needs testers</a>.</p></article>
+          <article class="card reveal"><span class="tag">Planned</span><h3>Desktop app</h3><p>A global quick-add hotkey on macOS and Linux.</p></article>
         </div>
       </div>
     </section>
@@ -228,7 +255,7 @@
   <footer class="footer">
     <div class="wrap footer-inner">
       <p>OpenThings is an independent open-source project (MIT). It is not affiliated with or endorsed by Cultured Code or Super Productivity.</p>
-      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
+      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iOS app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/sync.md">Sync</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
     </div>
   </footer>
 

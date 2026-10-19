@@ -3,7 +3,8 @@ name: Desktop
 # Builds the Tauri desktop app (src-tauri/):
 #   - macOS: universal (Apple silicon + Intel) .app and .dmg, ad-hoc signed, not notarized
 #   - Arch Linux (Omarchy): release binary tarball + AppImage, and checks both AUR PKGBUILDs build
-# Bundles are uploaded as workflow artifacts.
+# Bundles are uploaded as workflow artifacts. A v* tag also publishes them as a GitHub release and
+# bumps the Homebrew cask (see the release job).
 on:
   push:
     branches: [desktop-app]
@@ -110,3 +111,70 @@ jobs:
             pacman -Qlp *.pkg.tar.zst
           done
           cd "$work/openthings-bin" && pacman -U --noconfirm *.pkg.tar.zst && test -x /usr/bin/openthings
+
+  # On a v* tag: publish a GitHub release with the bundles, then bump the Homebrew cask in
+  # spuder/homebrew-openthings (pushed with the TAP_DEPLOY_KEY deploy key).
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, arch]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        id: v
+        run: |
+          ver="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "v$ver" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match tauri.conf.json version $ver"
+            exit 1
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Name release assets
+        id: assets
+        run: |
+          ver="${{ steps.v.outputs.version }}"
+          mkdir -p release
+          # Stable name the cask downloads.
+          cp artifacts/*.dmg "release/OpenThings-$ver-macos-universal.dmg"
+          cp artifacts/OpenThings-macos-universal.app.zip "release/OpenThings-$ver-macos-universal.app.zip"
+          cp artifacts/openthings-*-linux-x86_64.tar.gz artifacts/*.AppImage release/
+          ls -la release
+          echo "dmg_sha256=$(sha256sum "release/OpenThings-$ver-macos-universal.dmg" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --title "OpenThings $GITHUB_REF_NAME" --generate-notes
+          fi
+      - name: Bump Homebrew cask
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+        run: |
+          set -eu
+          ver="${{ steps.v.outputs.version }}"
+          sha="${{ steps.assets.outputs.dmg_sha256 }}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$TAP_DEPLOY_KEY" > ~/.ssh/tap_key
+          chmod 600 ~/.ssh/tap_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone git@github.com:spuder/homebrew-openthings.git tap
+          cd tap
+          perl -pi -e "s/^  version \".*\"/  version \"$ver\"/; s/^  sha256 \".*\"/  sha256 \"$sha\"/" Casks/openthings.rb
+          git diff
+          if git diff --quiet; then
+            echo "Cask already at $ver."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "openthings $ver"
+          git push origin HEAD:main

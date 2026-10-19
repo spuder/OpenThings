@@ -82,7 +82,9 @@ windowrule {
 
 ## Install
 
-**macOS:** download `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. The build is not notarized, so the first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
+**macOS with Homebrew:** `brew install --cask spuder/openthings/openthings` (the [tap](https://github.com/spuder/homebrew-openthings) also links the `openthings` CLI). The same first-open step below applies.
+
+**macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. The build is not notarized, so the first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
 
 **Arch:** download `OpenThings-arch-x86_64` from the same run. Either run the AppImage, or install the package:
 
@@ -94,6 +96,10 @@ makepkg -si
 ```
 
 The `openthings` (source) and `openthings-bin` PKGBUILDs in `packaging/arch/` are ready for the AUR once a `v0.1.0` tag and release exist: run `updpkgsums` and `makepkg --printsrcinfo > .SRCINFO` first. CI checks that both build with `makepkg` in an `archlinux:latest` container and that `.SRCINFO` matches.
+
+## Releasing
+
+Bump `version` in `src-tauri/tauri.conf.json` (and `src-tauri/Cargo.toml`), then push a matching tag, e.g. `git tag v0.1.0 && git push origin v0.1.0`. The Desktop workflow's `release` job checks the tag matches the version, publishes a GitHub release with the `.dmg`, `.app.zip`, AppImage and Linux tarball, and pushes the new version and `.dmg` checksum to `Casks/openthings.rb` in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings). It pushes with a write deploy key on that repo, stored here as the `TAP_DEPLOY_KEY` secret; to rotate it, make a new key pair, replace the deploy key and the secret.
 
 ## Building
 
@@ -137,7 +143,7 @@ Arch / Hyprland:
 
 ## Not done yet / follow-ups
 
-- Code signing and notarization (Apple Developer ID) and attaching bundles to GitHub releases.
+- Code signing and notarization (Apple Developer ID).
 - Ubuntu/Fedora packages (.deb/.rpm), Flatpak.
 - A Windows build (the code compiles for Windows in principle; untested).
 - Auto-update (tauri-plugin-updater) once releases are signed.

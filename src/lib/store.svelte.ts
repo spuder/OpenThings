@@ -23,9 +23,11 @@ import { seed } from './seed';
 import { sync } from './sync/engine.svelte';
 import { installBridge } from './sync/bridge';
 import { isTouch } from './env';
+import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
+import { features, viewEnabled, type FeatureId } from './features.svelte';
 
 export interface Group {
   key: string;
@@ -151,11 +153,20 @@ class Store {
     sync.onRemoteChanges = () => this.load();
     sync.init();
     installBridge(sync, () => upcomingReminders(this.tasks, Date.now()));
+    if (isNativeShell()) {
+      // iOS/Android (Capacitor): OS notifications, widgets snapshot, share/Shortcuts import. Not loaded on the web.
+      try {
+        const native = await import('./native/capacitor.svelte');
+        await native.startNative(this);
+      } catch (e) {
+        console.error('Native shell init failed', e);
+      }
+    }
     void notifier.init((id) => this.reveal(id));
     const fromNotification = new URLSearchParams(location.search).get('task');
     if (fromNotification) {
       history.replaceState(null, '', location.pathname);
-      queueMicrotask(() => this.reveal(fromNotification));
+      this.reveal(fromNotification);
     }
     const open = this.timeEntries.find((e) => e.end_at === null);
     if (open) this.tracking = { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) };
@@ -256,6 +267,7 @@ class Store {
   recentViews = $state<ViewKey[]>(loadRecent());
 
   go(v: ViewKey) {
+    if (!viewEnabled(v.kind)) v = { kind: 'today' };
     this.view = v;
     if (v.kind !== 'settings') {
       const key = JSON.stringify(v);
@@ -272,6 +284,12 @@ class Store {
     this.selectedId = isTouch ? null : (this.selectable[0] ?? null);
   }
 
+  /** Turn an optional feature on or off; leaves its view if you're in it. */
+  setFeature(id: FeatureId, on: boolean) {
+    features.set(id, on);
+    if (!on && !viewEnabled(this.view.kind)) this.go({ kind: 'today' });
+  }
+
   isView(v: ViewKey) {
     if (v.kind !== this.view.kind) return false;
     if ('id' in v && 'id' in this.view) return v.id === this.view.id;
@@ -283,6 +301,7 @@ class Store {
     switch (v.kind) {
       case 'inbox': return 'Inbox';
       case 'today': return 'Today';
+      case 'week': return 'This Week';
       case 'upcoming': return 'Upcoming';
       case 'anytime': return 'Anytime';
       case 'someday': return 'Someday';
@@ -333,6 +352,13 @@ class Store {
         if (t.evening.length) out.push({ key: 'evening', title: 'This Evening', items: t.evening });
         return out;
       }
+      case 'week':
+        return V.thisWeek(ts, day, keep).map((g) => ({
+          key: g.date,
+          title: relLabel(g.date, day),
+          subtitle: longLabel(g.date),
+          items: g.tasks,
+        }));
       case 'upcoming':
         return V.upcoming(ts, day, keep).map((g) => ({
           key: g.date,
@@ -444,6 +470,7 @@ class Store {
       }
       case 'anytime': return V.anytime(ts, this.day, none).length;
       case 'upcoming': return V.upcoming(ts, this.day, none).reduce((n, g) => n + g.tasks.length, 0);
+      case 'week': return V.thisWeek(ts, this.day, none).reduce((n, g) => n + g.tasks.length, 0);
       case 'someday': return V.someday(ts, none).length;
       case 'tag': {
         const ids = new Set(this.taskTags.filter((tt) => tt.tag_id === v.id).map((tt) => tt.task_id));
@@ -496,10 +523,25 @@ class Store {
   }
 
   /** Placement implied by the current view, used when quick add has no explicit target. */
+  /**
+   * Quick-add text that states where a new to-do goes from the current list, so it's visible and editable.
+   * Leading space: it sits after the title, with the cursor in front of it.
+   */
+  contextToken(): string {
+    const v = this.view;
+    if (v.kind === 'today') return ' @today';
+    if (v.kind === 'project') {
+      const p = this.projects.find((x) => x.id === v.id);
+      if (p) return ` +${p.name.trim().replace(/\s+/g, '-')}`;
+    }
+    return '';
+  }
   private contextDefaults(): Partial<Task> {
     const v = this.view;
     switch (v.kind) {
-      case 'today': return { when_date: this.day };
+      case 'today':
+      case 'week':
+        return { when_date: this.day };
       case 'someday': return { someday: 1 };
       case 'project': return { project_id: v.id };
       case 'area': return { area_id: v.id };
@@ -662,7 +704,9 @@ class Store {
     for (const t of due) db.update('tasks', t.id, { reminder_sent_at: sentAt });
     this.load();
     sound.playReminder();
-    if (due.length <= 3) {
+    if (notifier.osDelivers) {
+      // Native shells: the OS already showed these (scheduled ahead of time), so only chime and toast.
+    } else if (due.length <= 3) {
       for (const t of due) void notifier.show(t.title, `Reminder · ${reminderLabel(t.reminder_at!, this.day)}`, t.id);
     } else {
       void notifier.show(`${due.length} reminders`, due.map((t) => t.title).join(', '));
@@ -670,8 +714,25 @@ class Store {
     this.notify(due.length === 1 ? `⏰ ${due[0].title}` : `⏰ ${due.length} reminders`);
   }
 
+  /** A reveal requested before the first view was shown (notification tap that launched the app). */
+  private pendingReveal: ID | null = null;
+  private started = false;
+
+  /** Show the first screen after init(): Today, or the task a notification / widget asked for. */
+  start() {
+    this.go({ kind: 'today' });
+    this.started = true;
+    const id = this.pendingReveal;
+    this.pendingReveal = null;
+    if (id) this.reveal(id);
+  }
+
   /** Jump to the list that shows a task, then select and open it (used by notification clicks). */
   reveal(id: ID) {
+    if (!this.started) {
+      this.pendingReveal = id;
+      return;
+    }
     const t = this.task(id);
     if (!t) return;
     let v: ViewKey = { kind: 'inbox' };

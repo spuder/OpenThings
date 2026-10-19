@@ -5,6 +5,7 @@
   import ProgressPie from './ProgressPie.svelte';
   import { openListMenu, prompt } from '../commands';
   import { fly } from 'svelte/transition';
+  import { viewEnabled } from '../features.svelte';
 
   let newListOpen = $state(false);
   function newList(kind: 'project' | 'area') {
@@ -24,6 +25,7 @@
     [{ v: { kind: 'inbox' }, label: 'Inbox', icon: 'inbox', count: true }],
     [
       { v: { kind: 'today' }, label: 'Today', icon: 'today', count: true },
+      { v: { kind: 'week' }, label: 'This Week', icon: 'week', count: true },
       { v: { kind: 'upcoming' }, label: 'Upcoming', icon: 'upcoming' },
       { v: { kind: 'anytime' }, label: 'Anytime', icon: 'anytime' },
       { v: { kind: 'someday' }, label: 'Someday', icon: 'someday' },
@@ -57,14 +59,21 @@
   </li>
 {/snippet}
 
+{#snippet section(items: NavItem[], cls = '')}
+  {@const visible = items.filter((item) => viewEnabled(item.v.kind))}
+  {#if visible.length}
+    <ul class={cls}>
+      {#each visible as item}
+        {@render navRow(item)}
+      {/each}
+    </ul>
+  {/if}
+{/snippet}
+
 <nav class="sidebar" class:open={store.sidebarOpen} class:hidden={store.sidebarHidden} aria-label="Lists">
   <div class="scroll">
-    {#each top as section}
-      <ul>
-        {#each section as item}
-          {@render navRow(item)}
-        {/each}
-      </ul>
+    {#each top as items}
+      {@render section(items)}
     {/each}
 
     {#if looseProjects.length}
@@ -92,7 +101,7 @@
         </li>
         {#each projectsIn(a.id) as p (p.id)}
           <li class="has-menu">
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
@@ -101,13 +110,10 @@
         {/each}
       </ul>
     {/each}
+
   </div>
 
-  <ul class="bottom">
-    {#each bottom as item}
-      {@render navRow(item)}
-    {/each}
-  </ul>
+  {@render section(bottom, 'bottom')}
 
   <footer>
     <div class="newlist">
@@ -205,6 +211,10 @@
     margin: 0;
     padding: 6px 10px;
     border-top: 1px solid var(--line);
+  }
+  /* Projects inside an area sit a step in, so they read as belonging to it. */
+  .row.in-area {
+    padding-left: 24px;
   }
   footer {
     display: flex;
@@ -344,18 +354,23 @@
       transition: transform 0.24s var(--ease);
       box-shadow: none;
       padding-left: env(safe-area-inset-left);
+      /* The list scrolls below the status bar, not under the clock. */
+      padding-top: env(safe-area-inset-top);
     }
     .sidebar.open {
       transform: none;
       box-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
     }
     .scroll {
-      padding-top: calc(16px + env(safe-area-inset-top));
+      padding-top: 16px;
     }
     .row {
       padding: 9px 10px;
       font-size: 15.5px;
       gap: 12px;
+    }
+    .row.in-area {
+      padding-left: 30px;
     }
     footer {
       padding-bottom: calc(10px + env(safe-area-inset-bottom));

@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OpenThings — calm, self-hosted to-dos</title>
+  <title>OpenThings: calm, self-hosted to-dos</title>
   <meta name="description" content="OpenThings is an open-source, local-first task manager you host yourself: Today and Upcoming lists, focus mode, habits, reminders, a self-cleaning brain dump and a keyboard for everything.">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="img/logo.svg" type="image/svg+xml">
-  <meta property="og:title" content="OpenThings — calm, self-hosted to-dos">
-  <meta property="og:description" content="Open-source, local-first task manager. Plan the day, focus, build habits — on your own server.">
+  <meta property="og:title" content="OpenThings: calm, self-hosted to-dos">
+  <meta property="og:description" content="Open-source, local-first task manager. Plan the day, focus, build habits, on your own server.">
   <meta property="og:image" content="https://spuder.github.io/OpenThings/img/today-light.webp">
   <meta property="og:type" content="website">
   <link rel="stylesheet" href="style.css">
@@ -20,6 +20,7 @@
       <a class="brand" href="#top"><img src="img/logo.svg" alt="" width="28" height="28"> OpenThings</a>
       <nav aria-label="Main">
         <a href="#features">Features</a>
+        <a href="#iphone">iPhone</a>
         <a href="#self-host">Self-host</a>
         <a href="#roadmap">Roadmap</a>
         <a href="https://github.com/spuder/OpenThings">GitHub</a>
@@ -36,13 +37,13 @@
         <h1 class="reveal">Your to-dos.<br>Calm, quick, and yours.</h1>
         <p class="lead reveal">
           OpenThings is a task manager that runs on your own server. Plan the day, capture ideas in seconds,
-          focus on one thing at a time, and keep the habits that matter — without an account or a subscription.
+          focus on one thing at a time, and keep the habits that matter, without an account or a subscription.
         </p>
         <div class="cta reveal">
           <a class="btn" href="app/">Try it in your browser</a>
           <a class="btn btn-ghost" href="#self-host">Host it yourself</a>
         </div>
-        <p class="fine reveal">Free and MIT licensed. The demo keeps everything in your browser.</p>
+        <p class="fine reveal">Free and MIT licensed. The demo keeps everything in your browser. Also on <a href="#iphone">iPhone</a>.</p>
 
         <div class="showcase reveal">
           <figure class="window">
@@ -53,7 +54,10 @@
             </picture>
           </figure>
           <figure class="phone">
-            <img src="img/phone-today.webp" alt="OpenThings on a phone" width="390" height="664" loading="lazy">
+            <picture>
+              <source srcset="img/phone-today-dark.webp" media="(prefers-color-scheme: dark)">
+              <img src="img/phone-today.webp" alt="OpenThings on a phone" width="390" height="664" loading="lazy">
+            </picture>
           </figure>
         </div>
       </div>
@@ -64,7 +68,7 @@
       <div class="wrap chips">
         <span>Today &amp; This Evening</span><span>Upcoming</span><span>Areas &amp; Projects</span><span>Quick add</span>
         <span>Brain dump</span><span>Focus mode</span><span>Habits</span><span>Reminders</span>
-        <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span>
+        <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span><span>iPhone app</span>
       </div>
     </section>
 
@@ -106,7 +110,7 @@
         <div class="copy reveal">
           <p class="kicker" style="--k: var(--paper-ink)">Brain dump</p>
           <h2>A scratch pad that tidies itself</h2>
-          <p>Get the noise out of your head onto something that looks and feels like paper. Each line fades over two days and then disappears — unless you check it off or keep it by moving it to a real list.</p>
+          <p>Get the noise out of your head onto something that looks and feels like paper. Each line fades over two days and then disappears, unless you check it off or keep it by moving it to a real list.</p>
           <ul class="ticks">
             <li>Sections for ideas, errands, anything</li>
             <li>Keep an item in one tap: Today, Inbox, or any project</li>
@@ -124,7 +128,7 @@
           <p>Select a to-do and press <kbd>F</kbd>. Everything else steps back: a Pomodoro ring, the to-do's checklist, and a gentle bell when it's time for a break. Time spent is tracked automatically.</p>
           <ul class="ticks">
             <li>15, 25 or 50 minute sessions, longer break every fourth</li>
-            <li>Keeps running if you close it — a pill brings you back</li>
+            <li>Keeps running if you close it; a pill brings you back</li>
           </ul>
         </div>
         <figure class="shot reveal"><img src="img/focus-light.webp" alt="Focus mode with a Pomodoro countdown ring" width="1280" height="800" loading="lazy"></figure>
@@ -136,7 +140,7 @@
         <div class="copy reveal">
           <p class="kicker" style="--k: var(--orange)">Habits</p>
           <h2>Habits that fit your week</h2>
-          <p>Every day, weekdays, or five times a week on whichever days work — streaks follow the schedule you set. Turn any habit into a 30, 60 or 75-day challenge with a clear finish line.</p>
+          <p>Every day, weekdays, or five times a week on whichever days work. Streaks follow the schedule you set. Turn any habit into a 30, 60 or 75-day challenge with a clear finish line.</p>
           <ul class="ticks">
             <li>Streaks that don't break on your days off</li>
             <li>Progress, missed days and end date at a glance</li>
@@ -151,9 +155,31 @@
         <div class="copy reveal">
           <p class="kicker" style="--k: var(--purple)">Prioritize</p>
           <h2>Urgent isn't the same as important</h2>
-          <p>Flag to-dos urgent or important and the matrix sorts them into do, schedule, delegate and drop — a quick check that you're spending the day on the right things.</p>
+          <p>Flag to-dos urgent or important and the matrix sorts them into do, schedule, delegate and drop: a quick check that you're spending the day on the right things.</p>
         </div>
         <figure class="shot reveal"><img src="img/matrix-light.webp" alt="Eisenhower matrix with four quadrants" width="1280" height="800" loading="lazy"></figure>
+      </div>
+    </section>
+
+    <!-- iPhone -->
+    <section class="iphone" id="iphone">
+      <div class="wrap">
+        <div class="copy center-copy reveal">
+          <p class="kicker" style="--k: var(--blue)">iPhone</p>
+          <h2>Made for your thumb, too</h2>
+          <p>The same app on iPhone, with reminders that arrive when it's closed, Home and Lock Screen widgets, a Share Sheet to the Inbox or Brain Dump, and Shortcuts. Add with the big blue button, swipe right for your lists, and pull down to find anything.</p>
+          <div class="cta">
+            <a class="btn" href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">Build it for your iPhone</a>
+            <a class="btn btn-ghost" href="https://github.com/spuder/OpenThings/issues/6">Android: testers wanted</a>
+          </div>
+          <p class="fine">Not on the App Store yet. You build it with Xcode on a Mac.</p>
+        </div>
+        <div class="phones">
+          <figure class="phone-shot reveal"><img src="img/phone-today.webp" alt="Today on iPhone with Find and add buttons" width="390" height="664" loading="lazy"><figcaption>Today</figcaption></figure>
+          <figure class="phone-shot reveal"><img src="img/phone-quickadd.webp" alt="Quick add with syntax chips and important and urgent toggles" width="390" height="664" loading="lazy"><figcaption>Quick add</figcaption></figure>
+          <figure class="phone-shot reveal"><img src="img/phone-lists.webp" alt="The list drawer with areas and projects" width="390" height="664" loading="lazy"><figcaption>Your lists</figcaption></figure>
+          <figure class="phone-shot reveal"><img src="img/phone-dump.webp" alt="The brain dump on iPhone" width="390" height="664" loading="lazy"><figcaption>Brain dump</figcaption></figure>
+        </div>
       </div>
     </section>
 
@@ -162,12 +188,12 @@
       <div class="wrap">
         <h2 class="center reveal">The small things, done carefully</h2>
         <div class="cards">
-          <article class="card reveal"><h3>Reminders</h3><p>Notifications with a chime at the time you pick — <code>%6pm</code>, <code>%in30m</code>, or from the picker.</p></article>
+          <article class="card reveal"><h3>Reminders</h3><p>Notifications with a chime at the time you pick: <code>%6pm</code>, <code>%in30m</code>, or from the picker.</p></article>
           <article class="card reveal"><h3>A keyboard for everything</h3><p>Every action has a shortcut, plus a command palette on <kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>K</kbd> and a cheat sheet on <kbd>?</kbd>.</p></article>
           <article class="card reveal"><h3>Sounds you'll like</h3><p>Soft bell chimes for completing, checking a habit and finishing a focus session. One key to mute.</p></article>
           <article class="card reveal"><h3>Trash with a safety net</h3><p>Deleted to-dos wait 30 days before they're gone, so mistakes are easy to undo.</p></article>
           <article class="card reveal"><h3>Light and dark</h3><p>Follows your system, or pick one. Comfortable either way.</p></article>
-          <article class="card reveal"><h3>On your phone</h3><p>A responsive layout with a list drawer and big touch targets. Add it to your home screen like an app.</p></article>
+          <article class="card reveal"><h3>On your phone</h3><p>Big touch targets, swipe for your lists, pull down to search, and the keyboard never hides what you're typing. In the browser or as an <a href="#iphone">iPhone app</a>.</p></article>
         </div>
       </div>
     </section>
@@ -206,7 +232,8 @@
           <article class="card reveal"><span class="tag">Next</span><h3>Sync server</h3><p>One container that keeps your devices in step and serves the app.</p></article>
           <article class="card reveal"><span class="tag">Planned</span><h3>REST API &amp; MCP</h3><p>Automate with scripts and Home Assistant, or let AI assistants manage your to-dos.</p></article>
           <article class="card reveal"><span class="tag">Planned</span><h3>Calendar time-blocking</h3><p>Drag to-dos onto your day and sync blocks to any CalDAV calendar.</p></article>
-          <article class="card reveal"><span class="tag">Planned</span><h3>Desktop &amp; mobile apps</h3><p>A global quick-add hotkey on macOS and Linux; widgets and Shortcuts on iOS and Android.</p></article>
+          <article class="card reveal"><span class="tag">Testing</span><h3>iPhone &amp; Android</h3><p>The <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iPhone app</a> runs today; App Store next. Android is coming and <a href="https://github.com/spuder/OpenThings/issues/6">needs testers</a>.</p></article>
+          <article class="card reveal"><span class="tag">Planned</span><h3>Desktop app</h3><p>A global quick-add hotkey on macOS and Linux.</p></article>
         </div>
       </div>
     </section>
@@ -228,7 +255,7 @@
   <footer class="footer">
     <div class="wrap footer-inner">
       <p>OpenThings is an independent open-source project (MIT). It is not affiliated with or endorsed by Cultured Code or Super Productivity.</p>
-      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
+      <p><a href="https://github.com/spuder/OpenThings">GitHub</a> · <a href="https://github.com/spuder/OpenThings/issues">Issues</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iOS app</a> · <a href="https://github.com/spuder/OpenThings/blob/main/docs/sync.md">Sync</a> · <a href="https://github.com/spuder/OpenThings/blob/main/LICENSE">License</a></p>
     </div>
   </footer>
 

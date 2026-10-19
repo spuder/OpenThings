@@ -9,7 +9,12 @@
   import { isDesktop } from '../native/desktop';
   import DesktopSettings from '../native/DesktopSettings.svelte';
   import { theme, type ThemePref } from '../theme.svelte';
+  import { isNativeShell } from '../native/shell';
+  import { nativeStatus } from '../native/status.svelte';
+  import { MAX_SCHEDULED } from '../native/snapshot';
   import { isTouch } from '../env';
+  import { FEATURES, features } from '../features.svelte';
+  const native = isNativeShell();
   const themes: [ThemePref, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
   let url = $state(sync.serverUrl ?? '');
@@ -37,7 +42,7 @@
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : 'Never');
 
   /** Where the REST API and MCP endpoint will live: the sync server, or this site if it serves the app. */
-  const base = $derived(sync.serverUrl ?? (typeof location !== 'undefined' ? location.origin : 'https://openthings.your-tailnet.ts.net'));
+  const base = $derived(sync.serverUrl ?? (typeof location !== 'undefined' && !native ? location.origin : 'https://openthings.your-tailnet.ts.net'));
   const upcoming = $derived(upcomingReminders(store.tasks, store.now));
   const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent);
   const standalone = typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone)').matches;
@@ -126,7 +131,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       />
     </label>
     <div class="row-actions">
-      <button class="btn" onclick={() => (url = location.origin)}>Use this site</button>
+      {#if !native}<button class="btn" onclick={() => (url = location.origin)}>Use this site</button>{/if}
       <button class="btn" onclick={test} disabled={!url || testing}>{testing ? 'Testing…' : 'Test connection'}</button>
       {#if sync.enabled}
         <button class="btn" onclick={() => save(true)} disabled={!url || url === sync.serverUrl}>Save URL</button>
@@ -176,12 +181,20 @@ curl '${base}/api/v1/tasks?view=today'`);
     <dl>
       <dt>Permission</dt>
       <dd>{notifier.permission}</dd>
+      {#if native}
+      <dt>Scheduled with the system</dt>
+      <dd>{nativeStatus.scheduled}</dd>
+      <dt>App Group</dt>
+      <dd>{nativeStatus.appGroup || 'unknown'} · {nativeStatus.containerAvailable ? 'available' : 'not available (widgets and share sheet off)'}</dd>
+      {#if nativeStatus.lastError}<dt>Native error</dt><dd class="err">{nativeStatus.lastError}</dd>{/if}
+      {:else}
       <dt>Service worker</dt>
       <dd>{notifier.worker}</dd>
       <dt>Installed app</dt>
       <dd>{standalone ? 'yes' : 'no (browser tab)'}</dd>
       <dt>Secure (HTTPS)</dt>
       <dd>{typeof isSecureContext !== 'undefined' && isSecureContext ? 'yes' : 'no — notifications need HTTPS'}</dd>
+      {/if}
       {#if notifier.lastError}<dt>Last error</dt><dd class="err">{notifier.lastError}</dd>{/if}
     </dl>
     {#if upcoming.length}
@@ -191,12 +204,18 @@ curl '${base}/api/v1/tasks?view=today'`);
         {/each}
       </ul>
     {/if}
+    {#if native}
+    <p class="note">
+      Reminders are scheduled with the system, so they arrive even when OpenThings is closed. They are rescheduled whenever a reminder changes (up to {MAX_SCHEDULED} at a time).
+    </p>
+    {:else}
     <p class="note">
       For now reminders fire while OpenThings is open (any tab, or the installed app); ones missed while it was closed fire when you open it.
       Phones pause web apps in the background, so on a phone reminders only fire while the app is on screen — some systems don't show a banner for the app you're currently using; “Test in 10 seconds” lets you switch away first.
       Reminders that arrive with the app closed will come from the sync server (Web Push) and the native apps.
       {#if isIOS && !standalone}On iPhone, add OpenThings to your Home Screen first (Share → Add to Home Screen); Safari only allows notifications for installed web apps.{/if}
     </p>
+    {/if}
   </section>
 
   <section>
@@ -266,6 +285,17 @@ curl '${base}/api/v1/tasks?view=today'`);
   </section>
 
   {#if isDesktop}<DesktopSettings />{/if}
+
+  <section>
+    <h2>Features</h2>
+    {#each FEATURES as f (f.id)}
+      <label class="toggle feature">
+        <input type="checkbox" checked={features.enabled(f.id)} onchange={(e) => store.setFeature(f.id, e.currentTarget.checked)} />
+        <span><strong>{f.label}</strong><small>{f.description}</small></span>
+      </label>
+    {/each}
+    <p class="note">Turning a feature off hides it from the sidebar, Quick Find and shortcuts. Nothing is deleted, though Brain Dump items still expire after 48 hours. Saved on this device only.</p>
+  </section>
 
   <section>
     <h2>Sounds</h2>
@@ -487,6 +517,24 @@ curl '${base}/api/v1/tasks?view=today'`);
     gap: 10px;
     align-items: center;
     font-size: 14px;
+  }
+  .feature {
+    align-items: flex-start;
+    padding: 8px 0;
+    min-height: 44px;
+  }
+  .feature input {
+    margin-top: 2px;
+    flex: none;
+  }
+  .feature span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .feature small {
+    font-size: 12.5px;
+    color: var(--text-3);
   }
   .toggle input {
     width: 18px;

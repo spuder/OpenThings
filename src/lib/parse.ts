@@ -9,7 +9,7 @@
  *   !fri !2026-11-02                                deadline
  *   ~30m ~1h ~1h30m                                 time estimate
  *   *daily *weekly *monthly *yearly *weekdays *2d *3w   repeat
- *   ^u ^i ^ui                                       Eisenhower: urgent / important
+ *   ^u ^i ^ui  (or #urgent #important)              Eisenhower: urgent / important
  *   %9am %18:30 %fri-9am %tomorrow-8am %in30m %in2h   reminder (notification)
  *   title // notes                                  everything after // becomes notes
  */
@@ -207,6 +207,14 @@ export function parseQuickAdd(input: string, ref: string = todayFn(), now: Date 
     const sigil = raw[0];
     const body = raw.slice(1);
 
+    // Built-in tags: #urgent and #important set the Eisenhower flags (same as ^u / ^i) instead of adding a tag.
+    if (sigil === '#' && /^(urgent|important)$/i.test(body)) {
+      const urgent = body.toLowerCase() === 'urgent';
+      if (urgent) out.urgent = true;
+      else out.important = true;
+      out.tokens.push({ text: raw, kind: 'matrix', label: urgent ? 'Urgent' : 'Important' });
+      continue;
+    }
     if (sigil === '#' && /^[\p{L}][\p{L}\p{N}_\-/]*$/u.test(body)) {
       if (!out.tags.includes(body)) out.tags.push(body);
       out.tokens.push({ text: raw, kind: 'tag', label: body });
@@ -265,9 +273,9 @@ export function parseQuickAdd(input: string, ref: string = todayFn(), now: Date 
     }
     if (sigil === '^' && /^[ui]{1,2}$/i.test(body)) {
       const b = body.toLowerCase();
-      out.urgent = b.includes('u');
-      out.important = b.includes('i');
-      const label = [out.urgent && 'Urgent', out.important && 'Important'].filter(Boolean).join(' + ');
+      if (b.includes('u')) out.urgent = true;
+      if (b.includes('i')) out.important = true;
+      const label = [b.includes('u') && 'Urgent', b.includes('i') && 'Important'].filter(Boolean).join(' + ');
       out.tokens.push({ text: raw, kind: 'matrix', label });
       continue;
     }

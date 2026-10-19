@@ -261,6 +261,40 @@ h1 {
   border-radius: 28px;
 }
 
+/* ---------- iPhone ---------- */
+.iphone {
+  padding: 96px 0;
+  background: var(--bg-alt);
+}
+.center-copy {
+  max-width: 640px;
+  margin: 0 auto 48px;
+  text-align: center;
+}
+.center-copy .cta {
+  justify-content: center;
+}
+.phones {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.phone-shot {
+  margin: 0;
+}
+.phone-shot img {
+  padding: 6px;
+  border-radius: 30px;
+  background: #111;
+  box-shadow: var(--shadow);
+}
+.phone-shot figcaption {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
 /* ---------- chips ---------- */
 .chips-band {
   padding: 72px 0 24px;
@@ -541,6 +575,11 @@ h2 {
   }
   .phone {
     right: -8px;
+  }
+}
+@media (max-width: 900px) {
+  .phones {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 @media (max-width: 600px) {

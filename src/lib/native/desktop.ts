@@ -14,7 +14,7 @@
  * See docs/desktop.md.
  */
 import type { SyncState } from '../sync/protocol';
-import type { UpcomingReminder } from '../reminders.svelte';
+import type { NativeNotifier, UpcomingReminder } from '../reminders.svelte';
 
 declare global {
   interface Window {
@@ -124,9 +124,13 @@ interface MainHooks {
  * Wire the main window to the shell. Call before the store initialises, so `notifier.native` is
  * set by the time reminders start firing.
  */
-export function setupMainWindow(notifier: { native: ((title: string, body: string, taskId?: string) => Promise<void>) | null }, hooks: () => MainHooks) {
+export function setupMainWindow(notifier: { useNative(n: NativeNotifier): void }, hooks: () => MainHooks) {
   if (!isDesktop) return;
-  notifier.native = (title, body, taskId) => invoke('show_notification', { title, body, taskId: taskId ?? null });
+  notifier.useNative({
+    permission: async () => 'granted',
+    request: async () => 'granted',
+    show: (title, body, taskId) => invoke('show_notification', { title, body, taskId: taskId ?? null }),
+  });
 
   void listen<string>('ot://command', (id) => hooks().runCommand(id));
   void listen<string>('ot://add', (text) => hooks().add(text));

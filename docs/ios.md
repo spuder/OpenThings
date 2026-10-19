@@ -133,7 +133,7 @@ CI (`.github/workflows/ios.yml`) builds the App scheme (which builds and embeds 
 
 ## Device test checklist
 
-- [ ] App launches, shows demo data, no white flash in dark mode.
+- [ ] App launches to an empty database (no demo data), no white flash in dark mode.
 - [ ] Force-quit and relaunch: data is still there (IndexedDB persisted).
 - [ ] Settings → Notifications → Allow; iOS prompt appears; status shows "Allowed".
 - [ ] "Test in 10 seconds", then lock the phone: banner arrives.

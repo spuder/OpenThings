@@ -1,0 +1,56 @@
+name: Tag release
+
+# When a merge to main changes the app version (src-tauri/tauri.conf.json), tag the commit
+# v<version> and start the Desktop and Container workflows on that tag. Desktop notarizes,
+# publishes the GitHub release and bumps the Homebrew cask; Container publishes the image.
+# A tag pushed with GITHUB_TOKEN doesn't trigger `on: push` workflows, but workflow_dispatch
+# does, so no extra secrets are needed. Pushing a tag by hand still works. See docs/desktop.md#releasing.
+on:
+  push:
+    branches: [main]
+    paths: [src-tauri/tauri.conf.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency: tag-release
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag and start the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          ver="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          tag="v$ver"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists; nothing to release."
+            exit 0
+          fi
+
+          # Every place the release PR bumps must agree before anything is tagged.
+          bad=0
+          check() {
+            if [ "$2" != "$ver" ]; then
+              echo "::error file=$1::$1 has version $2, expected $ver"
+              bad=1
+            fi
+          }
+          check package.json "$(node -p "require('./package.json').version")"
+          check src-tauri/Cargo.toml "$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)"
+          check ios/App/Config/OpenThings.xcconfig "$(sed -n 's/^MARKETING_VERSION = //p' ios/App/Config/OpenThings.xcconfig)"
+          [ "$bad" = 0 ] || exit 1
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "OpenThings $tag"
+          git push origin "$tag"
+          gh workflow run desktop.yml --ref "$tag"
+          gh workflow run container.yml --ref "$tag"
+          echo "Tagged $tag; started Desktop and Container on it."

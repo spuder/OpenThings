@@ -186,10 +186,10 @@ The container is one [Bun](https://bun.sh) process that serves:
 
 To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the iOS app) and **Turn on sync**. Each device still keeps a full copy and works offline.
 
-To connect Claude Code:
+To connect Claude Code (drop `--header` if you don't set a token):
 
 ```sh
-claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/mcp
+claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/mcp --header "Authorization: Bearer $OPENTHINGS_TOKEN"
 ```
 
 | Setting | Default | |
@@ -197,15 +197,27 @@ claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/m
 | Volume `/data` | | The server's SQLite database (`openthings.sqlite`). Back it up; it holds every device's changes. |
 | `TZ` | `UTC` | Time zone for "today" in the REST API and MCP tools, e.g. `America/Denver`. |
 | `OPENTHINGS_ALLOWED_ORIGINS` | | Extra web origins allowed to call the API from a browser, comma-separated. The server's own origin and the iOS app always are. |
+| `OPENTHINGS_TOKEN` | | When set, `/api/sync`, `/api/v1` and `/mcp` require `Authorization: Bearer <token>`. Comma-separate several to give each device or script its own (and to rotate one). `/api/health` and the web app stay open. |
+| `OPENTHINGS_HOSTNAMES` | | When set, only requests for these host names (plus `localhost` / `127.0.0.1`) are answered; anything else gets 421. Comma-separated, e.g. `openthings.tail1234.ts.net,nas.lan`. |
 | `PORT` | `8080` | |
 
-There's no login: anyone who can reach the server can read and change your to-dos, so keep it on your tailnet (as DockTail does) or another private network. Browsers on other websites are refused, so a page you visit can't reach it through your browser. Device tokens are planned before anything is exposed more widely.
+Both security settings are optional, so a tailnet-only setup keeps working with no config. Without a token anyone who can reach the server can read and change your to-dos, so keep it on your tailnet (as DockTail does) or another private network. Browsers on other websites are refused, so a page you visit can't reach it through your browser.
+
+If you publish port 8080 on your LAN or anywhere wider, set both:
+
+```yaml
+    environment:
+      OPENTHINGS_TOKEN: ${OPENTHINGS_TOKEN} # e.g. from `openssl rand -hex 32`, kept in .env
+      OPENTHINGS_HOSTNAMES: openthings.<tailnet>.ts.net,nas.lan
+```
+
+Then enter the token under **Settings → Sync → Token** on each device, and add it to MCP clients and scripts. The token keeps out anything that can reach the port; the host list stops [DNS rebinding](https://en.wikipedia.org/wiki/DNS_rebinding), where a web page points its own domain at your server to get past the browser's same-origin check. Use HTTPS (DockTail or another TLS proxy) when a token crosses a network you don't trust.
 
 Run the server locally with `npm run build && npm run server` (http://localhost:8080); `npm run dev` proxies `/api` and `/mcp` to it.
 
 ## Roadmap
 
-1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
+1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Optional token auth and a host allowlist protect it off the tailnet. Next: reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
 3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland).
 4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).

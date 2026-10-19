@@ -16,6 +16,7 @@
   const themes: [ThemePref, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 
   let url = $state(sync.serverUrl ?? '');
+  let token = $state(sync.token ?? '');
   let testing = $state(false);
   let testResult = $state<{ ok: boolean; text: string } | null>(null);
 
@@ -23,8 +24,8 @@
     testing = true;
     testResult = null;
     try {
-      const h = await sync.test(url);
-      testResult = { ok: true, text: `Connected: OpenThings server${h.version ? ' ' + h.version : ''}, protocol ${h.protocol}` };
+      const h = await sync.test(url, token);
+      testResult = { ok: true, text: `Connected: OpenThings server${h.version ? ' ' + h.version : ''}, protocol ${h.protocol}${h.auth ? ', token accepted' : ''}` };
     } catch (e) {
       testResult = { ok: false, text: (e as Error).message };
     } finally {
@@ -33,8 +34,9 @@
   }
 
   function save(enable: boolean) {
-    sync.configure(url || null, enable);
+    sync.configure(url || null, enable, token);
     url = sync.serverUrl ?? '';
+    token = sync.token ?? '';
   }
 
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : 'Never');
@@ -71,16 +73,25 @@
     unsupported: 'Not supported in this browser',
   };
 
-  const mcpHttp = $derived(JSON.stringify({ mcpServers: { openthings: { type: 'http', url: `${base}/mcp` } } }, null, 2));
-  const mcpStdio = $derived(JSON.stringify({ mcpServers: { openthings: { command: 'npx', args: ['-y', 'mcp-remote', `${base}/mcp`] } } }, null, 2));
-  const mcpCli = $derived(`claude mcp add --transport http openthings ${base}/mcp`);
+  // A placeholder, not the saved token, so the snippets are safe to show and share.
+  const TOKEN = 'YOUR_TOKEN';
+  const mcpHttp = $derived(JSON.stringify({ mcpServers: { openthings: { type: 'http', url: `${base}/mcp`, headers: { Authorization: `Bearer ${TOKEN}` } } } }, null, 2));
+  const mcpStdio = $derived(
+    JSON.stringify(
+      { mcpServers: { openthings: { command: 'npx', args: ['-y', 'mcp-remote', `${base}/mcp`, '--header', 'Authorization:${AUTH_HEADER}'], env: { AUTH_HEADER: `Bearer ${TOKEN}` } } } },
+      null,
+      2,
+    ),
+  );
+  const mcpCli = $derived(`claude mcp add --transport http openthings ${base}/mcp --header "Authorization: Bearer ${TOKEN}"`);
   const curl = $derived(`# Add a to-do with quick-add syntax
 curl -X POST ${base}/api/v1/tasks \\
+  -H 'authorization: Bearer ${TOKEN}' \\
   -H 'content-type: application/json' \\
   -d '{"text": "Call dentist +Health @fri %9am #phone"}'
 
 # List Today
-curl '${base}/api/v1/tasks?view=today'`);
+curl -H 'authorization: Bearer ${TOKEN}' '${base}/api/v1/tasks?view=today'`);
 
   const endpoints: [string, string, string][] = [
     ['GET', '/api/v1/tasks?view=today', 'List a view: inbox, today, week, upcoming, anytime, someday, logbook, dump, trash, matrix'],
@@ -134,11 +145,23 @@ curl '${base}/api/v1/tasks?view=today'`);
         onkeydown={(e) => e.key === 'Enter' && test()}
       />
     </label>
+    <label class="field">
+      <span>Token</span>
+      <input
+        bind:value={token}
+        type="password"
+        placeholder="Only if the server sets OPENTHINGS_TOKEN"
+        autocapitalize="off"
+        autocomplete="off"
+        spellcheck="false"
+        onkeydown={(e) => e.key === 'Enter' && test()}
+      />
+    </label>
     <div class="row-actions">
       {#if !native}<button class="btn" onclick={() => (url = location.origin)}>Use this site</button>{/if}
       <button class="btn" onclick={test} disabled={!url || testing}>{testing ? 'Testing…' : 'Test connection'}</button>
       {#if sync.enabled}
-        <button class="btn" onclick={() => save(true)} disabled={!url || url === sync.serverUrl}>Save URL</button>
+        <button class="btn" onclick={() => save(true)} disabled={!url || (url === sync.serverUrl && token.trim() === (sync.token ?? ''))}>Save</button>
         <button class="btn danger" onclick={() => save(false)}>Turn off sync</button>
       {:else}
         <button class="btn primary" onclick={() => save(true)} disabled={!url}>Turn on sync</button>
@@ -257,6 +280,7 @@ curl '${base}/api/v1/tasks?view=today'`);
     <CodeBlock label="MCP config — clients that support remote (HTTP) servers" code={mcpHttp} />
     <CodeBlock label="MCP config — clients that only run local commands (via mcp-remote)" code={mcpStdio} />
     <CodeBlock label="Claude Code" code={mcpCli} />
+    <p class="note">Replace <code>YOUR_TOKEN</code> with the server's <code>OPENTHINGS_TOKEN</code>, or leave out the Authorization header if it doesn't set one.</p>
     <h3>Tools</h3>
     <table class="endpoints">
       <tbody>

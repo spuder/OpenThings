@@ -3,14 +3,19 @@
 The OpenThings server (the Docker image) offers a JSON API for scripts, Home Assistant, n8n and Shortcuts, and an MCP endpoint for AI assistants. Both read and change the same data your devices sync, and every change goes through the op log, so it reaches your devices on their next sync.
 
 - **Base URL:** `https://openthings.<tailnet>.ts.net` (or wherever you run the container)
-- **Auth:** none yet. Keep the server on your tailnet or another private network. Browser requests from other websites are refused (see [sync.md](sync.md#endpoints)).
+- **Auth:** optional. If the server sets `OPENTHINGS_TOKEN`, send `Authorization: Bearer <token>` with every request; otherwise keep the server on your tailnet or another private network. Browser requests from other websites are refused either way (see [sync.md](sync.md#auth-and-access)).
+- **Hosts:** if the server sets `OPENTHINGS_HOSTNAMES`, use one of those names (or `localhost`) in the URL.
 - **Dates:** "today" follows the container's `TZ`. Days are `YYYY-MM-DD`; reminders are ISO timestamps (UTC).
 
 Settings → REST API / MCP in the app shows these with your server's address filled in.
 
 ## REST API
 
-All bodies are JSON. Errors are `{"error": "…"}` with status 400 (bad input), 404 (unknown id or name) or 403 (origin not allowed).
+All bodies are JSON. Errors are `{"error": "…"}` with status 400 (bad input), 401 (missing or wrong token), 403 (origin not allowed), 404 (unknown id or name) or 421 (host not in `OPENTHINGS_HOSTNAMES`).
+
+```sh
+curl -H "Authorization: Bearer $OPENTHINGS_TOKEN" 'https://openthings.example.ts.net/api/v1/tasks?view=today'
+```
 
 ### To-dos
 
@@ -90,10 +95,22 @@ curl -X POST https://openthings.example.ts.net/api/v1/tasks/<id>/complete
 `POST /mcp` speaks the Model Context Protocol over Streamable HTTP (stateless JSON responses; MCP 2024-11-05 through 2025-11-25).
 
 ```sh
-claude mcp add --transport http openthings https://openthings.example.ts.net/mcp
+claude mcp add --transport http openthings https://openthings.example.ts.net/mcp --header "Authorization: Bearer $OPENTHINGS_TOKEN"
 ```
 
-Clients that only run local commands can bridge with `npx -y mcp-remote https://openthings.example.ts.net/mcp`.
+In a JSON config, put the token in `headers`:
+
+```json
+{ "mcpServers": { "openthings": { "type": "http", "url": "https://openthings.example.ts.net/mcp", "headers": { "Authorization": "Bearer YOUR_TOKEN" } } } }
+```
+
+Clients that only run local commands can bridge with `mcp-remote`:
+
+```json
+{ "mcpServers": { "openthings": { "command": "npx", "args": ["-y", "mcp-remote", "https://openthings.example.ts.net/mcp", "--header", "Authorization:${AUTH_HEADER}"], "env": { "AUTH_HEADER": "Bearer YOUR_TOKEN" } } } }
+```
+
+Leave out the header if the server has no token. Without one, `/mcp` answers 401 with `WWW-Authenticate: Bearer`.
 
 | Tool | |
 | --- | --- |

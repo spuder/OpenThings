@@ -2,6 +2,15 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.2.1](https://github.com/spuder/OpenThings/releases/tag/v0.2.1) - 2026-10-19
+
+### What's Changed
+
+* The desktop app uses the new logo. The macOS icon is padded to Apple's icon grid so it matches other apps in the Dock. By @spuder in https://github.com/spuder/OpenThings/pull/32
+* The Homebrew cask no longer warns that OpenThings isn't notarized. Releases have been notarized since v0.2.0. (https://github.com/spuder/OpenThings/issues/31)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.2.0...v0.2.1
+
 ## [v0.2.0](https://github.com/spuder/OpenThings/releases/tag/v0.2.0) - 2026-10-19
 
 ### What's Changed

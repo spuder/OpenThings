@@ -157,7 +157,16 @@ A fresh install starts empty — there is no demo data.
 
 A native shell ([Tauri](https://tauri.app)) around the same app, for **macOS** and **Arch Linux** (Omarchy / Hyprland). It adds a global quick-add hotkey with a floating quick-add window, a menu-bar / tray icon with sync status, reminders as native notifications even with the window closed, a macOS menu bar, launch at login, and `openthings://` links. Details and a test checklist: [docs/desktop.md](docs/desktop.md).
 
-**Download:** open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).
+**macOS with [Homebrew](https://brew.sh)** (one universal build for Apple silicon and Intel):
+
+```sh
+brew tap spuder/openthings
+brew install --cask openthings
+```
+
+The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings) and also puts the `openthings` CLI on your PATH. Update with `brew upgrade --cask openthings`.
+
+**Download:** tagged versions are on the [Releases](https://github.com/spuder/OpenThings/releases) page. For a build of the latest commit, open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).
 
 **macOS first launch:** the build isn't notarized yet, so macOS blocks it the first time. Open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
 
@@ -240,7 +249,7 @@ Run the server locally with `npm run build && npm run server` (http://localhost:
 
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
-3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, see [Desktop app](#desktop-app). Next: signing and notarization, release downloads, AUR, Ubuntu/Fedora packages.
+3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew, see [Desktop app](#desktop-app). Next: signing and notarization, AUR, Ubuntu/Fedora packages.
 4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 

@@ -10,8 +10,6 @@ Release notes for OpenThings. Each release is also published on [GitHub Releases
 * Updated Arch Linux package checksums and installation guidance. By @spuder in https://github.com/spuder/OpenThings/pull/26
 * Fixed Homebrew instructions so users trust the tap before installing. By @Copilot in https://github.com/spuder/OpenThings/pull/29
 
-The notarization workflow has not yet been verified with Apple credentials.
-
 **Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.1.0...v0.2.0
 
 ## [v0.1.0](https://github.com/spuder/OpenThings/releases/tag/v0.1.0)

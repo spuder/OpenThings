@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { sync } from '../sync/engine.svelte';
   import { PROTOCOL_VERSION } from '../sync/protocol';
+  import { isLoopback, pairLink, parsePairCode } from '../sync/pair';
+  import { pairing } from '../sync/pairing.svelte';
   import { store } from '../store.svelte';
   import SyncBadge from './SyncBadge.svelte';
   import CodeBlock from './CodeBlock.svelte';
@@ -41,6 +44,48 @@
     sync.configure(url || null, enable);
     url = sync.serverUrl ?? '';
   }
+
+  // Phone pairing (#43): desktop and web show the sync server as a QR code; the iOS app scans it
+  // (or the Camera app opens the openthings://pair link) and the server URL fills in here.
+  const pairServer = $derived(sync.serverUrl ?? (servedBySite && typeof location !== 'undefined' ? location.origin : null));
+  let showQr = $state(false);
+  let qrSvg = $state('');
+  $effect(() => {
+    if (!showQr || !pairServer) return;
+    const link = pairLink(pairServer);
+    void import('uqr').then(({ renderSVG }) => (qrSvg = renderSVG(link, { border: 2 })));
+  });
+
+  async function fillFromPairing(server: string) {
+    url = server;
+    await test();
+    if (testResult?.ok && !sync.enabled) testResult = { ok: true, text: `${testResult.text}. Tap Turn on sync to start.` };
+  }
+
+  let scanning = $state(false);
+  async function scan() {
+    scanning = true;
+    testResult = null;
+    try {
+      const { scanQrCode } = await import('../native/capacitor.svelte');
+      const code = await scanQrCode();
+      if (code === null) return;
+      const server = parsePairCode(code);
+      if (server) await fillFromPairing(server);
+      else testResult = { ok: false, text: "That isn't an OpenThings pairing code. On your computer, open Settings → Sync → Pair a phone." };
+    } catch (e) {
+      testResult = { ok: false, text: (e as Error).message };
+    } finally {
+      scanning = false;
+    }
+  }
+
+  $effect(() => {
+    const server = pairing.server;
+    if (!server) return;
+    pairing.server = null;
+    untrack(() => void fillFromPairing(server));
+  });
 
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : 'Never');
 
@@ -140,6 +185,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       />
     </label>
     <div class="row-actions">
+      {#if native}<button class="btn" onclick={scan} disabled={scanning}>{scanning ? 'Scanning…' : 'Scan QR code'}</button>{/if}
       {#if servedBySite}<button class="btn" onclick={() => (url = location.origin)}>Use this site</button>{/if}
       <button class="btn" onclick={test} disabled={!url || testing}>{testing ? 'Testing…' : 'Test connection'}</button>
       {#if sync.enabled}
@@ -151,6 +197,23 @@ curl '${base}/api/v1/tasks?view=today'`);
     </div>
     {#if testResult}
       <p class="result" class:ok={testResult.ok}>{testResult.text}</p>
+    {/if}
+    {#if native}
+      <p class="note">Scan QR code opens the camera. On your computer, open OpenThings → Settings → Sync → Pair a phone and point the camera at the code.</p>
+    {:else}
+      <h3>Pair a phone</h3>
+      <p class="lead">Show this server as a QR code, then scan it in OpenThings on your phone (Settings → Sync → Scan QR code) to fill in the server URL.</p>
+      <button class="btn" onclick={() => (showQr = !showQr)} disabled={!pairServer}>{showQr ? 'Hide QR code' : 'Show QR code'}</button>
+      {#if !pairServer}<p class="note">Save a server URL above first.</p>{/if}
+      {#if showQr && pairServer}
+        <div class="pair">
+          <div class="qr" role="img" aria-label={`QR code for ${pairServer}`}>{@html qrSvg}</div>
+          <p class="note">Fills in <code>{pairServer}</code>.</p>
+          {#if isLoopback(pairServer)}
+            <p class="result">This address only works on this computer, so a phone can't reach it. Use the server's network or tailnet address.</p>
+          {/if}
+        </div>
+      {/if}
     {/if}
 
     <dl>
@@ -418,6 +481,19 @@ curl '${base}/api/v1/tasks?view=today'`);
   }
   .result.ok {
     color: var(--logbook);
+  }
+  .pair {
+    margin-top: 12px;
+  }
+  .qr {
+    width: 200px;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .qr :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
   }
   dl {
     display: grid;

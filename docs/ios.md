@@ -90,7 +90,7 @@ Extensions can't run the web code or touch IndexedDB, so they queue work as file
 
 ### URL scheme
 
-`openthings://today`, `openthings://inbox`, `openthings://upcoming`, `openthings://dump`, `openthings://task/<id>`, `openthings://add?text=<quick-add text>` (opens quick add pre-filled). Widgets use these; so can your own Shortcuts ("Open URL").
+`openthings://today`, `openthings://inbox`, `openthings://upcoming`, `openthings://dump`, `openthings://task/<id>`, `openthings://add?text=<quick-add text>` (opens quick add pre-filled), `openthings://pair?server=<url>` (opens Settings → Sync with the server filled in, see `docs/sync.md#pairing-a-phone`). Widgets use these; so can your own Shortcuts ("Open URL").
 
 ### Native plugin
 
@@ -101,6 +101,7 @@ Extensions can't run the web code or touch IndexedDB, so they queue work as file
 | `writeSnapshot({ json })` | Writes `snapshot.json`, reloads widget timelines |
 | `takePending()` | `{ items, route }`, deleting what it returns |
 | `info()` | `{ appGroup, containerAvailable }` for Settings |
+| `scanQRCode()` | Opens a full-screen camera (`QRScannerViewController.swift`) and resolves `{ value }` with the first QR code; rejects with code `CANCELLED` or `DENIED` (camera access off) |
 | event `pendingChanged` | An extension queued something |
 
 ## Identifiers (change them in one place)
@@ -150,6 +151,8 @@ CI (`.github/workflows/ios.yml`) builds the App scheme (which builds and embeds 
 - [ ] Shortcuts app → OpenThings → **Add To-Do** with `Buy milk @tomorrow #shop`: next time the app opens it's in Upcoming tomorrow with the tag.
 - [ ] "Hey Siri, add a to-do in OpenThings".
 - [ ] Shortcuts → **Open Today**: the app opens on Today.
+- [ ] Settings → Sync → **Scan QR code**: iOS asks for camera access; scanning the code from desktop or web (Settings → Sync → Show QR code) fills in the server URL and the connection test passes. Cancel closes the camera without changes.
+- [ ] Scan that QR code with the Camera app instead: OpenThings opens on Settings with the server filled in.
 - [ ] Rotate / iPad: layout holds; safe areas respected (notch, home indicator).
 - [ ] External keyboard on iPad: shortcuts (`Q`, `J`/`K`, `X`) work.
 

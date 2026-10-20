@@ -9,6 +9,7 @@
 import type { Parsed } from '../parse';
 import { parseQuickAdd } from '../parse';
 import type { UpcomingReminder } from '../reminders.svelte';
+import { parsePairCode } from '../sync/pair';
 import type { SyncState } from '../sync/protocol';
 import type { Area, Project, Task } from '../types';
 import * as V from '../views';
@@ -136,8 +137,12 @@ export function pendingToParsed(item: PendingItem, day: string, now = new Date()
   return p;
 }
 
-/** Routes from widgets, notifications and Shortcuts: `openthings://today`, `openthings://task/<id>`, … */
-export type Route = { kind: 'view'; view: 'inbox' | 'today' | 'upcoming' | 'dump' } | { kind: 'task'; id: string } | { kind: 'add'; text: string };
+/** Routes from widgets, notifications, Shortcuts and pairing QR codes: `openthings://today`, `openthings://task/<id>`, `openthings://pair?server=…`, … */
+export type Route =
+  | { kind: 'view'; view: 'inbox' | 'today' | 'upcoming' | 'dump' }
+  | { kind: 'task'; id: string }
+  | { kind: 'add'; text: string }
+  | { kind: 'pair'; server: string };
 
 export function parseRoute(url: string): Route | null {
   const m = /^openthings:\/\/([^/?#]*)\/?([^?#]*)(?:\?([^#]*))?/i.exec(url.trim());
@@ -147,6 +152,10 @@ export function parseRoute(url: string): Route | null {
   const query = new URLSearchParams(m[3] ?? '');
   if (host === 'task' && rest) return { kind: 'task', id: rest };
   if (host === 'add') return { kind: 'add', text: query.get('text') ?? '' };
+  if (host === 'pair') {
+    const server = parsePairCode(url);
+    return server ? { kind: 'pair', server } : null;
+  }
   if (host === 'inbox' || host === 'today' || host === 'upcoming' || host === 'dump') return { kind: 'view', view: host };
   return null;
 }

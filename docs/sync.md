@@ -55,6 +55,10 @@ POST /api/sync
 
 Changing the server URL resets the cursor and re-pushes all local ops to the new server.
 
+### Pairing a phone
+
+Settings → Sync → **Show QR code** (desktop and web) shows the saved server URL, or this site when the web app is served by the server, as a QR code holding `openthings://pair?server=<url>`. It's generated on the device (`uqr`), so the address isn't sent anywhere. In the iOS app, Settings → Sync → **Scan QR code** opens the camera; the scanned server fills the Server URL field and is tested, then you tap *Turn on sync*. Scanning with the iPhone Camera app opens the same link and does the same. A plain `http(s)://` URL in a QR code works too. `localhost` addresses get a warning, since a phone can't reach them. Nothing secret is in the code: sync has no auth yet. Parsing lives in `src/lib/sync/pair.ts`.
+
 ## Native shells (Tauri desktop, Capacitor mobile)
 
 They load this same web app, so they read sync state from the bridge instead of re-implementing it:

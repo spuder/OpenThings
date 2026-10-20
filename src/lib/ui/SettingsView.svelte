@@ -9,7 +9,7 @@
   import CodeBlock from './CodeBlock.svelte';
   import { notifier, upcomingReminders } from '../reminders.svelte';
   import { reminderLabel } from '../parse';
-  import { isDesktop } from '../native/desktop';
+  import { isDesktop, openSelfHostingDocs } from '../native/desktop';
   import DesktopSettings from '../native/DesktopSettings.svelte';
   import { theme, type ThemePref } from '../theme.svelte';
   import { isNativeShell } from '../native/shell';
@@ -60,6 +60,14 @@
     url = server;
     await test();
     if (testResult?.ok && !sync.enabled) testResult = { ok: true, text: `${testResult.text}. Tap Turn on sync to start.` };
+  }
+
+  /** Sync needs the OpenThings server (the Docker image); README#self-hosting explains how to run it. */
+  const SELF_HOSTING_DOCS = 'https://github.com/spuder/OpenThings#self-hosting';
+  function openServerDocs(e: MouseEvent) {
+    if (!isDesktop) return;
+    e.preventDefault();
+    void openSelfHostingDocs();
   }
 
   let scanning = $state(false);
@@ -162,6 +170,8 @@ curl '${base}/api/v1/tasks?view=today'`);
 
 </script>
 
+{#snippet serverDocs(text: string)}<a href={SELF_HOSTING_DOCS} target="_blank" rel="noreferrer" onclick={openServerDocs}>{text}</a>{/snippet}
+
 <div class="settings">
   <section>
     <header>
@@ -204,7 +214,9 @@ curl '${base}/api/v1/tasks?view=today'`);
       <h3>Pair a phone</h3>
       <p class="lead">Show this server as a QR code, then scan it in OpenThings on your phone (Settings → Sync → Scan QR code) to fill in the server URL.</p>
       <button class="btn" onclick={() => (showQr = !showQr)} disabled={!pairServer}>{showQr ? 'Hide QR code' : 'Show QR code'}</button>
-      {#if !pairServer}<p class="note">Save a server URL above first.</p>{/if}
+      {#if !pairServer}
+        <p class="note">Pairing needs a sync server. Run the OpenThings Docker container on a computer your phone can reach, then save its URL above. {@render serverDocs('How to run the server')}</p>
+      {/if}
       {#if showQr && pairServer}
         <div class="pair">
           <div class="qr" role="img" aria-label={`QR code for ${pairServer}`}>{@html qrSvg}</div>
@@ -229,7 +241,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       <dd>v{PROTOCOL_VERSION} (draft)</dd>
     </dl>
     <button class="btn" onclick={() => sync.kick()} disabled={!sync.enabled || sync.status === 'syncing'}>Sync now</button>
-    <p class="note">The server is the OpenThings Docker image. Each device keeps a full copy and works offline; changes wait here until the server is reachable.</p>
+    <p class="note">The server is the OpenThings Docker image ({@render serverDocs('how to run it')}). Each device keeps a full copy and works offline; changes wait here until the server is reachable.</p>
   </section>
 
   <section>
@@ -481,6 +493,9 @@ curl '${base}/api/v1/tasks?view=today'`);
   }
   .result.ok {
     color: var(--logbook);
+  }
+  .note a {
+    color: var(--accent);
   }
   .pair {
     margin-top: 12px;

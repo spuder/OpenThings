@@ -157,6 +157,8 @@ A fresh install starts empty — there is no demo data.
 
 A native shell ([Tauri](https://tauri.app)) around the same app, for **macOS** and **Arch Linux** (Omarchy / Hyprland). It adds a global quick-add hotkey with a floating quick-add window, a menu-bar / tray icon with sync status, reminders as native notifications even with the window closed, a macOS menu bar, launch at login, and `openthings://` links. Details and a test checklist: [docs/desktop.md](docs/desktop.md).
 
+The desktop app works on its own; to sync it with your phone or other computers, run the server from [Self-hosting](#self-hosting) and enter its URL in **Settings → Sync**.
+
 **macOS with [Homebrew](https://brew.sh)** (one universal build for Apple silicon and Intel):
 
 ```sh
@@ -229,7 +231,7 @@ The container is one [Bun](https://bun.sh) process that serves:
 | `/api/v1/…` | REST API ([docs/api.md](docs/api.md)) |
 | `/mcp` | MCP endpoint (Streamable HTTP) for AI assistants ([docs/api.md](docs/api.md#mcp)) |
 
-To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the iOS app) and **Turn on sync**. Each device still keeps a full copy and works offline.
+To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the desktop and iOS apps) and **Turn on sync**. To add a phone without typing the URL, press **Show QR code** there on a computer, then **Scan QR code** in the iOS app's Settings → Sync. Each device still keeps a full copy and works offline.
 
 To connect Claude Code:
 

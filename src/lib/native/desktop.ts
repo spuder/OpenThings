@@ -56,6 +56,8 @@ export interface DesktopInfo {
 export const desktopInfo = () => invoke<DesktopInfo>('desktop_info');
 export const setHotkey = (hotkey: string) => invoke('set_hotkey', { hotkey });
 export const setAutostart = (enabled: boolean) => invoke<boolean>('set_autostart', { enabled });
+/** The webview can't open external links itself; this opens README#self-hosting in the browser. */
+export const openSelfHostingDocs = () => invoke('open_self_hosting_docs');
 
 /** Short label for the tray tooltip and menu, like the in-app sync badge. */
 export function syncLabel(s: SyncState): string {

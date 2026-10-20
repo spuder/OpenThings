@@ -30,6 +30,12 @@ describe('pairing codes', () => {
     expect(pairingState({ enabled: true, serverUrl: 'https://ot.ts.net', lastSyncedAt: synced })).toEqual({ ok: true, server: 'https://ot.ts.net' });
   });
 
+  it("puts the server's advertised public URL in the code", () => {
+    const synced = '2026-10-19T12:00:00Z';
+    expect(pairingState({ enabled: true, serverUrl: 'http://localhost:8080', lastSyncedAt: synced, publicUrl: 'https://ot.ts.net' })).toEqual({ ok: true, server: 'https://ot.ts.net' });
+    expect(pairingState({ enabled: true, serverUrl: 'http://10.0.0.5:8080', lastSyncedAt: null, publicUrl: 'https://ot.ts.net' })).toMatchObject({ ok: false, reason: 'not-synced', server: 'https://ot.ts.net' });
+  });
+
   it('flags loopback addresses a phone cannot reach', () => {
     expect(isLoopback('http://localhost:8080')).toBe(true);
     expect(isLoopback('http://127.0.0.1:8080')).toBe(true);

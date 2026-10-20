@@ -222,6 +222,8 @@ docker compose up -d
 
 `compose.yaml` pulls `ghcr.io/spuder/openthings:latest` and carries [DockTail](https://github.com/marvinvr/docktail) labels, so with DockTail running on the host the app appears at `https://openthings.<tailnet>.ts.net` with no published ports. Without DockTail, add `ports: ["8080:8080"]`. To build locally: `docker build -t openthings .`
 
+Set `OPENTHINGS_PUBLIC_URL` to the address your devices use (with DockTail, `https://openthings.<tailnet>.ts.net`; otherwise e.g. `http://192.168.1.10:8080`). The server reports it at `/api/health`, and the apps use it: the web app prefills it in Settings → Sync, and the phone pairing QR code carries it even when the computer showing the code reaches the server another way (say, `localhost`). The container can't find its tailnet name by itself, so this is the one setting to add. Leave it unset and everything else still works.
+
 The container is one [Bun](https://bun.sh) process that serves:
 
 | Path | What |
@@ -231,7 +233,7 @@ The container is one [Bun](https://bun.sh) process that serves:
 | `/api/v1/…` | REST API ([docs/api.md](docs/api.md)) |
 | `/mcp` | MCP endpoint (Streamable HTTP) for AI assistants ([docs/api.md](docs/api.md#mcp)) |
 
-To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the desktop and iOS apps) and **Turn on sync**. To add a phone without typing the URL, press **Show QR code** there on a computer, then **Scan QR code** in the iOS app's Settings → Sync. Each device still keeps a full copy and works offline.
+To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the desktop and iOS apps) and **Turn on sync**. With `OPENTHINGS_PUBLIC_URL` set, the web app fills the URL in for you. To add a phone without typing the URL, press **Show QR code** there on a computer that syncs with the server, then **Scan QR code** in the iOS app's Settings → Sync. Each device still keeps a full copy and works offline.
 
 To connect Claude Code:
 

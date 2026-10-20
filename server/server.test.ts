@@ -42,6 +42,12 @@ describe('sync', () => {
     expect(r.body).toEqual({ ok: true, server: 'openthings', protocol: 0, version: 'test' });
   });
 
+  it('reports the public URL when one is set', async () => {
+    const app = createApp({ db: new ServerDb(), version: 'test', publicUrl: 'https://openthings.tail1234.ts.net' });
+    const res = await app(new Request('http://ot.test/api/health', { headers: { host: 'ot.test' } }));
+    expect(await res.json()).toMatchObject({ server: 'openthings', publicUrl: 'https://openthings.tail1234.ts.net' });
+  });
+
   it('relays ops between devices, not back to the sender', async () => {
     const { call, db } = setup();
     const a = await sync(call, 'devA', [op('devA', 'tasks', 't1', 'insert', task('t1', 'Milk'))]);

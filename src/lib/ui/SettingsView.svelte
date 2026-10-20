@@ -47,8 +47,28 @@
 
   // Phone pairing (#43): desktop and web show the sync server as a QR code; the iOS app scans it
   // (or the Camera app opens the openthings://pair link) and the server URL fills in here.
+  // The address the server advertises (OPENTHINGS_PUBLIC_URL), asked from the sync server, or from
+  // this site when the container serves the web app. It prefills the URL field and goes in the QR code.
+  let advertised = $state<string | null>(null);
+  $effect(() => {
+    const target = sync.serverUrl ?? (servedBySite ? location.origin : null);
+    advertised = null;
+    if (!target) return;
+    let stale = false;
+    sync
+      .test(target)
+      .then((h) => {
+        if (stale) return;
+        advertised = h.publicUrl ? parsePairCode(h.publicUrl) : null;
+        if (untrack(() => !sync.serverUrl && !url) && advertised) url = advertised;
+      })
+      .catch(() => {});
+    return () => (stale = true);
+  });
+  const thisSite = () => advertised ?? location.origin;
+
   // Only once this device syncs with a server a phone can reach; never this page's own address.
-  const pair = $derived(pairingState(sync));
+  const pair = $derived(pairingState({ enabled: sync.enabled, serverUrl: sync.serverUrl, lastSyncedAt: sync.lastSyncedAt, publicUrl: advertised }));
   const pairServer = $derived(pair.ok ? pair.server : null);
   let showQr = $state(false);
   let qrSvg = $state('');
@@ -198,7 +218,7 @@ curl '${base}/api/v1/tasks?view=today'`);
     </label>
     <div class="row-actions">
       {#if native}<button class="btn" onclick={scan} disabled={scanning}>{scanning ? 'Scanning…' : 'Scan QR code'}</button>{/if}
-      {#if servedBySite}<button class="btn" onclick={() => (url = location.origin)}>Use this site</button>{/if}
+      {#if servedBySite}<button class="btn" onclick={() => (url = thisSite())}>Use this site</button>{/if}
       <button class="btn" onclick={test} disabled={!url || testing}>{testing ? 'Testing…' : 'Test connection'}</button>
       {#if sync.enabled}
         <button class="btn" onclick={() => save(true)} disabled={!url || url === sync.serverUrl}>Save URL</button>

@@ -38,12 +38,15 @@ export type PairingState =
 /**
  * Whether this device can show a pairing code: only once it syncs with a server (on, and synced
  * at least once) that a phone could reach. Otherwise the code would point nowhere useful.
+ * `publicUrl` is the address that server advertises (OPENTHINGS_PUBLIC_URL); when set, the code
+ * carries it instead of the URL this device happens to use (say, localhost on the server itself).
  */
-export function pairingState(s: { enabled: boolean; serverUrl: string | null; lastSyncedAt: string | null }): PairingState {
+export function pairingState(s: { enabled: boolean; serverUrl: string | null; lastSyncedAt: string | null; publicUrl?: string | null }): PairingState {
   if (!s.enabled || !s.serverUrl) return { ok: false, reason: 'no-server', server: null };
-  if (isLoopback(s.serverUrl)) return { ok: false, reason: 'loopback', server: s.serverUrl };
-  if (!s.lastSyncedAt) return { ok: false, reason: 'not-synced', server: s.serverUrl };
-  return { ok: true, server: s.serverUrl };
+  const server = s.publicUrl || s.serverUrl;
+  if (isLoopback(server)) return { ok: false, reason: 'loopback', server };
+  if (!s.lastSyncedAt) return { ok: false, reason: 'not-synced', server };
+  return { ok: true, server };
 }
 
 /** True for addresses that only mean "this computer", which a phone can't reach. */

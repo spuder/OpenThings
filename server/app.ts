@@ -16,6 +16,8 @@ export interface AppOptions {
   version?: string;
   /** Extra browser origins allowed to call the API (the app's own origin always is). */
   allowedOrigins?: string[];
+  /** Where devices reach this server (OPENTHINGS_PUBLIC_URL), reported by /api/health. */
+  publicUrl?: string;
 }
 
 /** Origins of the native shells and local development, always allowed. */
@@ -178,7 +180,7 @@ export function createApp(opts: AppOptions) {
     const path = url.pathname.replace(/\/+$/, '');
 
     if (path === '/api/health' && req.method === 'GET') {
-      const body: HealthResponse = { ok: true, server: 'openthings', protocol: PROTOCOL_VERSION, version };
+      const body: HealthResponse = { ok: true, server: 'openthings', protocol: PROTOCOL_VERSION, version, ...(opts.publicUrl ? { publicUrl: opts.publicUrl } : {}) };
       return json(body);
     }
 

@@ -267,7 +267,7 @@ brew install --cask openthings</code></pre>
     image: ghcr.io/spuder/openthings:latest
     restart: unless-stopped
     environment:
-      TZ: America/Denver
+      TZ: UTC # your time zone, e.g. America/Denver
       # the address your devices use
       OPENTHINGS_PUBLIC_URL: https://openthings.example.ts.net
     volumes:

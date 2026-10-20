@@ -217,6 +217,17 @@ Images are published to GHCR by GitHub Actions on every push to `main` (`latest`
 
 ```sh
 curl -O https://raw.githubusercontent.com/spuder/OpenThings/main/compose.yaml
+```
+
+Set your time zone and the address your devices use in its `environment` block (`TZ` defaults to `UTC`; see the settings table below), then start it:
+
+```yaml
+    environment:
+      TZ: UTC # your time zone, e.g. America/Denver
+      OPENTHINGS_PUBLIC_URL: https://openthings.example.ts.net
+```
+
+```sh
 docker compose up -d
 ```
 

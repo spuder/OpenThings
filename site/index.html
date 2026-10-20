@@ -185,7 +185,7 @@
         <div class="copy center-copy reveal">
           <p class="kicker" style="--k: var(--blue)">iPhone</p>
           <h2>Made for your thumb, too</h2>
-          <p>The same app on iPhone, with reminders that arrive when it's closed, Home and Lock Screen widgets, a Share Sheet to the Inbox or Brain Dump, and Shortcuts. Add with the big blue button, swipe right for your lists, and pull down to find anything.</p>
+          <p>The same app on iPhone, with reminders that arrive when it's closed, Home and Lock Screen widgets, a Share Sheet to the Inbox or Brain Dump, and Shortcuts. Add with the big blue button, swipe right for your lists, and pull down to find anything. To sync, scan the QR code from Settings on your computer.</p>
           <div class="cta">
             <a class="btn" href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">Build it for your iPhone</a>
             <a class="btn btn-ghost" href="https://github.com/spuder/OpenThings/issues/6">Android: testers wanted</a>
@@ -215,6 +215,7 @@
           <div class="code brew-code">
             <div class="code-head"><span>Install on a Mac with Homebrew</span><button type="button" data-copy="brew">Copy</button></div>
 <pre id="brew"><code>brew tap spuder/openthings
+brew trust spuder/openthings
 brew install --cask openthings</code></pre>
           </div>
           <p class="fine">One universal build for Apple silicon and Intel Macs, signed and notarized by Apple. Linux preview builds come from GitHub Actions (sign in to download).</p>
@@ -256,6 +257,7 @@ brew install --cask openthings</code></pre>
           <p class="kicker" style="--k: var(--green)">Self-hosted</p>
           <h2>Runs on your server, in one container</h2>
           <p>Pull the image and start it. With <a href="https://github.com/marvinvr/docktail">DockTail</a> on the host, it appears on your tailnet over HTTPS with no ports to open. Images are built for amd64 and arm64.</p>
+          <p>Set <code>OPENTHINGS_PUBLIC_URL</code> to the address your devices use, such as <code>https://openthings.&lt;tailnet&gt;.ts.net</code>. The web app fills it in for you, and your computer shows it as a QR code that the iPhone app scans to connect.</p>
           <p class="muted">Local-first by design: every change is stored on your device in SQLite and recorded in a change log, which the container syncs between your devices. It also serves a <a href="https://github.com/spuder/OpenThings/blob/main/docs/api.md">REST API and MCP endpoint</a>.</p>
         </div>
         <div class="code reveal">
@@ -266,6 +268,8 @@ brew install --cask openthings</code></pre>
     restart: unless-stopped
     environment:
       TZ: America/Denver
+      # the address your devices use
+      OPENTHINGS_PUBLIC_URL: https://openthings.example.ts.net
     volumes:
       - openthings-data:/data
     labels:

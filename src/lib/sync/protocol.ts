@@ -16,6 +16,8 @@ export interface HealthResponse {
   server: 'openthings';
   protocol: number;
   version?: string;
+  /** The address devices should use (OPENTHINGS_PUBLIC_URL), e.g. the tailnet URL. Apps prefill it and put it in pairing QR codes. */
+  publicUrl?: string;
 }
 
 export interface SyncRequest {

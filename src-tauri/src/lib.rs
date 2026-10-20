@@ -627,6 +627,23 @@ fn show_main_window(app: AppHandle) {
     show_main(&app);
 }
 
+/// Settings → Sync links here so people know sync needs the server (the Docker image).
+const SELF_HOSTING_DOCS: &str = "https://github.com/spuder/OpenThings#self-hosting";
+
+/// Open the self-hosting docs in the default browser. The URL is fixed, so pages can't open others.
+#[tauri::command]
+fn open_self_hosting_docs() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let opener = "open";
+    #[cfg(not(target_os = "macos"))]
+    let opener = "xdg-open";
+    std::process::Command::new(opener)
+        .arg(SELF_HOSTING_DOCS)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 /// The web app saved its database; exit now.
 #[tauri::command]
 fn quit_now(app: AppHandle, shell: tauri::State<Arc<Shell>>) {
@@ -678,6 +695,7 @@ pub fn run() {
             submit_quick_add,
             hide_quick_add,
             show_main_window,
+            open_self_hosting_docs,
             quit_now,
         ])
         .setup(move |app| {

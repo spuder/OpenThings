@@ -157,6 +157,8 @@ A fresh install starts empty — there is no demo data.
 
 A native shell ([Tauri](https://tauri.app)) around the same app, for **macOS** and **Arch Linux** (Omarchy / Hyprland). It adds a global quick-add hotkey with a floating quick-add window, a menu-bar / tray icon with sync status, reminders as native notifications even with the window closed, a macOS menu bar, launch at login, and `openthings://` links. Details and a test checklist: [docs/desktop.md](docs/desktop.md).
 
+The desktop app works on its own; to sync it with your phone or other computers, run the server from [Self-hosting](#self-hosting) and enter its URL in **Settings → Sync**.
+
 **macOS with [Homebrew](https://brew.sh)** (one universal build for Apple silicon and Intel):
 
 ```sh
@@ -220,6 +222,8 @@ docker compose up -d
 
 `compose.yaml` pulls `ghcr.io/spuder/openthings:latest` and carries [DockTail](https://github.com/marvinvr/docktail) labels, so with DockTail running on the host the app appears at `https://openthings.<tailnet>.ts.net` with no published ports. Without DockTail, add `ports: ["8080:8080"]`. To build locally: `docker build -t openthings .`
 
+Set `OPENTHINGS_PUBLIC_URL` to the address your devices use (with DockTail, `https://openthings.<tailnet>.ts.net`; otherwise e.g. `http://192.168.1.10:8080`). The server reports it at `/api/health`, and the apps use it: the web app prefills it in Settings → Sync, and the phone pairing QR code carries it even when the computer showing the code reaches the server another way (say, `localhost`). The container can't find its tailnet name by itself, so this is the one setting to add. Leave it unset and everything else still works.
+
 The container is one [Bun](https://bun.sh) process that serves:
 
 | Path | What |
@@ -229,7 +233,7 @@ The container is one [Bun](https://bun.sh) process that serves:
 | `/api/v1/…` | REST API ([docs/api.md](docs/api.md)) |
 | `/mcp` | MCP endpoint (Streamable HTTP) for AI assistants ([docs/api.md](docs/api.md#mcp)) |
 
-To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the iOS app) and **Turn on sync**. Each device still keeps a full copy and works offline.
+To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the desktop and iOS apps) and **Turn on sync**. With `OPENTHINGS_PUBLIC_URL` set, the web app fills the URL in for you. To add a phone without typing the URL, press **Show QR code** there on a computer that syncs with the server, then **Scan QR code** in the iOS app's Settings → Sync. Each device still keeps a full copy and works offline.
 
 To connect Claude Code:
 
@@ -241,6 +245,7 @@ claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/m
 | --- | --- | --- |
 | Volume `/data` | | The server's SQLite database (`openthings.sqlite`). Back it up; it holds every device's changes. |
 | `TZ` | `UTC` | Time zone for "today" in the REST API and MCP tools, e.g. `America/Denver`. |
+| `OPENTHINGS_PUBLIC_URL` | | The address your devices use, e.g. `https://openthings.<tailnet>.ts.net`. Reported by `/api/health`; the web app prefills it in Settings → Sync and the phone pairing QR code carries it. |
 | `OPENTHINGS_ALLOWED_ORIGINS` | | Extra web origins allowed to call the API from a browser, comma-separated. The server's own origin and the iOS app always are. |
 | `PORT` | `8080` | |
 

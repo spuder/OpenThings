@@ -111,4 +111,9 @@ describe('parseRoute', () => {
     expect(parseRoute('https://example.com')).toBeNull();
     expect(parseRoute('openthings://nope')).toBeNull();
   });
+
+  it('reads pairing links from the QR code in Settings', () => {
+    expect(parseRoute('openthings://pair?server=https%3A%2F%2Fot.example.ts.net')).toEqual({ kind: 'pair', server: 'https://ot.example.ts.net' });
+    expect(parseRoute('openthings://pair?server=')).toBeNull();
+  });
 });

@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { sync } from '../sync/engine.svelte';
   import { PROTOCOL_VERSION } from '../sync/protocol';
-  import { isLoopback, pairLink, parsePairCode } from '../sync/pair';
+  import { pairingState, pairLink, parsePairCode } from '../sync/pair';
   import { pairing } from '../sync/pairing.svelte';
   import { store } from '../store.svelte';
   import SyncBadge from './SyncBadge.svelte';
@@ -47,7 +47,9 @@
 
   // Phone pairing (#43): desktop and web show the sync server as a QR code; the iOS app scans it
   // (or the Camera app opens the openthings://pair link) and the server URL fills in here.
-  const pairServer = $derived(sync.serverUrl ?? (servedBySite && typeof location !== 'undefined' ? location.origin : null));
+  // Only once this device syncs with a server a phone can reach; never this page's own address.
+  const pair = $derived(pairingState(sync));
+  const pairServer = $derived(pair.ok ? pair.server : null);
   let showQr = $state(false);
   let qrSvg = $state('');
   $effect(() => {
@@ -214,16 +216,17 @@ curl '${base}/api/v1/tasks?view=today'`);
       <h3>Pair a phone</h3>
       <p class="lead">Show this server as a QR code, then scan it in OpenThings on your phone (Settings → Sync → Scan QR code) to fill in the server URL.</p>
       <button class="btn" onclick={() => (showQr = !showQr)} disabled={!pairServer}>{showQr ? 'Hide QR code' : 'Show QR code'}</button>
-      {#if !pairServer}
-        <p class="note">Pairing needs a sync server. Run the OpenThings Docker container on a computer your phone can reach, then save its URL above. {@render serverDocs('How to run the server')}</p>
+      {#if !pair.ok && pair.reason === 'no-server'}
+        <p class="note">Pairing needs a sync server. Run the OpenThings Docker container on a computer your phone can reach, then enter its URL above and turn on sync. {@render serverDocs('How to run the server')}</p>
+      {:else if !pair.ok && pair.reason === 'loopback'}
+        <p class="note">This device syncs with <code>{pair.server}</code>, which only this computer can reach. Use the server's network or tailnet address to pair a phone.</p>
+      {:else if !pair.ok}
+        <p class="note">Waiting for the first sync with <code>{pair.server}</code>. The QR code is available once this device has synced.</p>
       {/if}
       {#if showQr && pairServer}
         <div class="pair">
           <div class="qr" role="img" aria-label={`QR code for ${pairServer}`}>{@html qrSvg}</div>
           <p class="note">Fills in <code>{pairServer}</code>.</p>
-          {#if isLoopback(pairServer)}
-            <p class="result">This address only works on this computer, so a phone can't reach it. Use the server's network or tailnet address.</p>
-          {/if}
         </div>
       {/if}
     {/if}

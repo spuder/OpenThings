@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLoopback, pairLink, parsePairCode } from './pair';
+import { isLoopback, pairingState, pairLink, parsePairCode } from './pair';
 
 describe('pairing codes', () => {
   it('round-trips a server URL through the pairing link', () => {
@@ -19,6 +19,15 @@ describe('pairing codes', () => {
     expect(parsePairCode('openthings://pair')).toBeNull();
     expect(parsePairCode('openthings://pair?server=javascript:alert(1)')).toBeNull();
     expect(parsePairCode('ftp://example.com')).toBeNull();
+  });
+
+  it('only offers a code once this device syncs with a reachable server', () => {
+    const synced = '2026-10-19T12:00:00Z';
+    expect(pairingState({ enabled: false, serverUrl: null, lastSyncedAt: null })).toEqual({ ok: false, reason: 'no-server', server: null });
+    expect(pairingState({ enabled: false, serverUrl: 'https://ot.ts.net', lastSyncedAt: synced })).toMatchObject({ ok: false, reason: 'no-server' });
+    expect(pairingState({ enabled: true, serverUrl: 'http://localhost:8080', lastSyncedAt: synced })).toMatchObject({ ok: false, reason: 'loopback' });
+    expect(pairingState({ enabled: true, serverUrl: 'https://ot.ts.net', lastSyncedAt: null })).toMatchObject({ ok: false, reason: 'not-synced' });
+    expect(pairingState({ enabled: true, serverUrl: 'https://ot.ts.net', lastSyncedAt: synced })).toEqual({ ok: true, server: 'https://ot.ts.net' });
   });
 
   it('flags loopback addresses a phone cannot reach', () => {

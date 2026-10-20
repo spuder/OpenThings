@@ -31,6 +31,21 @@ export function parsePairCode(text: string): string | null {
   }
 }
 
+export type PairingState =
+  | { ok: true; server: string }
+  | { ok: false; reason: 'no-server' | 'loopback' | 'not-synced'; server: string | null };
+
+/**
+ * Whether this device can show a pairing code: only once it syncs with a server (on, and synced
+ * at least once) that a phone could reach. Otherwise the code would point nowhere useful.
+ */
+export function pairingState(s: { enabled: boolean; serverUrl: string | null; lastSyncedAt: string | null }): PairingState {
+  if (!s.enabled || !s.serverUrl) return { ok: false, reason: 'no-server', server: null };
+  if (isLoopback(s.serverUrl)) return { ok: false, reason: 'loopback', server: s.serverUrl };
+  if (!s.lastSyncedAt) return { ok: false, reason: 'not-synced', server: s.serverUrl };
+  return { ok: true, server: s.serverUrl };
+}
+
 /** True for addresses that only mean "this computer", which a phone can't reach. */
 export function isLoopback(server: string): boolean {
   try {

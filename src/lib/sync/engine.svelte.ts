@@ -159,6 +159,9 @@ export class SyncEngine {
       // A different server starts from scratch: pull everything, push everything.
       db.metaSet('sync.cursor', null);
       db.metaSet('sync.pushed_seq', '0');
+      // "Last sync" (and phone pairing, which waits for one) refers to the new server only.
+      this.lastSyncedAt = null;
+      db.metaSet('sync.last_ok', null);
     }
     this.serverUrl = u;
     this.enabled = enabled && !!u;

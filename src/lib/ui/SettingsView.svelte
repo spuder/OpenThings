@@ -201,7 +201,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       <SyncBadge />
     </header>
     <p class="lead">
-      Sync sends this device's changes to your OpenThings server and pulls changes from your other devices. Without it, data stays in this browser.
+      Sync sends this device's changes to your OpenThings server, the Docker container ({@render serverDocs('how to run it')}), and pulls changes from your other devices. Without it, data stays on this device.
     </p>
 
     <label class="field">
@@ -237,7 +237,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       <p class="lead">Show this server as a QR code, then scan it in OpenThings on your phone (Settings → Sync → Scan QR code) to fill in the server URL.</p>
       <button class="btn" onclick={() => (showQr = !showQr)} disabled={!pairServer}>{showQr ? 'Hide QR code' : 'Show QR code'}</button>
       {#if !pair.ok && pair.reason === 'no-server'}
-        <p class="note">Pairing needs a sync server. Run the OpenThings Docker container on a computer your phone can reach, then enter its URL above and turn on sync. {@render serverDocs('How to run the server')}</p>
+        <p class="note">Turn on sync above to pair a phone.</p>
       {:else if !pair.ok && pair.reason === 'loopback'}
         <p class="note">This device syncs with <code>{pair.server}</code>, which only this computer can reach. Use the server's network or tailnet address to pair a phone.</p>
       {:else if !pair.ok}
@@ -264,7 +264,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       <dd>v{PROTOCOL_VERSION} (draft)</dd>
     </dl>
     <button class="btn" onclick={() => sync.kick()} disabled={!sync.enabled || sync.status === 'syncing'}>Sync now</button>
-    <p class="note">The server is the OpenThings Docker image ({@render serverDocs('how to run it')}). Each device keeps a full copy and works offline; changes wait here until the server is reachable.</p>
+    <p class="note">Each device keeps a full copy and works offline; changes wait here until the server is reachable.</p>
   </section>
 
   <section>
@@ -517,7 +517,7 @@ curl '${base}/api/v1/tasks?view=today'`);
   .result.ok {
     color: var(--logbook);
   }
-  .note a {
+  .lead a {
     color: var(--accent);
   }
   .pair {

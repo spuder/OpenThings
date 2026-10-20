@@ -215,8 +215,29 @@ In Xcode, check *Signing & Capabilities* on the **App**, **OpenThingsWidgets** a
 
 Images are published to GHCR by GitHub Actions on every push to `main` (`latest`, `sha-<short>`) and on `v*` tags (`1.2.3`, `1.2`), for `linux/amd64` and `linux/arm64`.
 
+```yaml
+# compose.yaml
+services:
+  openthings:
+    image: ghcr.io/spuder/openthings:latest
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      TZ: UTC # your time zone, e.g. America/Denver
+      # OPENTHINGS_PUBLIC_URL: https://openthings.example.ts.net
+    volumes:
+      - openthings-data:/data
+    labels:
+      - "docktail.service.enable=true"
+      - "docktail.service.name=openthings"
+      - "docktail.service.port=8080"
+      - "docktail.service.service-port=443"
+
+volumes:
+  openthings-data:
+```
+
 ```sh
-curl -O https://raw.githubusercontent.com/spuder/OpenThings/main/compose.yaml
 docker compose up -d
 ```
 

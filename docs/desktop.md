@@ -36,7 +36,7 @@ src/lib/native/DesktopSettings.svelte  Settings → Desktop (only rendered in Ta
 - **Settings.** The hotkey is stored by the shell in `<config dir>/io.github.spuder.openthings/desktop.json`, not in the synced database, since it is per machine.
 - **Guarding.** `isDesktop` (`'__TAURI_INTERNALS__' in window`) gates every native path; the web, PWA and Docker builds behave as before. Shared web files touched: `main.ts` (pick window), `reminders.svelte.ts` (`notifier.native` hook), `QuickAdd.svelte` (optional `native` prop), `SettingsView.svelte` (Desktop section).
 
-Shell → web events: `ot://command`, `ot://add`, `ot://reveal`, `ot://sync-now`, `ot://will-quit`, `ot://quick-add-open` (quick-add window). Web → shell commands: `desktop_info`, `set_hotkey`, `set_autostart`, `set_sync_status`, `set_reminders`, `show_notification`, `submit_quick_add`, `hide_quick_add`, `show_main_window`, `quit_now`.
+Shell → web events: `ot://command`, `ot://add`, `ot://reveal`, `ot://open-url`, `ot://sync-now`, `ot://will-quit`, `ot://quick-add-open` (quick-add window). Web → shell commands: `desktop_info`, `set_hotkey`, `set_autostart`, `set_sync_status`, `set_reminders`, `show_notification`, `submit_quick_add`, `hide_quick_add`, `show_main_window`, `quit_now`.
 
 ## CLI and deep links
 
@@ -47,9 +47,12 @@ openthings --quick-add "Call dentist @fri"   # …prefilled
 openthings --add "Buy milk #errand %5pm"     # add directly, no window
 openthings --hidden                          # start in the tray (used by launch at login)
 xdg-open 'openthings://add?text=Buy%20milk'           # quick-add window, prefilled
-xdg-open 'openthings://add?text=Buy%20milk&save=1'    # add directly
+xdg-open 'openthings://add?title=Buy%20milk&save=1'   # add directly
+xdg-open 'openthings://today'                         # open a list
 xdg-open 'openthings://task/<task id>'                # open a task
 ```
+
+All links and their parameters (title, notes, when, deadline, tags, list): [url-scheme.md](url-scheme.md). The Rust shell only routes them: `add` links open the quick-add window (or, with `save=1`, go to the main window, which adds them), everything else goes to the main window as `ot://open-url`, where the web app parses it.
 
 A second launch hands its arguments to the running instance and exits.
 

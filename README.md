@@ -189,7 +189,7 @@ windowrule {
 }
 ```
 
-`openthings --add "Buy milk #errand"` adds without a window; `openthings://add?text=…` links work too. The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
+`openthings --add "Buy milk #errand"` adds without a window; `openthings://add?title=…` links work too, from Automator, Shortcuts or scripts ([docs/url-scheme.md](docs/url-scheme.md)). The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
 
 ## iOS app
 

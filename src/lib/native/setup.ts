@@ -6,6 +6,7 @@ import { notifier, upcomingReminders } from '../reminders.svelte';
 import { parseQuickAdd } from '../parse';
 import * as db from '../db';
 import { setupMainWindow } from './desktop';
+import { openRoute } from './links';
 
 export function setupDesktopMain() {
   setupMainWindow(notifier, () => ({
@@ -17,6 +18,11 @@ export function setupDesktopMain() {
       store.notify(`Added “${p.title}”`);
     },
     reveal: (id) => store.reveal(id),
+    openUrl(url) {
+      // A link opened from outside the app replaces whatever overlay is open.
+      if (store.overlay) store.overlay = null;
+      openRoute(url);
+    },
     runCommand(id) {
       const cmd = commands.find((c) => c.id === id && (!c.when || c.when()));
       if (!cmd) return;

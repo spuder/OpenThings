@@ -90,7 +90,7 @@ Extensions can't run the web code or touch IndexedDB, so they queue work as file
 
 ### URL scheme
 
-`openthings://today`, `openthings://inbox`, `openthings://upcoming`, `openthings://dump`, `openthings://task/<id>`, `openthings://add?text=<quick-add text>` (opens quick add pre-filled), `openthings://pair?server=<url>` (opens Settings → Sync with the server filled in, see `docs/sync.md#pairing-a-phone`). Widgets use these; so can your own Shortcuts ("Open URL").
+Widgets, notifications, App Intents and the pairing QR code open `openthings://` links, and so can your own Shortcuts (*Open URLs*): `openthings://today`, `openthings://task/<id>`, `openthings://add?title=…&when=…&list=…&save=1`, `openthings://pair?server=<url>`, … All links and parameters: [url-scheme.md](url-scheme.md). The app handles them in `src/lib/native/links.ts`.
 
 ### Native plugin
 

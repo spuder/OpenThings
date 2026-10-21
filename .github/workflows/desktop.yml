@@ -4,7 +4,8 @@ name: Desktop
 #   - macOS: universal (Apple silicon + Intel) .app and .dmg. On v* tags and manual runs they're
 #     signed with the Developer ID certificate and notarized (secrets below); PR builds stay
 #     ad-hoc signed. See docs/desktop.md#signing-and-notarization.
-#   - Arch Linux (Omarchy): release binary tarball + AppImage, and checks both AUR PKGBUILDs build
+#   - Arch Linux (Omarchy): release binary tarball + AppImage, Rust unit tests, and checks both
+#     AUR PKGBUILDs build, in parallel jobs (arch, arch-test, arch-aur)
 # Bundles are uploaded as workflow artifacts. A v* tag also publishes them as a GitHub release and
 # bumps the Homebrew cask (see the release job).
 on:
@@ -17,6 +18,13 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # Packages every Arch Linux job installs (build, tests, AUR source package).
+  ARCH_DEPS: >-
+    base-devel git rust nodejs npm
+    webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg xdotool openssl
+    curl wget file patchelf squashfs-tools namcap sudo
 
 jobs:
   macos:
@@ -135,6 +143,10 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  # Arch Linux runs as three jobs side by side, each on GitHub's Ubuntu runner in an
+  # archlinux:latest container (GitHub has no Arch runners): `arch` builds the release binary,
+  # AppImage and openthings-bin package; `arch-test` runs the Rust unit tests; `arch-aur` builds
+  # the from-source `openthings` AUR package, which compiles everything again on its own.
   arch:
     runs-on: ubuntu-latest
     container: archlinux:latest
@@ -145,11 +157,7 @@ jobs:
       APPIMAGE_EXTRACT_AND_RUN: '1'
     steps:
       - name: Install build dependencies
-        run: |
-          pacman -Syu --noconfirm --needed \
-            base-devel git rust nodejs npm \
-            webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg xdotool openssl \
-            curl wget file patchelf squashfs-tools namcap sudo
+        run: pacman -Syu --noconfirm --needed ${{ env.ARCH_DEPS }}
       - uses: actions/checkout@v4
       - name: Version
         id: v
@@ -158,8 +166,6 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
-      - name: Rust unit tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
       - name: Build release binary and AppImage
         run: npx tauri build --bundles appimage
       - name: Release tarball (input of openthings-bin)
@@ -174,7 +180,7 @@ jobs:
           path: out/*
           if-no-files-found: error
 
-      - name: Check PKGBUILDs (makepkg as an unprivileged user)
+      - name: Check the openthings-bin PKGBUILD (makepkg as an unprivileged user)
         run: |
           set -eux
           ver="${{ steps.v.outputs.version }}"
@@ -182,29 +188,67 @@ jobs:
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
           work=/home/builder/pkg
           mkdir -p "$work"
-          cp -r packaging/arch/openthings packaging/arch/openthings-bin "$work/"
+          cp -r packaging/arch/openthings-bin "$work/"
           # makepkg uses an existing source file instead of downloading it: stand in for the
-          # published v$ver tag tarball and release asset with this checkout's files. Their
-          # checksums differ from the real downloads, so the build skips checksum verification.
-          tar --exclude=./node_modules --exclude=./src-tauri/target --exclude=./.git --exclude=./out \
-              --transform "s,^\.,OpenThings-$ver," -czf "$work/openthings/openthings-$ver.tar.gz" .
+          # published release asset with this build's tarball. Its checksum differs from the real
+          # download, so the build skips checksum verification.
           cp "out/openthings-$ver-linux-x86_64.tar.gz" "$work/openthings-bin/"
           chown -R builder: /home/builder
-          for p in openthings-bin openthings; do
-            cd "$work/$p"
-            # .SRCINFO must match the PKGBUILD.
-            sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
-            sudo -u builder makepkg -s --noconfirm --cleanbuild --skipchecksums
-            namcap PKGBUILD *.pkg.tar.zst || true
-            pacman -Qlp *.pkg.tar.zst
-          done
-          cd "$work/openthings-bin" && pacman -U --noconfirm *.pkg.tar.zst && test -x /usr/bin/openthings
+          cd "$work/openthings-bin"
+          # .SRCINFO must match the PKGBUILD.
+          sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
+          sudo -u builder makepkg -s --noconfirm --cleanbuild --skipchecksums
+          namcap PKGBUILD *.pkg.tar.zst || true
+          pacman -Qlp *.pkg.tar.zst
+          pacman -U --noconfirm *.pkg.tar.zst && test -x /usr/bin/openthings
+
+  arch-test:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: pacman -Syu --noconfirm --needed ${{ env.ARCH_DEPS }}
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Rust unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+  arch-aur:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: pacman -Syu --noconfirm --needed ${{ env.ARCH_DEPS }}
+      - uses: actions/checkout@v4
+      - name: Check the openthings PKGBUILD (from source; makepkg as an unprivileged user)
+        run: |
+          set -eux
+          ver="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          work=/home/builder/pkg
+          mkdir -p "$work"
+          cp -r packaging/arch/openthings "$work/"
+          # makepkg uses an existing source file instead of downloading it: stand in for the
+          # published v$ver tag tarball with this checkout's files. Its checksum differs from the
+          # real download, so the build skips checksum verification.
+          tar --exclude=./node_modules --exclude=./src-tauri/target --exclude=./.git \
+              --transform "s,^\.,OpenThings-$ver," -czf "$work/openthings/openthings-$ver.tar.gz" .
+          chown -R builder: /home/builder
+          cd "$work/openthings"
+          # .SRCINFO must match the PKGBUILD.
+          sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
+          sudo -u builder makepkg -s --noconfirm --cleanbuild --skipchecksums
+          namcap PKGBUILD *.pkg.tar.zst || true
+          pacman -Qlp *.pkg.tar.zst
 
   # On a v* tag: publish a GitHub release with the bundles, then bump the Homebrew cask in
   # spuder/homebrew-openthings (pushed with the TAP_DEPLOY_KEY deploy key).
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [macos, arch]
+    needs: [macos, arch, arch-test, arch-aur]
     runs-on: ubuntu-latest
     permissions:
       contents: write

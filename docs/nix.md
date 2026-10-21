@@ -17,7 +17,7 @@ nix run github:spuder/OpenThings#openthings-server        # server on :8080, dat
 nix profile install github:spuder/OpenThings              # install the desktop app
 ```
 
-Pin a release with `github:spuder/OpenThings/v0.1.0`.
+Pin a release with `github:spuder/OpenThings/v0.3.0`, or from FlakeHub with `https://flakehub.com/f/spuder/OpenThings/0.3.0` (any `0.3.*`: `…/OpenThings/0.3`).
 
 ### NixOS
 
@@ -52,7 +52,7 @@ Pin a release with `github:spuder/OpenThings/v0.1.0`.
 - `nix/package.nix`: Tauri with nixpkgs' `cargo-tauri.hook`, which runs `tauri build` (and so `npm run build`) and installs the `.deb` contents on Linux or the `.app` on macOS. On Linux it wraps the binary with GTK/WebKit paths and `libayatana-appindicator` for the tray. On macOS it skips the ad-hoc `codesign` step from `tauri.conf.json`, since the Nix linker already signs ad hoc.
 - `nix/server.nix`: `npm run build`, then `bun build server/index.ts` into one file, as the Dockerfile does.
 - npm and Cargo dependencies come from `package-lock.json` (`importNpmLock`) and `src-tauri/Cargo.lock` (`cargoLock.lockFile`). There are **no dependency hashes to keep up to date**: changing either lockfile just works.
-- The only pin is nixpkgs in `flake.lock`, bumped weekly by a PR from `.github/workflows/flake-lock.yml` (`DeterminateSystems/update-flake-lock`). That PR only triggers CI if the repo has a `FLAKE_LOCK_TOKEN` secret (a fine-grained token with contents and pull-request write access); with the default token, close and reopen the PR to run CI. Settings → Actions → General must allow GitHub Actions to create pull requests.
+- The only pin is nixpkgs in `flake.lock`. Nothing bumps it automatically: update it when you want a newer nixpkgs, with `nix flake update nixpkgs` in a PR, and the Nix workflow builds the result on all four platforms.
 - `.github/workflows/nix.yml` builds both packages on all four platforms and smoke-tests the server.
 
 ### Intel Macs
@@ -61,7 +61,10 @@ nixpkgs 26.05 is the last release that builds `x86_64-darwin`; it is supported u
 
 ## Publishing
 
-There is no separate registry to upload to: a flake on GitHub is installable as is (`github:spuder/OpenThings`). Two optional extras:
+Every release tag is published to **[FlakeHub](https://flakehub.com/flake/spuder/OpenThings)**, an index of flakes with semver versions: tag `v0.3.0` becomes version `0.3.0`. The *Tag release* workflow starts `.github/workflows/flakehub.yml` on each new tag, along with Desktop, Container and Nix (which builds the flake on all four platforms). The workflow checks that the flake evaluates, then publishes it with `DeterminateSystems/flakehub-push`.
 
-- **nixpkgs** (`nix-env -iA nixpkgs.openthings`, `pkgs.openthings` without adding a flake input). nixpkgs is the package registry for Nix. Getting in means a PR to [NixOS/nixpkgs](https://github.com/NixOS/nixpkgs) adding `pkgs/by-name/op/openthings/package.nix`, after a tagged release exists. That file differs from `nix/package.nix`: it fetches a tag with `fetchFromGitHub` and pins `hash`, `cargoHash` and `npmDeps = fetchNpmDeps { hash = …; }` (nixpkgs doesn't read lockfiles from the source at evaluation time). The maintainer also adds themselves to `maintainers/maintainer-list.nix`. Once merged, nixpkgs' update bot ([r-ryantm / nixpkgs-update](https://wiki.nixos.org/wiki/Nixpkgs/Automatic_Updates)) watches GitHub releases and opens version-bump PRs with new hashes; add `passthru.updateScript = nix-update-script { };` so it can. No GitHub Action is needed in this repo for that.
-- **FlakeHub** ([flakehub.com](https://flakehub.com)): an index of flakes with semver versions, published from a tag by `DeterminateSystems/flakehub-push`. Not needed for `nix run github:…`.
+- **Setup, once:** sign in at [flakehub.com](https://flakehub.com) with the GitHub account that owns the repo. The workflow authenticates with GitHub's OIDC token (`id-token: write`), so there's no secret to store.
+- **Publish an existing tag again,** or one from before this workflow: Actions → FlakeHub → Run workflow, with the tag (e.g. `v0.3.0`).
+- A flake on GitHub works without FlakeHub too: `nix run github:spuder/OpenThings` always does.
+
+**nixpkgs**, Nix's main package collection (`nix-env -iA nixpkgs.openthings`, `pkgs.openthings` without a flake input), is a later, manual step. Getting in means a PR to [NixOS/nixpkgs](https://github.com/NixOS/nixpkgs) adding `pkgs/by-name/op/openthings/package.nix` for a tagged release. That file differs from `nix/package.nix`: it fetches a tag with `fetchFromGitHub` and pins `hash`, `cargoHash` and `npmDeps = fetchNpmDeps { hash = …; }` (nixpkgs doesn't read lockfiles from the source at evaluation time). The maintainer also adds themselves to `maintainers/maintainer-list.nix`. After that, nixpkgs' update bot ([r-ryantm / nixpkgs-update](https://wiki.nixos.org/wiki/Nixpkgs/Automatic_Updates)) opens a version-bump PR for each new GitHub release; add `passthru.updateScript = nix-update-script { };` so it can.

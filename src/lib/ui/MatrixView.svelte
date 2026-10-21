@@ -3,6 +3,7 @@
   import { fade } from 'svelte/transition';
   import { store } from '../store.svelte';
   import TaskRow from './TaskRow.svelte';
+  import { dropLine } from './drag.svelte';
 
   const tone: Record<string, string> = {
     do: 'var(--urgent)',
@@ -20,16 +21,16 @@
 
 <div class="grid">
   {#each store.groups as g (g.key)}
-    <section style:--tone={tone[g.key]}>
+    <section style:--tone={tone[g.key]} data-group={g.key}>
       <header>
         <h2>{g.title}</h2>
         <span class="sub">{g.subtitle}</span>
         <span class="count">{g.items.length}</span>
         <kbd title="Toggle with U and I">{hint[g.key]}</kbd>
       </header>
-      <div class="items">
+      <div class="items" class:drop-end={dropLine(g.key, null)}>
         {#each g.items as t (t.id)}
-          <div animate:flip={{ duration: 260 }} in:fade={{ duration: 160 }}>
+          <div class="slot" class:drop-before={dropLine(g.key, t.id)} animate:flip={{ duration: 260 }} in:fade={{ duration: 160 }}>
             <TaskRow task={t} showContainer showWhen />
           </div>
         {/each}

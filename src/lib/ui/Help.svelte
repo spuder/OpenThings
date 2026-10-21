@@ -9,6 +9,9 @@
       ['Next / previous', 'J / K'],
       ['First / last', 'G G / ⇧G'],
       ['Close / deselect', 'Esc'],
+      ['Extend selection', '⇧↑ / ⇧↓'],
+      ['Select a range / one more', `⇧ click / ${keyLabel('mod')} click`],
+      ['Pick / unpick (selection mode)', 'Space'],
     ],
     App: [['Command palette', keyLabel('mod+k')]],
   };

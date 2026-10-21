@@ -57,18 +57,33 @@
   }
 
   // Tapping or clicking outside an open to-do closes it. A drag (scrolling) doesn't count.
-  let outside: { x: number; y: number } | null = null;
+  // A click or tap outside: closes the open to-do, or clears a multi-selection when it lands on
+  // empty space in the list (not on a to-do, a control or the selection bar).
+  let outside: { x: number; y: number; clear: 'open' | 'multi' } | null = null;
   function onPointerDown(e: PointerEvent) {
     const t = e.target instanceof Element ? e.target : null;
-    outside = store.expandedId && !store.overlay && t && !t.closest('.task.expanded, [role="dialog"], [role="menu"]')
-      ? { x: e.clientX, y: e.clientY }
-      : null;
+    outside = null;
+    if (!t || store.overlay) return;
+    if (store.expandedId) {
+      if (!t.closest('.task.expanded, [role="dialog"], [role="menu"]')) outside = { x: e.clientX, y: e.clientY, clear: 'open' };
+    } else if (store.isMulti && t.closest('main .scroll') && !t.closest('.task, button, a, input, textarea, select, .selbar, [role="dialog"], [role="menu"]')) {
+      outside = { x: e.clientX, y: e.clientY, clear: 'multi' };
+    }
   }
   function onPointerUp(e: PointerEvent) {
     if (!outside) return;
     const moved = Math.hypot(e.clientX - outside.x, e.clientY - outside.y);
+    const clear = outside.clear;
     outside = null;
-    if (moved > 10 || !store.expandedId) return;
+    if (moved > 10) return;
+    if (clear === 'multi') {
+      // Not the end of a drag (a drop on empty space is refused, and keeps the selection).
+      if (drag.active || Date.now() - drag.endedAt < 400 || !store.isMulti) return;
+      store.clearMulti();
+      store.selectedId = null;
+      return;
+    }
+    if (!store.expandedId) return;
     // Blur first so the open to-do's fields save, as Escape does.
     const active = document.activeElement;
     if (active instanceof HTMLElement && active.closest('.task.expanded')) active.blur();

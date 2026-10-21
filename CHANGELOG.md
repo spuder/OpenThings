@@ -2,6 +2,17 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.3.0](https://github.com/spuder/OpenThings/releases/tag/v0.3.0) - 2026-10-20
+
+### What's Changed
+
+* Select several to-dos at once: Shift+click, ⌘/Ctrl+click and Shift+arrows on desktop, press and hold on a phone. Drag the selection to a new position or onto a list, or complete, schedule, move or delete them together, each as one undo step. Clicking empty space clears the selection. Move now offers every top-level list, leaving out lists whose feature is turned off. By @spuder in https://github.com/spuder/OpenThings/pull/46 (https://github.com/spuder/OpenThings/issues/36)
+* `openthings://` links for Automator, Shortcuts and scripts: `openthings://add` takes a title, notes, when, deadline, tags and list, and `save=1` adds without opening quick add. List links such as `openthings://today` work in both the desktop and iOS apps. See [docs/url-scheme.md](docs/url-scheme.md). By @spuder in https://github.com/spuder/OpenThings/pull/47 (https://github.com/spuder/OpenThings/issues/35)
+* Pair a phone by scanning a QR code: Settings → Sync on desktop and web shows one once this device has synced with a reachable server, and the iOS app scans it. The server's new `OPENTHINGS_PUBLIC_URL` setting gives the address devices use. By @spuder in https://github.com/spuder/OpenThings/pull/44 (https://github.com/spuder/OpenThings/issues/43)
+* The README's self-hosting section shows the `compose.yaml` sample, with `TZ`. By @spuder in https://github.com/spuder/OpenThings/pull/45
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.2.2...v0.3.0
+
 ## [v0.2.2](https://github.com/spuder/OpenThings/releases/tag/v0.2.2) - 2026-10-19
 
 ### What's Changed

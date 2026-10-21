@@ -45,7 +45,7 @@
   <img src="docs/screenshots/today.png" alt="OpenThings Today view" width="860">
 </p>
 
-> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives on each device (SQLite in IndexedDB) and syncs through the server in the Docker image, which also offers a REST API and an MCP endpoint for AI assistants. An **iOS app** (Capacitor, with widgets, share sheet and Shortcuts) runs on iPhone (tested on an iPhone 15); build it yourself with Xcode, see [iOS app](#ios-app). A [desktop app](#desktop-app) for macOS and Arch Linux is in preview. **Android** is coming and [needs testers](https://github.com/spuder/OpenThings/issues/6).
+> **Status: proof of concept.** Works in desktop and phone browsers and installs to the home screen. Data lives on each device (SQLite in IndexedDB) and syncs through the server in the Docker image, which also offers a REST API and an MCP endpoint for AI assistants. An **iOS app** (Capacitor, with widgets, share sheet and Shortcuts) runs on iPhone (tested on an iPhone 15); build it yourself with Xcode, see [iOS app](#ios-app). A [desktop app](#desktop-app) for macOS and Arch Linux is in preview. An **Android app** from the same code is in preview and [needs testers](https://github.com/spuder/OpenThings/issues/6), see [Android app](#android-app).
 >
 > Inspired by the principles of [Things 3](https://culturedcode.com/things/) and [Super Productivity](https://github.com/super-productivity/super-productivity), built independently and not affiliated with either. See [AGENTS.md](AGENTS.md) for the clean-room and licensing rules.
 
@@ -201,8 +201,6 @@ The iPhone/iPad app is this same web app in a [Capacitor](https://capacitorjs.co
 
 **Siri:** say "Add to OpenThings" and Siri asks what to add, or "Show my day in OpenThings" to open Today. Both actions are also in the Shortcuts app for your own shortcuts. Details: [Siri and Shortcuts](docs/ios.md#siri-and-shortcuts).
 
-**Android** is planned from the same Capacitor setup. If you'd like to test it, comment on [issue #6](https://github.com/spuder/OpenThings/issues/6).
-
 To run it on your iPhone you need a Mac with Xcode 26+ (widgets, share sheet and Shortcuts also need a paid Apple Developer account for the App Group):
 
 ```sh
@@ -212,6 +210,10 @@ npx cap open ios
 ```
 
 In Xcode, check *Signing & Capabilities* on the **App**, **OpenThingsWidgets** and **OpenThingsShare** targets (team set, App Group `group.io.github.spuder.openthings` registered), pick your iPhone and press Run. Bundle id, App Group and URL scheme live in one file, `ios/App/Config/OpenThings.xcconfig` (override them in `OpenThings.local.xcconfig`, which is not committed). After web changes: `npm run build && npx cap sync ios`.
+
+## Android app
+
+The same app for Android 7.0 and newer, from the same Capacitor setup: reminders as Android notifications (they arrive with the app closed), `openthings://` links, multi-select, and pairing with your server by scanning the QR code. Widgets and sharing from other apps aren't there yet. Every pull request and push to `main` builds a debug APK you can install: download it from the latest [Android workflow run](https://github.com/spuder/OpenThings/actions/workflows/android.yml). It's tested in the Android emulator so far; if you'd like to try it on your phone, [sign up as a tester](https://docs.google.com/forms/d/e/1FAIpQLSf0Vke8v5YCE53KemDdbn5VFub2v2MIK32OaTM-B6Sf1psgVg/viewform). Details and how to build it: [docs/android.md](docs/android.md).
 
 ## Self-hosting
 
@@ -281,7 +283,7 @@ Run the server locally with `npm run build && npm run server` (http://localhost:
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
 3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, Ubuntu/Fedora packages.
-4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
+4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Android app in preview ([docs/android.md](docs/android.md), [testers wanted](https://github.com/spuder/OpenThings/issues/6)). Next: interactive widgets, and Android widgets and sharing.
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 
 ## License

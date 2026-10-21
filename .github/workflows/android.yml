@@ -1,0 +1,57 @@
+name: Android
+
+# Builds the Capacitor Android app (android/) as a debug APK and uploads it as a workflow artifact,
+# so testers can install it without Android Studio (docs/android.md). The debug APK is signed with
+# the runner's throwaway debug key; it isn't a Play Store build.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Capacitor 8's Android Gradle plugin needs JDK 21. The runner already has the Android SDK.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Name the APK
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/OpenThings-$version-android-debug.apk"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenThings-android-debug
+          path: out/*.apk
+          if-no-files-found: error

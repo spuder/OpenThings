@@ -1,6 +1,8 @@
 /**
- * Capacitor (iOS today, Android later) integration. Loaded with a dynamic import only when
+ * Capacitor (iOS and Android) integration. Loaded with a dynamic import only when
  * `isNativeShell()` is true, so none of this runs in the browser, PWA or Docker builds.
+ * Android has notifications, the keyboard, links and the QR scanner; the widget snapshot and the
+ * share inbox are iOS-only for now (see docs/android.md).
  *
  * What it does:
  *   - Schedules OS-level local notifications from `window.OpenThings.reminders.upcoming()` and
@@ -13,12 +15,14 @@
  *   - Imports to-dos that the Share extension or Shortcuts left in the App Group, through
  *     `store.addParsed`, so they land in the op log like any other write.
  *
- * Native side: ios/App/App/OpenThingsPlugin.swift (jsName "OpenThingsNative"). See docs/ios.md.
+ * Native side: ios/App/App/OpenThingsPlugin.swift and
+ * android/app/src/main/java/io/github/spuder/openthings/OpenThingsPlugin.java (jsName "OpenThingsNative").
+ * See docs/ios.md and docs/android.md.
  */
 import { App } from '@capacitor/app';
 import { Keyboard } from '@capacitor/keyboard';
 import { setKeyboardHeight } from '../keyboard';
-import { registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { notifier, type NotifyPermission, type UpcomingReminder } from '../reminders.svelte';
 import { reminderLabel } from '../parse';
@@ -43,6 +47,40 @@ interface NativeShared {
 }
 
 const Shared = registerPlugin<NativeShared>('OpenThingsNative');
+/** The App Group (widgets, Share extension, Shortcuts) exists on iOS only; Android's plugin only scans QR codes. */
+const appGroup = Capacitor.getPlatform() === 'ios';
+const android = Capacitor.getPlatform() === 'android';
+
+/**
+ * Android 12+: may reminders use exact alarms? Without that permission (off by default on Android 14+),
+ * asking for an exact alarm makes the plugin open the "Alarms & reminders" screen on every schedule, so
+ * reminders are scheduled inexact instead, which Android may deliver a few minutes late. Settings
+ * offers `allowExactReminders` to turn exact timing on.
+ */
+async function exactAllowed(): Promise<boolean> {
+  if (!android) return true;
+  try {
+    const s = await LocalNotifications.checkExactNotificationSetting();
+    nativeStatus.exactAlarms = s.exact_alarm === 'granted';
+  } catch {
+    nativeStatus.exactAlarms = false;
+  }
+  return nativeStatus.exactAlarms;
+}
+
+let latest: { list: UpcomingReminder[]; day: string } = { list: [], day: '' };
+
+/** Android: open "Alarms & reminders" so reminders can use exact alarms, then reschedule them. */
+export async function allowExactReminders() {
+  if (!android) return;
+  try {
+    await LocalNotifications.changeExactNotificationSetting();
+  } catch (e) {
+    nativeStatus.lastError = (e as Error).message || String(e);
+  }
+  await exactAllowed();
+  reschedule(latest.list, latest.day);
+}
 
 /** Scan a QR code with the camera. Null when the user closes the scanner. */
 export async function scanQrCode(): Promise<string | null> {
@@ -80,6 +118,7 @@ let scheduling: Promise<void> = Promise.resolve();
 
 /** Cancel every reminder notification we scheduled and schedule the current list. Serialized. */
 function reschedule(list: UpcomingReminder[], day: string) {
+  latest = { list, day };
   scheduling = scheduling.then(async () => {
     try {
       const perm = await LocalNotifications.checkPermissions();
@@ -92,14 +131,26 @@ function reschedule(list: UpcomingReminder[], day: string) {
       const ours = pending.notifications.filter((n) => (n.extra as { kind?: string } | undefined)?.kind === 'reminder');
       if (ours.length) await LocalNotifications.cancel({ notifications: ours.map((n) => ({ id: n.id })) });
       const now = Date.now();
+      // Android delivers inexact alarms minutes late, and keeps the app running for a while after it
+      // leaves the screen, so the app's own timer can fire first and land here. If the app isn't on
+      // screen nobody saw its chime and message: post those due reminders now instead of dropping them.
+      // (iOS doesn't list a notification once it's delivered, so this only happens on Android.)
+      const overdue = ours.filter((n) => n.schedule?.at && new Date(n.schedule.at).getTime() <= now);
+      if (overdue.length && document.visibilityState === 'hidden') {
+        await LocalNotifications.schedule({
+          notifications: overdue.map((n) => ({ id: n.id, title: n.title, body: n.body, extra: n.extra, isExactNotification: false })),
+        });
+      }
       const next = list.filter((r) => Date.parse(r.at) > now).slice(0, MAX_SCHEDULED);
       if (next.length) {
+        const exact = await exactAllowed();
         await LocalNotifications.schedule({
           notifications: next.map((r) => ({
             id: notificationId(r.taskId),
             title: r.title,
             body: `Reminder · ${reminderLabel(r.at, day)}`,
             schedule: { at: new Date(r.at), allowWhileIdle: true },
+            isExactNotification: exact,
             threadIdentifier: 'reminders',
             extra: { kind: 'reminder', taskId: r.taskId },
           })),
@@ -141,6 +192,8 @@ export async function startNative(store: NativeStoreApi) {
             id: (Date.now() % 1_000_000_000) + 1,
             title,
             body,
+            // Shown right away: no alarm, so never the exact-alarm settings screen on Android.
+            isExactNotification: false,
             extra: { kind: 'adhoc', taskId: taskId ?? null },
           },
         ],
@@ -151,6 +204,15 @@ export async function startNative(store: NativeStoreApi) {
   // ---- notifications ----
   window.addEventListener('openthings:reminders', (e) => reschedule(e.detail, store.day));
   reschedule(upcoming(), store.day);
+  if (android) {
+    // Settings shows whether exact timing is on, and it can change in Android's settings while
+    // OpenThings is in the background: check again on return, and reschedule if it changed.
+    await exactAllowed();
+    await App.addListener('resume', async () => {
+      const before = nativeStatus.exactAlarms;
+      if ((await exactAllowed()) !== before) reschedule(upcoming(), store.day);
+    });
+  }
 
   await LocalNotifications.addListener('localNotificationActionPerformed', (a) => {
     const taskId = (a.notification.extra as { taskId?: string } | undefined)?.taskId;
@@ -165,6 +227,11 @@ export async function startNative(store: NativeStoreApi) {
   // ---- deep links from widgets and Shortcuts ----
   await App.addListener('appUrlOpen', (e) => openRoute(e.url));
 
+  if (appGroup) await startAppGroup(store, upcoming);
+}
+
+/** iOS: import to-dos from the Share extension and Shortcuts, and keep the widget snapshot current. */
+async function startAppGroup(store: NativeStoreApi, upcoming: () => UpcomingReminder[]) {
   // ---- extension → app import ----
   let importing = false;
   const importPending = async () => {

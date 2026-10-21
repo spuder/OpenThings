@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OpenThings</string>
+    <string name="title_activity_main">OpenThings</string>
+    <string name="package_name">io.github.spuder.openthings</string>
+    <string name="custom_url_scheme">io.github.spuder.openthings</string>
+</resources>

@@ -179,6 +179,8 @@ The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebre
 
 **Download:** tagged versions are on the [Releases](https://github.com/spuder/OpenThings/releases) page. For a build of the latest commit, open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).
 
+**Nix** (Linux and macOS, Intel and ARM): `nix run github:spuder/OpenThings`, or `nix profile install github:spuder/OpenThings`. Each release is also on [FlakeHub](https://flakehub.com/flake/spuder/OpenThings). See [docs/nix.md](docs/nix.md).
+
 **macOS first launch:** releases are signed and notarized. Builds from pull requests aren't, so macOS blocks them the first time: open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
 
 **Quick add from anywhere:** ⌃⌥Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Wayland apps can't grab global keys, so bind the CLI in Hyprland (Super+Space is Omarchy's launcher):
@@ -280,13 +282,15 @@ claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/m
 
 There's no login: anyone who can reach the server can read and change your to-dos, so keep it on your tailnet (as DockTail does) or another private network. Browsers on other websites are refused, so a page you visit can't reach it through your browser. Device tokens are planned before anything is exposed more widely.
 
+**Without Docker:** `nix run github:spuder/OpenThings#openthings-server`, or on NixOS `services.openthings.enable = true;` from the flake's module ([docs/nix.md](docs/nix.md)).
+
 Run the server locally with `npm run build && npm run server` (http://localhost:8080); `npm run dev` proxies `/api` and `/mcp` to it.
 
 ## Roadmap
 
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
-3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, Ubuntu/Fedora packages.
+3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew and on Linux and macOS with Nix, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, nixpkgs, Ubuntu/Fedora packages.
 4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 

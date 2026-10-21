@@ -8,6 +8,7 @@
   import { today } from '../dates';
   import QuickAdd from '../ui/QuickAdd.svelte';
   import { invoke, listen } from './desktop';
+  import { addLinkPrefill, parseRoute } from './snapshot';
 
   let opened = $state(0);
 
@@ -16,9 +17,11 @@
     close: () => void invoke('hide_quick_add'),
   };
 
-  void listen<{ text: string }>('ot://quick-add-open', ({ text }) => {
+  void listen<{ text: string; url?: string | null }>('ot://quick-add-open', ({ text, url }) => {
     store.day = today();
-    store.quickAddPrefill = text ?? '';
+    // From an openthings://add link: its title, list, tags… become tokens to review.
+    const r = url ? parseRoute(url) : null;
+    store.quickAddPrefill = r?.kind === 'add' ? addLinkPrefill(r) : (text ?? '');
     opened++;
   });
 

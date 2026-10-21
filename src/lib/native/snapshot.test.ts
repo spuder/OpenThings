@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SyncState } from '../sync/protocol';
 import type { Task } from '../types';
-import { buildSnapshot, notificationId, parseRoute, pendingToParsed, type PendingItem } from './snapshot';
+import { addLinkParsed, addLinkPrefill, buildSnapshot, notificationId, parseRoute, pendingToParsed, type PendingItem } from './snapshot';
 
 function task(p: Partial<Task>): Task {
   return {
@@ -107,13 +107,86 @@ describe('parseRoute', () => {
   it('reads widget and Shortcut links', () => {
     expect(parseRoute('openthings://today')).toEqual({ kind: 'view', view: 'today' });
     expect(parseRoute('openthings://task/abc-123')).toEqual({ kind: 'task', id: 'abc-123' });
-    expect(parseRoute('openthings://add?text=Milk%20%23shop')).toEqual({ kind: 'add', text: 'Milk #shop' });
+    expect(parseRoute('openthings://add?text=Milk%20%23shop')).toMatchObject({ kind: 'add', text: 'Milk #shop', title: '', save: false });
+    expect(parseRoute('openthings://logbook')).toEqual({ kind: 'view', view: 'logbook' });
     expect(parseRoute('https://example.com')).toBeNull();
     expect(parseRoute('openthings://nope')).toBeNull();
+  });
+
+  it('takes three slashes, as Automator and other apps write links', () => {
+    expect(parseRoute('openthings:///today')).toEqual({ kind: 'view', view: 'today' });
+    expect(parseRoute('openthings:///task/abc-123')).toEqual({ kind: 'task', id: 'abc-123' });
+    expect(parseRoute('openthings:///add?title=Milk')).toMatchObject({ kind: 'add', title: 'Milk' });
+    expect(parseRoute('openthings:///pair?server=https%3A%2F%2Fot.example.ts.net')).toEqual({ kind: 'pair', server: 'https://ot.example.ts.net' });
+  });
+
+  it('reads the fields of an add link', () => {
+    expect(parseRoute('openthings://add?title=Call%20%23Bob&notes=Line%201%0ALine%202&when=next%20week&deadline=fri&tags=errand,%20work&tags=home&list=Garage&save=1')).toEqual({
+      kind: 'add',
+      text: '',
+      title: 'Call #Bob',
+      notes: 'Line 1\nLine 2',
+      when: 'next week',
+      deadline: 'fri',
+      tags: ['errand', 'work', 'home'],
+      list: 'Garage',
+      save: true,
+    });
+    expect(parseRoute('openthings://add?title=x&save=true')).toMatchObject({ save: true });
+    expect(parseRoute('openthings://add?title=x&save=0')).toMatchObject({ save: false });
   });
 
   it('reads pairing links from the QR code in Settings', () => {
     expect(parseRoute('openthings://pair?server=https%3A%2F%2Fot.example.ts.net')).toEqual({ kind: 'pair', server: 'https://ot.example.ts.net' });
     expect(parseRoute('openthings://pair?server=')).toBeNull();
+  });
+});
+
+describe('add links', () => {
+  const day = '2026-10-21'; // a Wednesday
+  const link = (q: string) => {
+    const r = parseRoute(`openthings://add?${q}`);
+    if (r?.kind !== 'add') throw new Error('not an add link');
+    return r;
+  };
+
+  it('keeps literal fields literal', () => {
+    const p = addLinkParsed(link('title=Fix%20bug%20%2312%20@today&notes=see%20%23log'), day);
+    expect(p.title).toBe('Fix bug #12 @today');
+    expect(p.notes).toBe('see #log');
+    expect(p.tags).toEqual([]);
+    expect(p.when).toBeNull();
+  });
+
+  it('parses when, deadline, tags and list', () => {
+    const p = addLinkParsed(link('title=Paint&when=tomorrow&deadline=2026-11-02&tags=home,Weekend&list=Garage%20cleanup'), day);
+    expect(p.when).toEqual({ date: '2026-10-22', evening: false, someday: false, inbox: false });
+    expect(p.deadline).toBe('2026-11-02');
+    expect(p.tags).toEqual(['home', 'Weekend']);
+    expect(p.project).toBe('Garage cleanup');
+    expect(addLinkParsed(link('title=a&when=someday'), day).when?.someday).toBe(true);
+    expect(addLinkParsed(link('title=a&when=evening'), day).when).toMatchObject({ date: day, evening: true });
+    expect(addLinkParsed(link('title=a&when=next%20week'), day).when?.date).toBe('2026-10-26');
+  });
+
+  it('parses text as quick add, then lets fields override it', () => {
+    const p = addLinkParsed(link('text=Milk%20%23shop%20@fri&tags=shop,dairy&when=today'), day);
+    expect(p.title).toBe('Milk');
+    expect(p.tags).toEqual(['shop', 'dairy']);
+    expect(p.when?.date).toBe(day);
+  });
+
+  it('warns about dates it does not understand', () => {
+    const p = addLinkParsed(link('title=a&when=blursday&deadline=never'), day);
+    expect(p.when).toBeNull();
+    expect(p.deadline).toBeNull();
+    expect(p.warnings).toEqual(['Unknown when: blursday', 'Unknown deadline: never']);
+  });
+
+  it('turns fields into quick-add text to review', () => {
+    expect(addLinkPrefill(link('text=Milk%20%23shop'))).toBe('Milk #shop');
+    expect(addLinkPrefill(link('title=Paint%20shed&tags=home,big%20job&list=Garage%20cleanup&when=next%20week&deadline=fri&notes=Two%20coats'))).toBe(
+      'Paint shed #home #big-job +Garage-cleanup @next-week !fri // Two coats',
+    );
   });
 });

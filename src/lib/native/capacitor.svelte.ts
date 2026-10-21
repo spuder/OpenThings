@@ -23,12 +23,12 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { notifier, type NotifyPermission, type UpcomingReminder } from '../reminders.svelte';
 import { reminderLabel } from '../parse';
 import { sync } from '../sync/engine.svelte';
-import { pairing } from '../sync/pairing.svelte';
 import type { ID, ViewKey } from '../types';
 import type { Parsed } from '../parse';
 import type { Area, Project, Task } from '../types';
 import { nativeStatus } from './status.svelte';
-import { buildSnapshot, MAX_SCHEDULED, notificationId, parseRoute, pendingToParsed, type PendingItem } from './snapshot';
+import { buildSnapshot, MAX_SCHEDULED, notificationId, pendingToParsed, type PendingItem } from './snapshot';
+import { openRoute } from './links';
 
 interface NativeShared {
   /** Write the widget snapshot into the App Group and reload widget timelines. */
@@ -163,19 +163,6 @@ export async function startNative(store: NativeStoreApi) {
   });
 
   // ---- deep links from widgets and Shortcuts ----
-  const openRoute = (url: string) => {
-    const r = parseRoute(url);
-    if (!r) return;
-    if (r.kind === 'task') store.reveal(r.id);
-    else if (r.kind === 'view') store.go({ kind: r.view });
-    else if (r.kind === 'pair') {
-      pairing.server = r.server;
-      store.go({ kind: 'settings' });
-    } else {
-      store.quickAddPrefill = r.text;
-      store.overlay = 'quickadd';
-    }
-  };
   await App.addListener('appUrlOpen', (e) => openRoute(e.url));
 
   // ---- extension → app import ----

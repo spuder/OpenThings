@@ -177,16 +177,22 @@ fn dismiss_quick_add<R: Runtime>(app: &AppHandle<R>) {
 #[derive(Serialize, Clone)]
 struct QuickAddOpen {
     text: String,
+    /// An `openthings://add?…` link; the window turns its fields into quick-add text.
+    url: Option<String>,
 }
 
 /// Show the floating quick-add window, optionally prefilled.
 fn open_quick_add<R: Runtime>(app: &AppHandle<R>, text: Option<String>) {
+    show_quick_add(app, QuickAddOpen { text: text.unwrap_or_default(), url: None });
+}
+
+fn show_quick_add<R: Runtime>(app: &AppHandle<R>, payload: QuickAddOpen) {
     // Undo a previous `dismiss_quick_add` app hide, or the window can't come forward.
     #[cfg(target_os = "macos")]
     let _ = app.show();
     match quick_add_window(app) {
         Ok(w) => {
-            let _ = w.emit_to(QUICK_ADD, "ot://quick-add-open", QuickAddOpen { text: text.unwrap_or_default() });
+            let _ = w.emit_to(QUICK_ADD, "ot://quick-add-open", payload);
             let _ = w.center();
             let _ = w.show();
             let _ = w.set_focus();
@@ -207,34 +213,46 @@ fn run_command<R: Runtime>(app: &AppHandle<R>, id: &str) {
 
 // ---------- deep links and CLI arguments ----------
 
-/// Handles `openthings://add?text=…[&save=1]`, `openthings://show`, `openthings://task/<id>`.
+/// Handles `openthings://` links (docs/url-scheme.md). The web app parses them (`parseRoute` in
+/// `src/lib/native/snapshot.ts`); this only decides which window they go to.
 fn handle_url<R: Runtime>(app: &AppHandle<R>, url: &url::Url) {
     if url.scheme() != "openthings" {
         return;
     }
-    // openthings://add?… parses with host "add"; openthings:add?… with path "add".
-    let action = url.host_str().unwrap_or_else(|| url.path().trim_matches('/')).to_string();
-    let q: HashMap<String, String> = url.query_pairs().into_owned().collect();
+    let (action, link, save) = link_parts(url);
     match action.as_str() {
-        "add" | "quick-add" => {
-            let text = q.get("text").cloned().filter(|t| !t.trim().is_empty());
-            let save = q.get("save").map(|v| v == "1" || v == "true").unwrap_or(false);
-            match (text, save) {
-                (Some(text), true) => {
-                    let _ = app.emit_to(MAIN, "ot://add", text);
-                }
-                (text, _) => open_quick_add(app, text),
-            }
+        // Added by the main window without showing anything but a notice.
+        "add" if save => {
+            let _ = app.emit_to(MAIN, "ot://open-url", link);
         }
-        "task" => {
-            let id = url.path().trim_matches('/').to_string();
-            if !id.is_empty() {
-                show_main(app);
-                let _ = app.emit_to(MAIN, "ot://reveal", id);
-            }
+        "add" => show_quick_add(app, QuickAddOpen { text: String::new(), url: Some(link) }),
+        "" | "show" => show_main(app),
+        // Lists, tasks, pairing: the main window opens them.
+        _ => {
+            show_main(app);
+            let _ = app.emit_to(MAIN, "ot://open-url", link);
         }
-        _ => show_main(app),
     }
+}
+
+/// The action of an `openthings:` link (`add`, `today`, `task`…), the link rebuilt as
+/// `openthings://<action>…` (the one form the web app's parser takes), and whether it asks to save
+/// without showing quick add. `openthings://add?…` has host "add"; `openthings:add?…` and
+/// `openthings:///add?…` have it as the first path segment. `quick-add` is an alias of `add`.
+fn link_parts(url: &url::Url) -> (String, String, bool) {
+    let first = url.host_str().filter(|h| !h.is_empty()).unwrap_or_else(|| url.path().trim_start_matches('/').split('/').next().unwrap_or(""));
+    let after = url.as_str().get("openthings:".len()..).unwrap_or("").trim_start_matches('/');
+    let rest = after.get(first.len()..).unwrap_or("");
+    let action = match first.to_ascii_lowercase().as_str() {
+        "quick-add" => "add".to_string(),
+        a => a.to_string(),
+    };
+    let save = url
+        .query_pairs()
+        .find(|(k, _)| k == "save")
+        .map(|(_, v)| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false);
+    (action.clone(), format!("openthings://{action}{rest}"), save)
 }
 
 /// Arguments of a launch (first or forwarded by single-instance). Returns true when they asked for
@@ -627,6 +645,23 @@ fn show_main_window(app: AppHandle) {
     show_main(&app);
 }
 
+/// Settings → Sync links here so people know sync needs the server (the Docker image).
+const SELF_HOSTING_DOCS: &str = "https://github.com/spuder/OpenThings#self-hosting";
+
+/// Open the self-hosting docs in the default browser. The URL is fixed, so pages can't open others.
+#[tauri::command]
+fn open_self_hosting_docs() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let opener = "open";
+    #[cfg(not(target_os = "macos"))]
+    let opener = "xdg-open";
+    std::process::Command::new(opener)
+        .arg(SELF_HOSTING_DOCS)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 /// The web app saved its database; exit now.
 #[tauri::command]
 fn quit_now(app: AppHandle, shell: tauri::State<Arc<Shell>>) {
@@ -678,6 +713,7 @@ pub fn run() {
             submit_quick_add,
             hide_quick_add,
             show_main_window,
+            open_self_hosting_docs,
             quit_now,
         ])
         .setup(move |app| {
@@ -806,7 +842,24 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_iso_ms;
+    use super::{link_parts, parse_iso_ms};
+
+    fn parts(s: &str) -> (String, String, bool) {
+        link_parts(&url::Url::parse(s).unwrap())
+    }
+
+    #[test]
+    fn link_forms() {
+        let add = |save| ("add".to_string(), "openthings://add?title=Milk&save=1".to_string(), save);
+        assert_eq!(parts("openthings://add?title=Milk&save=1"), add(true));
+        assert_eq!(parts("openthings:///add?title=Milk&save=1"), add(true));
+        assert_eq!(parts("openthings:add?title=Milk&save=1"), add(true));
+        assert_eq!(parts("openthings://quick-add?text=Hi").1, "openthings://add?text=Hi");
+        assert_eq!(parts("openthings://add?text=Hi&save=no").2, false);
+        assert_eq!(parts("openthings://today"), ("today".into(), "openthings://today".into(), false));
+        assert_eq!(parts("openthings:///task/abc-1"), ("task".into(), "openthings://task/abc-1".into(), false));
+        assert_eq!(parts("openthings://show").0, "show");
+    }
 
     #[test]
     fn parses_js_iso_strings() {

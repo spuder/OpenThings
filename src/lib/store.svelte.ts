@@ -1,7 +1,7 @@
 import { SvelteSet } from 'svelte/reactivity';
 import * as db from './db';
 import { addDays, longLabel, relLabel, shiftReminder, today as todayFn } from './dates';
-import { nextOccurrence, parseHabit, type Parsed, type When } from './parse';
+import { describeRule, firstOccurrence, nextRepeat, parseHabit, type Parsed, type When } from './parse';
 import * as sound from './sound';
 import type {
   Area,
@@ -27,6 +27,7 @@ import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
+import * as Sel from './selection';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
 import { mergeImportedTags, type ThingsImport } from './import/things';
 
@@ -39,7 +40,7 @@ export interface Group {
   items: Task[];
 }
 
-export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes';
+export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes' | 'repeat';
 
 export interface FocusSession {
   taskId: ID;
@@ -74,6 +75,9 @@ function norm(s: string) {
   return s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
 }
 
+/** Top-level lists a to-do can be moved to directly (see `moveToList`). */
+export type MoveList = 'inbox' | 'today' | 'anytime' | 'someday' | 'dump';
+
 class Store {
   ready = $state(false);
   areas = $state<Area[]>([]);
@@ -92,8 +96,16 @@ class Store {
   opCount = $state(0);
 
   view = $state<ViewKey>({ kind: 'today' });
+  /** The row the keyboard is on (and the one single-item actions use). */
   selectedId = $state<ID | null>(null);
   expandedId = $state<ID | null>(null);
+  /**
+   * Multi-selection (Shift / ⌘ click, Shift+arrows, long-press on touch). Only meaningful while
+   * `isMulti`; otherwise the selection is just `selectedId`. Its cursor is kept equal to `selectedId`.
+   */
+  multi = $state<Sel.Selection>(Sel.EMPTY);
+  /** Selection mode: taps and clicks toggle rows instead of opening them (touch, or V). */
+  selecting = $state(false);
   /** Tasks checked this session stay visible until you leave the view (like Things). */
   keep = new SvelteSet<ID>();
   /** Ticks every 30s so brain-dump fade and timers update. */
@@ -188,7 +200,16 @@ class Store {
     }
   }
 
+  /** While > 0, load() is postponed so a bulk action reloads once at the end. */
+  private deferLoad = 0;
+  private loadPending = false;
+
   load() {
+    if (this.deferLoad) {
+      this.loadPending = true;
+      return;
+    }
+    this.loadPending = false;
     this.areas = db.all<Area>('SELECT * FROM areas ORDER BY sort');
     this.projects = db.all<Project>('SELECT * FROM projects ORDER BY sort');
     this.headings = db.all<Heading>('SELECT * FROM headings ORDER BY sort');
@@ -277,6 +298,7 @@ class Store {
     this.sidebarOpen = false;
     this.keep.clear();
     this.expandedId = null;
+    this.clearMulti();
     this.selectedId = isTouch ? null : (this.selectable[0] ?? null);
   }
 
@@ -322,6 +344,111 @@ class Store {
     if (this.view.kind === 'trash') return this.trashed.map((t) => t.id);
     return this.groups.flatMap((g) => g.items.map((t) => t.id));
   });
+
+  // ---------- multi-selection ----------
+
+  /** More than one row is selected, or selection mode is on. */
+  get isMulti(): boolean {
+    return this.selecting || this.multi.ids.length > 1;
+  }
+
+  /** The to-dos an action applies to: the multi-selection, else the selected row. */
+  get actionIds(): ID[] {
+    if (this.isMulti) return Sel.inOrder(this.multi.ids, this.selectable);
+    return this.selectedId ? [this.selectedId] : [];
+  }
+
+  isPicked(id: ID): boolean {
+    return this.isMulti ? this.multi.ids.includes(id) : this.selectedId === id;
+  }
+
+  /** Multi-selection lists only to-dos; Habits, Trash and Brain Dump keep single selection. */
+  get canMulti(): boolean {
+    return !['habits', 'trash', 'dump', 'settings'].includes(this.view.kind);
+  }
+
+  /** The current selection as a Selection, whether or not it's multi. */
+  private currentSel(): Sel.Selection {
+    if (this.isMulti) return this.multi;
+    return this.selectedId ? Sel.selectOnly(this.selectedId) : Sel.EMPTY;
+  }
+
+  private setSel(next: Sel.Selection) {
+    this.multi = next;
+    this.selectedId = next.cursor;
+    if (next.ids.length > 1 || this.selecting) this.expandedId = null;
+  }
+
+  clearMulti() {
+    this.multi = Sel.EMPTY;
+    this.selecting = false;
+  }
+
+  /** Shift click: select from the anchor to this row. */
+  selectRange(id: ID) {
+    if (!this.canMulti) return;
+    this.setSel(Sel.range(this.currentSel(), id, this.selectable));
+  }
+
+  /** ⌘/Ctrl click, or a tap in selection mode: add or remove one row. */
+  toggleSelect(id: ID) {
+    if (!this.canMulti) return;
+    const next = Sel.toggle(this.currentSel(), id, this.selectable);
+    this.setSel(next);
+    // Outside selection mode, one row left is an ordinary single selection.
+    if (!this.selecting && next.ids.length <= 1) this.multi = Sel.EMPTY;
+  }
+
+  /** Shift+↑ / Shift+↓. */
+  extendSelection(delta: number) {
+    if (!this.canMulti) return;
+    this.setSel(Sel.extend(this.currentSel(), delta, this.selectable));
+  }
+
+  selectAll() {
+    if (!this.canMulti) return;
+    this.setSel(Sel.selectAll(this.selectable, this.selectedId));
+  }
+
+  /** Enter selection mode (long-press on touch, V on a keyboard), optionally picking a first row. */
+  startSelecting(id: ID | null = this.selectedId) {
+    if (!this.canMulti) return;
+    const base = this.currentSel();
+    this.selecting = true;
+    this.setSel(id && !base.ids.includes(id) ? Sel.toggle(base, id, this.selectable) : base);
+  }
+
+  /** After a bulk action: forget rows that left the list; leave multi mode when nothing is left. */
+  private pruneSelection() {
+    if (!this.isMulti) return;
+    const next = Sel.prune(this.multi, this.selectable);
+    if (!next.ids.length && !this.selecting) return this.clearMulti();
+    this.multi = next;
+    this.selectedId = next.cursor;
+    if (next.ids.length <= 1 && !this.selecting) this.multi = Sel.EMPTY;
+  }
+
+  /** Run several writes as one undo step with one reload. */
+  bulk(label: string, fn: () => void) {
+    this.deferLoad++;
+    try {
+      this.undoStack.group(label, fn);
+    } finally {
+      this.deferLoad--;
+      if (!this.deferLoad && this.loadPending) this.load();
+    }
+    this.pruneSelection();
+  }
+
+  /** Apply a single-item action to each id, as one undo step. */
+  each(ids: ID[], label: string, fn: (id: ID) => void) {
+    if (ids.length === 1) {
+      fn(ids[0]);
+      this.pruneSelection();
+      return;
+    }
+    this.bulk(label, () => ids.forEach(fn));
+  }
 
   private groupByContainer(items: Task[]): Group[] {
     const loose = items.filter((t) => !t.project_id);
@@ -605,13 +732,29 @@ class Store {
     this.load();
   }
 
-  toggleComplete(id: ID) {
+  /** Complete every to-do in `ids`, or uncheck them all if all are already done. One sound, one undo step. */
+  completeMany(ids: ID[]) {
+    if (ids.length <= 1) {
+      if (ids[0]) this.toggleComplete(ids[0]);
+      return;
+    }
+    const ts = ids.map((id) => this.task(id)).filter((t): t is Task => !!t);
+    const uncheck = ts.every((t) => t.completed_at);
+    this.bulk(uncheck ? 'uncheck' : 'complete', () => {
+      for (const t of ts) if (uncheck || !t.completed_at) this.toggleComplete(t.id, true);
+    });
+    if (uncheck) sound.playUncheck();
+    else sound.playComplete();
+    this.notify(uncheck ? `Unchecked ${ts.length} to-dos` : `Completed ${ts.length} to-dos`);
+  }
+
+  toggleComplete(id: ID, quiet = false) {
     const t = this.task(id);
     if (!t) return;
     if (t.completed_at) {
       db.update('tasks', id, { completed_at: null });
       this.keep.delete(id);
-      sound.playUncheck();
+      if (!quiet) sound.playUncheck();
       this.undoStack.push('uncheck', () => db.update('tasks', id, { completed_at: t.completed_at }));
     } else {
       db.update('tasks', id, { completed_at: new Date().toISOString() });
@@ -623,17 +766,23 @@ class Store {
         if (spawned) this.hardDelete(spawned);
       });
       this.keep.add(id);
-      if (t.dump) sound.playScratch();
+      if (quiet) {
+        // Bulk completion plays one sound for the lot.
+      } else if (t.dump) sound.playScratch();
       else sound.playComplete();
       if (this.tracking?.taskId === id) this.stopTracking();
-      if (t.rrule) {
-        const from = t.when_date && t.when_date > this.day ? t.when_date : this.day;
-        const next = nextOccurrence(t.rrule, from);
+      const from = t.when_date && t.when_date > this.day ? t.when_date : this.day;
+      // Counted from the to-do's own date, so a late check-off keeps the schedule; null once COUNT/UNTIL run out.
+      const repeat = t.rrule ? nextRepeat(t.rrule, from, t.when_date ?? from) : null;
+      if (t.rrule && !repeat) this.notify('That was the last repeat');
+      if (repeat) {
+        const next = repeat.date;
         const nid = db.uuid7();
         spawned = nid;
         db.insert('tasks', {
           ...(t as unknown as db.Row),
           id: nid,
+          rrule: repeat.rrule,
           when_date: next,
           evening: t.evening,
           completed_at: null,
@@ -648,6 +797,26 @@ class Store {
       }
     }
     this.load();
+  }
+
+  /**
+   * Set or clear a to-do's repeat (an RRULE string, see rrule.ts). With a `start` date the to-do moves to
+   * the rule's first day on or after it, which is also where the series counts its weeks or months from.
+   */
+  setRepeat(id: ID, rrule: string | null, start?: string) {
+    const t = this.task(id);
+    if (!t) return;
+    const fields: Partial<Task> = { rrule };
+    if (rrule && start) {
+      const first = firstOccurrence(rrule, start) ?? start;
+      if (first !== t.when_date || t.someday) Object.assign(fields, { when_date: first, someday: 0 });
+      if (t.reminder_at && t.when_date && first !== t.when_date) {
+        fields.reminder_at = shiftReminder(t.reminder_at, t.when_date, first);
+        fields.reminder_sent_at = null;
+      }
+    }
+    this.update(id, fields, rrule ? 'repeat' : 'stop repeating');
+    this.notify(rrule ? `Repeats: ${describeRule(rrule, this.day)}` : 'No longer repeats');
   }
 
   setWhen(id: ID, w: When) {
@@ -782,18 +951,147 @@ class Store {
 
   /** Move a task to the Trash. It can be restored for 30 days. */
   deleteTask(id: ID) {
-    const idx = this.selectable.indexOf(id);
-    if (this.tracking?.taskId === id) this.stopTracking();
-    db.update('tasks', id, { deleted_at: new Date().toISOString() });
-    this.undoStack.push('move to Trash', () => {
-      db.update('tasks', id, { deleted_at: null });
-      this.selectedId = id;
+    this.deleteMany([id]);
+  }
+
+  /** Move to-dos to the Trash as one undo step; the selection moves to the row after them. */
+  deleteMany(ids: ID[]) {
+    if (!ids.length) return;
+    const idx = this.selectable.indexOf(ids[0]);
+    const at = new Date().toISOString();
+    this.bulk('move to Trash', () => {
+      for (const id of ids) {
+        if (this.tracking?.taskId === id) this.stopTracking();
+        db.update('tasks', id, { deleted_at: at });
+        this.undoStack.push('move to Trash', () => {
+          db.update('tasks', id, { deleted_at: null });
+          this.selectedId = id;
+        });
+        this.keep.delete(id);
+      }
     });
-    this.keep.delete(id);
-    this.load();
-    this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
-    if (this.expandedId === id) this.expandedId = null;
-    this.notify('Moved to Trash');
+    if (!this.isMulti) this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
+    if (this.expandedId && ids.includes(this.expandedId)) this.expandedId = null;
+    this.notify(ids.length === 1 ? 'Moved to Trash' : `Moved ${ids.length} to-dos to Trash`);
+  }
+
+  /** Toast for a When change on several to-dos ("Moved 3 to-dos to Today"). */
+  announceWhenMany(ids: ID[]) {
+    if (ids.length === 1) return this.announceWhen(ids[0]);
+    const t = this.task(ids[0]);
+    if (t) this.notify(V.describeWhen(t, this.day).replace(/^Moved to/, `Moved ${ids.length} to-dos to`));
+  }
+
+  /**
+   * Drag and drop inside the list: put `ids` (in list order) just before `beforeId` in group `groupKey`
+   * (null = at its end). Rows from another group take on that group's fields (heading, evening, date,
+   * matrix quadrant). Returns false if the group doesn't accept them. One undo step.
+   */
+  dropInList(ids: ID[], groupKey: string, beforeId: ID | null): boolean {
+    const g = this.groups.find((x) => x.key === groupKey);
+    const extra = this.dropFields(ids, groupKey);
+    if (!g || !extra) return false;
+    const sorts = Sel.moveBlock(g.items, ids, beforeId);
+    // Dropped where they already were: nothing to write or undo.
+    const now = g.items.map((t) => t.id).join();
+    const next = g.items.map((t) => ({ id: t.id, sort: sorts.find((s) => s.id === t.id)?.sort ?? t.sort })).sort((a, b) => a.sort - b.sort).map((t) => t.id).join();
+    if (now === next && [...extra.values()].every((f) => !Object.keys(f).length)) return true;
+    this.bulk('move', () => {
+      for (const { id, sort } of sorts) this.update(id, { ...extra.get(id), sort }, 'move');
+    });
+    return true;
+  }
+
+  /** Per-to-do fields for dropping `ids` into group `groupKey`, or null if that group refuses any of them. */
+  dropFields(ids: ID[], groupKey: string): Map<ID, Partial<Task>> | null {
+    if (!ids.length || !this.groups.some((x) => x.key === groupKey)) return null;
+    const fromKey = (id: ID) => this.groups.find((x) => x.items.some((t) => t.id === id))?.key ?? '';
+    const out = new Map<ID, Partial<Task>>();
+    for (const id of ids) {
+      const t = this.task(id);
+      const f = t ? Sel.groupFields(this.view.kind, fromKey(id), groupKey, t, this.day) : null;
+      if (!f) return null;
+      out.set(id, f);
+    }
+    return out;
+  }
+
+  /** Whether dropping `ids` on a sidebar list does something. */
+  acceptsDrop(v: ViewKey): boolean {
+    if (this.isView(v) || !viewEnabled(v.kind)) return false;
+    return ['inbox', 'today', 'anytime', 'someday', 'dump', 'logbook', 'trash', 'project', 'area'].includes(v.kind);
+  }
+
+  /**
+   * Move to-dos to a top-level list, as one undo step: the Move palette and dropping on the sidebar.
+   * Lists that need a day (Upcoming, This Week) go through When instead. Brain Dump only while
+   * that feature is on.
+   */
+  moveToList(ids: ID[], list: MoveList) {
+    if (!ids.length || (list === 'dump' && !viewEnabled('dump'))) return;
+    const now = new Date().toISOString();
+    this.each(ids, 'move', (id) => {
+      const t = this.task(id);
+      if (!t) return;
+      const out = t.dump ? { dump: 0, dump_section_id: null } : {};
+      switch (list) {
+        case 'inbox':
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 0, project_id: null, area_id: null, heading_id: null }, 'move');
+          break;
+        case 'today':
+          this.update(id, { ...out, when_date: this.day, evening: 0, someday: 0 }, 'move');
+          break;
+        case 'anytime':
+          // Anytime keeps the project or area; a to-do in neither lands in the Inbox (said below).
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 0 }, 'move');
+          break;
+        case 'someday':
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 1 }, 'move');
+          break;
+        case 'dump':
+          // Brain Dump deletes unchecked items 48h after created_at; restart the clock so an older
+          // to-do isn't purged the moment it arrives.
+          if (!t.dump) this.update(id, { dump: 1, dump_section_id: null, created_at: now }, 'move');
+          break;
+      }
+    });
+    const n = ids.length === 1 ? '' : ` ${ids.length} to-dos`;
+    const name = { inbox: 'Inbox', today: 'Today', anytime: 'Anytime', someday: 'Someday', dump: 'Brain Dump' }[list];
+    const loose = list === 'anytime' ? ids.filter((id) => { const t = this.task(id); return t && !t.project_id && !t.area_id; }).length : 0;
+    if (loose === ids.length) this.notify(`Moved${n} to Inbox: Anytime needs a project or area`);
+    else if (loose) this.notify(`Moved${n} to Anytime; ${loose} without a project or area went to the Inbox`);
+    else this.notify(list === 'dump' ? `Moved${n} to Brain Dump; ${ids.length === 1 ? 'it goes' : 'they go'} in 48 hours unless kept` : `Moved${n} to ${name}`);
+  }
+
+  /** Drag and drop onto a sidebar list: schedule, move, complete or trash every dragged to-do. One undo step. */
+  dropOnView(ids: ID[], v: ViewKey) {
+    if (!ids.length || !this.acceptsDrop(v)) return;
+    const n = ids.length === 1 ? '' : ` ${ids.length} to-dos`;
+    switch (v.kind) {
+      case 'inbox':
+      case 'today':
+      case 'anytime':
+      case 'someday':
+      case 'dump':
+        this.moveToList(ids, v.kind);
+        break;
+      case 'logbook': {
+        const open = ids.filter((id) => !this.task(id)?.completed_at);
+        if (open.length) this.completeMany(open);
+        break;
+      }
+      case 'trash':
+        this.deleteMany(ids);
+        break;
+      case 'project':
+      case 'area': {
+        const target = v.kind === 'project' ? { project_id: v.id } : { area_id: v.id };
+        this.each(ids, 'move', (id) => this.moveTo(id, target));
+        const name = v.kind === 'project' ? this.projects.find((p) => p.id === v.id)?.name : this.areas.find((a) => a.id === v.id)?.name;
+        this.notify(`Moved${n} to ${name ?? 'list'}`);
+        break;
+      }
+    }
   }
 
   restoreTask(id: ID) {
@@ -837,6 +1135,18 @@ class Store {
     const sort = beyond ? (b.sort + beyond.sort) / 2 : b.sort + dir;
     db.update('tasks', a.id, { sort });
     this.load();
+  }
+
+  /** ⌥↑ / ⌥↓ with several rows selected: move them together past one neighbour (same group only). */
+  reorderMany(ids: ID[], dir: -1 | 1) {
+    if (ids.length <= 1) {
+      if (ids[0]) this.reorder(ids[0], dir);
+      return;
+    }
+    const g = this.groups.find((x) => x.items.some((t) => t.id === ids[0]));
+    if (!g || !ids.every((id) => g.items.some((t) => t.id === id))) return this.notify('Select rows from one group to move them');
+    const before = Sel.stepTarget(g.items, ids, dir);
+    if (before !== undefined) this.dropInList(ids, g.key, before);
   }
 
   addChecklist(taskId: ID, title: string) {

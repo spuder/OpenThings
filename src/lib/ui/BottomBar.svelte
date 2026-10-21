@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
 
   const task = $derived(store.task(store.selectedId));
-  const canAct = $derived(!!task && store.view.kind !== 'habits' && store.view.kind !== 'trash');
+  const canAct = $derived(store.isMulti ? store.actionIds.length > 0 : !!task && store.view.kind !== 'habits' && store.view.kind !== 'trash');
 
   function run(id: string) {
     commands.find((c) => c.id === id)?.run();
@@ -15,7 +15,7 @@
   };
 </script>
 
-<div class="bar" class:drawer={store.sidebarOpen} role="toolbar" aria-label="To-do actions">
+<div class="bar" class:drawer={store.sidebarOpen || store.isMulti} role="toolbar" aria-label="To-do actions">
   <button class="fab" onclick={() => run('create.quickadd')} aria-label="New to-do">
     <Icon name="plus" size={26} />
   </button>

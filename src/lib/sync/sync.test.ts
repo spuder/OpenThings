@@ -173,6 +173,11 @@ describe('SyncEngine', () => {
     expect(engine.status).toBe('idle');
     expect(engine.pending).toBe(0);
     expect(engine.lastSyncedAt).not.toBeNull();
+
+    // Switching servers forgets the last sync, so pairing waits for the new server.
+    engine.configure('https://other.example.ts.net', true);
+    expect(engine.lastSyncedAt).toBeNull();
+    engine.configure(null, false);
   });
 
   it('reports an error with a reason when the server is unreachable', async () => {

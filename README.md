@@ -59,6 +59,7 @@
 
 - **Lists:** Inbox, Today with This Evening, Upcoming, Anytime, Someday, Logbook.
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
+- **Repeating to-dos:** every N days, weeks, months or years; chosen days of the week; days of the month (the 1st and 15th, the last day) or an ordinal weekday (the 2nd Tuesday, the last Friday); ending never, after N times or on a date. Set it in quick add (`*mon,thu`) or in the repeat editor (`⇧W`, the repeat button on an open to-do, or right-click), which previews the next dates. Checking one off schedules the next.
 - **This Week** (optional, off by default): everything scheduled or due from today through Sunday, grouped by day; overdue items fold into today. `G W` to open.
 - **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default) and This Week (off).
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
@@ -94,7 +95,11 @@
 | `!fri` | Deadline |
 | `%9am` `%18:30` `%in30m` `%fri-9am` | Reminder |
 | `~30m` `~1h30m` | Time estimate |
-| `*daily` `*weekly` `*weekdays` `*2w` | Repeat |
+| `*daily` `*weekly` `*monthly` `*yearly` `*weekdays` `*weekends` | Repeat |
+| `*2d` `*3w` `*2m` `*1y` | Repeat every N days, weeks, months, years |
+| `*mon,thu` `*fri` `*2w-mon,thu` | Repeat weekly on those days (every 2 weeks) |
+| `*1st,15th` `*15th` `*last-day` `*1st,last` | Repeat monthly on those days of the month |
+| `*2nd-tue` `*last-fri` `*first-mon` `*last-weekday` | Repeat monthly on an ordinal weekday |
 | `#urgent` `#important` (or `^u` `^i` `^ui`) | Urgent / important (Matrix) |
 | `… // notes` | Everything after `//` becomes notes |
 
@@ -113,6 +118,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `X` | Complete |
 | `T` `E` `R` `S` | Today, This Evening, Tomorrow, Someday |
 | `W` / `D` / `A` | When… / Deadline… / Reminder… |
+| `⇧W` | Repeat… (also on right-click and in an open to-do) |
 | `M` | Move to list |
 | `#` | Tag |
 | `U` / `I` | Urgent / important |
@@ -157,12 +163,17 @@ A fresh install starts empty — there is no demo data.
 
 A native shell ([Tauri](https://tauri.app)) around the same app, for **macOS** and **Arch Linux** (Omarchy / Hyprland). It adds a global quick-add hotkey with a floating quick-add window, a menu-bar / tray icon with sync status, reminders as native notifications even with the window closed, a macOS menu bar, launch at login, and `openthings://` links. Details and a test checklist: [docs/desktop.md](docs/desktop.md).
 
+The desktop app works on its own; to sync it with your phone or other computers, run the server from [Self-hosting](#self-hosting) and enter its URL in **Settings → Sync**.
+
 **macOS with [Homebrew](https://brew.sh)** (one universal build for Apple silicon and Intel):
 
 ```sh
 brew tap spuder/openthings
+brew trust spuder/openthings
 brew install --cask openthings
 ```
+
+Recent Homebrew versions refuse to load casks from untrusted taps, so the `brew trust` step must come before `brew install`. Without it the install fails with `Refusing to load cask ... from untrusted tap` and nothing is installed.
 
 The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings) and also puts the `openthings` CLI on your PATH. Update with `brew upgrade --cask openthings`.
 
@@ -170,7 +181,7 @@ The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebre
 
 **Nix** (Linux and macOS, Intel and ARM): `nix run github:spuder/OpenThings`, or `nix profile install github:spuder/OpenThings`. See [docs/nix.md](docs/nix.md).
 
-**macOS first launch:** the build isn't notarized yet, so macOS blocks it the first time. Open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
+**macOS first launch:** releases are signed and notarized. Builds from pull requests aren't, so macOS blocks them the first time: open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
 
 **Quick add from anywhere:** ⌃⌥Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Wayland apps can't grab global keys, so bind the CLI in Hyprland (Super+Space is Omarchy's launcher):
 
@@ -186,7 +197,7 @@ windowrule {
 }
 ```
 
-`openthings --add "Buy milk #errand"` adds without a window; `openthings://add?text=…` links work too. The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
+`openthings --add "Buy milk #errand"` adds without a window; `openthings://add?title=…` links work too, from Automator, Shortcuts or scripts ([docs/url-scheme.md](docs/url-scheme.md)). The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
 
 ## iOS app
 
@@ -195,6 +206,8 @@ windowrule {
 | ![Today on iPhone](docs/screenshots/phone-today.png) | ![Quick add on iPhone](docs/screenshots/phone-quickadd.png) | ![List drawer on iPhone](docs/screenshots/phone-lists.png) | ![Brain dump on iPhone](docs/screenshots/phone-dump.png) |
 
 The iPhone/iPad app is this same web app in a [Capacitor](https://capacitorjs.com) shell, plus native pieces: reminders scheduled as iOS notifications (they arrive with the app closed), Home and Lock Screen widgets (Today, sync status), a Share Sheet extension (to Inbox or Brain Dump), and Shortcuts/Siri actions (**Add To-Do** with quick-add syntax, **Open Today**). Data stays on the device, and syncs with your server if you turn sync on in Settings. Architecture and a device test checklist: [docs/ios.md](docs/ios.md). It isn't on the App Store yet, so for now you build it yourself.
+
+**Siri:** say "Add to OpenThings" and Siri asks what to add, or "Show my day in OpenThings" to open Today. Both actions are also in the Shortcuts app for your own shortcuts. Details: [Siri and Shortcuts](docs/ios.md#siri-and-shortcuts).
 
 **Android** is planned from the same Capacitor setup. If you'd like to test it, comment on [issue #6](https://github.com/spuder/OpenThings/issues/6).
 
@@ -212,12 +225,35 @@ In Xcode, check *Signing & Capabilities* on the **App**, **OpenThingsWidgets** a
 
 Images are published to GHCR by GitHub Actions on every push to `main` (`latest`, `sha-<short>`) and on `v*` tags (`1.2.3`, `1.2`), for `linux/amd64` and `linux/arm64`.
 
+```yaml
+# compose.yaml
+services:
+  openthings:
+    image: ghcr.io/spuder/openthings:latest
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      TZ: UTC # your time zone, e.g. America/Denver
+      # OPENTHINGS_PUBLIC_URL: https://openthings.example.ts.net
+    volumes:
+      - openthings-data:/data
+    labels:
+      - "docktail.service.enable=true"
+      - "docktail.service.name=openthings"
+      - "docktail.service.port=8080"
+      - "docktail.service.service-port=443"
+
+volumes:
+  openthings-data:
+```
+
 ```sh
-curl -O https://raw.githubusercontent.com/spuder/OpenThings/main/compose.yaml
 docker compose up -d
 ```
 
 `compose.yaml` pulls `ghcr.io/spuder/openthings:latest` and carries [DockTail](https://github.com/marvinvr/docktail) labels, so with DockTail running on the host the app appears at `https://openthings.<tailnet>.ts.net` with no published ports. Without DockTail, add `ports: ["8080:8080"]`. To build locally: `docker build -t openthings .`
+
+Set `OPENTHINGS_PUBLIC_URL` to the address your devices use (with DockTail, `https://openthings.<tailnet>.ts.net`; otherwise e.g. `http://192.168.1.10:8080`). The server reports it at `/api/health`, and the apps use it: the web app prefills it in Settings → Sync, and the phone pairing QR code carries it even when the computer showing the code reaches the server another way (say, `localhost`). The container can't find its tailnet name by itself, so this is the one setting to add. Leave it unset and everything else still works.
 
 The container is one [Bun](https://bun.sh) process that serves:
 
@@ -228,7 +264,7 @@ The container is one [Bun](https://bun.sh) process that serves:
 | `/api/v1/…` | REST API ([docs/api.md](docs/api.md)) |
 | `/mcp` | MCP endpoint (Streamable HTTP) for AI assistants ([docs/api.md](docs/api.md#mcp)) |
 
-To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the iOS app) and **Turn on sync**. Each device still keeps a full copy and works offline.
+To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the desktop and iOS apps) and **Turn on sync**. With `OPENTHINGS_PUBLIC_URL` set, the web app fills the URL in for you. To add a phone without typing the URL, press **Show QR code** there on a computer that syncs with the server, then **Scan QR code** in the iOS app's Settings → Sync. Each device still keeps a full copy and works offline.
 
 To connect Claude Code:
 
@@ -240,6 +276,7 @@ claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/m
 | --- | --- | --- |
 | Volume `/data` | | The server's SQLite database (`openthings.sqlite`). Back it up; it holds every device's changes. |
 | `TZ` | `UTC` | Time zone for "today" in the REST API and MCP tools, e.g. `America/Denver`. |
+| `OPENTHINGS_PUBLIC_URL` | | The address your devices use, e.g. `https://openthings.<tailnet>.ts.net`. Reported by `/api/health`; the web app prefills it in Settings → Sync and the phone pairing QR code carries it. |
 | `OPENTHINGS_ALLOWED_ORIGINS` | | Extra web origins allowed to call the API from a browser, comma-separated. The server's own origin and the iOS app always are. |
 | `PORT` | `8080` | |
 
@@ -253,7 +290,7 @@ Run the server locally with `npm run build && npm run server` (http://localhost:
 
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
-3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew and on Linux and macOS with Nix, see [Desktop app](#desktop-app). Next: signing and notarization, AUR, nixpkgs, Ubuntu/Fedora packages.
+3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew and on Linux and macOS with Nix, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, nixpkgs, Ubuntu/Fedora packages.
 4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Next: interactive widgets, then Android from the same Capacitor setup ([testers wanted](https://github.com/spuder/OpenThings/issues/6)).
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 

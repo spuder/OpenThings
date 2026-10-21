@@ -163,3 +163,30 @@ kbd {
   border-radius: 10px;
   border: 3px solid var(--bg);
 }
+
+/* Drag and drop of to-dos (src/lib/ui/drag.svelte.ts): a thin accent line where they will land. */
+.slot,
+[data-group] .items {
+  position: relative;
+}
+.drop-before::before,
+.drop-end::after {
+  content: '';
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.drop-before::before {
+  top: -1px;
+}
+.drop-end::after {
+  bottom: -1px;
+}
+html.dragging,
+html.dragging * {
+  cursor: grabbing !important;
+}

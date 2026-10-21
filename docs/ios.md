@@ -14,6 +14,21 @@ Status: **builds in CI (Simulator, unsigned); not yet tested on a device.** The 
 
 Everything iOS-specific is in `ios/` and `src/lib/native/`. The web, PWA and Docker builds don't load any of it (`Capacitor.isNativePlatform()` is false in a browser and the native module is a lazy import).
 
+## Siri and Shortcuts
+
+The app gives iOS two actions (App Intents, `ios/App/App/OpenThingsIntents.swift`). They show up in Siri, the Shortcuts app and Spotlight on their own once the app is installed and opened once; there's nothing to set up.
+
+| Say to Siri | What happens |
+| --- | --- |
+| "Add to OpenThings" or "Add a to-do in OpenThings" | Siri asks *What do you want to add?* and adds what you say as the title. Quick-add syntax (`@fri`, `%9am`, `#phone`) needs typing, so use it in the **Add To-Do** action in the Shortcuts app. |
+| "Show my day in OpenThings" or "Open Today in OpenThings" | Opens the app on Today. |
+
+- **Where it goes:** the Inbox, unless the text places it (`@today`, `+Project`). In the Shortcuts app, **Add To-Do** also has a **Brain Dump** switch.
+- **When it appears:** Siri doesn't open the app. The to-do is queued and added the next time you open OpenThings, then syncs as usual.
+- **Your own shortcuts:** in the Shortcuts app, search for OpenThings to use **Add To-Do** and **Open Today** as steps, for example from a Back Tap, an automation or a Home Screen icon. The *Open URLs* action with an [`openthings://` link](url-scheme.md) can open any list, or add a to-do with a title, list, date and tags.
+- **Needs** the App Group, so a paid Apple Developer account when you build the app yourself (see [Running on your iPhone](#running-on-your-iphone)).
+- **Not yet:** Siri can't read your list aloud or complete a to-do, and the phrase can't include the to-do itself ("Add buy milk to OpenThings"): Apple only allows fixed phrases, so Siri always asks.
+
 ## Architecture
 
 ```
@@ -90,7 +105,7 @@ Extensions can't run the web code or touch IndexedDB, so they queue work as file
 
 ### URL scheme
 
-`openthings://today`, `openthings://inbox`, `openthings://upcoming`, `openthings://dump`, `openthings://task/<id>`, `openthings://add?text=<quick-add text>` (opens quick add pre-filled). Widgets use these; so can your own Shortcuts ("Open URL").
+Widgets, notifications, App Intents and the pairing QR code open `openthings://` links, and so can your own Shortcuts (*Open URLs*): `openthings://today`, `openthings://task/<id>`, `openthings://add?title=…&when=…&list=…&save=1`, `openthings://pair?server=<url>`, … All links and parameters: [url-scheme.md](url-scheme.md). The app handles them in `src/lib/native/links.ts`.
 
 ### Native plugin
 
@@ -101,6 +116,7 @@ Extensions can't run the web code or touch IndexedDB, so they queue work as file
 | `writeSnapshot({ json })` | Writes `snapshot.json`, reloads widget timelines |
 | `takePending()` | `{ items, route }`, deleting what it returns |
 | `info()` | `{ appGroup, containerAvailable }` for Settings |
+| `scanQRCode()` | Opens a full-screen camera (`QRScannerViewController.swift`) and resolves `{ value }` with the first QR code; rejects with code `CANCELLED` or `DENIED` (camera access off) |
 | event `pendingChanged` | An extension queued something |
 
 ## Identifiers (change them in one place)
@@ -150,6 +166,8 @@ CI (`.github/workflows/ios.yml`) builds the App scheme (which builds and embeds 
 - [ ] Shortcuts app → OpenThings → **Add To-Do** with `Buy milk @tomorrow #shop`: next time the app opens it's in Upcoming tomorrow with the tag.
 - [ ] "Hey Siri, add a to-do in OpenThings".
 - [ ] Shortcuts → **Open Today**: the app opens on Today.
+- [ ] Settings → Sync → **Scan QR code**: iOS asks for camera access; scanning the code from desktop or web (Settings → Sync → Show QR code) fills in the server URL and the connection test passes. Cancel closes the camera without changes.
+- [ ] Scan that QR code with the Camera app instead: OpenThings opens on Settings with the server filled in.
 - [ ] Rotate / iPad: layout holds; safe areas respected (notch, home indicator).
 - [ ] External keyboard on iPad: shortcuts (`Q`, `J`/`K`, `X`) work.
 

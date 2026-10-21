@@ -1,6 +1,6 @@
 # Desktop app (Tauri)
 
-Status: **macOS and Arch Linux (Omarchy / Hyprland)**. Builds are unsigned (macOS: ad-hoc signed, not notarized). Ubuntu/Fedora packaging is on the backlog.
+Status: **macOS and Arch Linux (Omarchy / Hyprland)**. macOS releases are signed with a Developer ID and notarized ([below](#signing-and-notarization)); pull request builds are ad-hoc signed. Ubuntu/Fedora packaging is on the backlog.
 
 The desktop app is the same web app in a native window, plus what a browser can't do. Data stays local: SQLite in IndexedDB inside the app's webview (fixed origin `tauri://localhost`; on Linux the data lives in `~/.local/share/io.github.spuder.openthings/`), so it persists across launches and updates. It is separate from any browser's copy; use Export JSON in the browser and the sync server (when it ships) to move data.
 
@@ -36,7 +36,7 @@ src/lib/native/DesktopSettings.svelte  Settings → Desktop (only rendered in Ta
 - **Settings.** The hotkey is stored by the shell in `<config dir>/io.github.spuder.openthings/desktop.json`, not in the synced database, since it is per machine.
 - **Guarding.** `isDesktop` (`'__TAURI_INTERNALS__' in window`) gates every native path; the web, PWA and Docker builds behave as before. Shared web files touched: `main.ts` (pick window), `reminders.svelte.ts` (`notifier.native` hook), `QuickAdd.svelte` (optional `native` prop), `SettingsView.svelte` (Desktop section).
 
-Shell → web events: `ot://command`, `ot://add`, `ot://reveal`, `ot://sync-now`, `ot://will-quit`, `ot://quick-add-open` (quick-add window). Web → shell commands: `desktop_info`, `set_hotkey`, `set_autostart`, `set_sync_status`, `set_reminders`, `show_notification`, `submit_quick_add`, `hide_quick_add`, `show_main_window`, `quit_now`.
+Shell → web events: `ot://command`, `ot://add`, `ot://reveal`, `ot://open-url`, `ot://sync-now`, `ot://will-quit`, `ot://quick-add-open` (quick-add window). Web → shell commands: `desktop_info`, `set_hotkey`, `set_autostart`, `set_sync_status`, `set_reminders`, `show_notification`, `submit_quick_add`, `hide_quick_add`, `show_main_window`, `quit_now`.
 
 ## CLI and deep links
 
@@ -47,9 +47,12 @@ openthings --quick-add "Call dentist @fri"   # …prefilled
 openthings --add "Buy milk #errand %5pm"     # add directly, no window
 openthings --hidden                          # start in the tray (used by launch at login)
 xdg-open 'openthings://add?text=Buy%20milk'           # quick-add window, prefilled
-xdg-open 'openthings://add?text=Buy%20milk&save=1'    # add directly
+xdg-open 'openthings://add?title=Buy%20milk&save=1'   # add directly
+xdg-open 'openthings://today'                         # open a list
 xdg-open 'openthings://task/<task id>'                # open a task
 ```
+
+All links and their parameters (title, notes, when, deadline, tags, list): [url-scheme.md](url-scheme.md). The Rust shell only routes them: `add` links open the quick-add window (or, with `save=1`, go to the main window, which adds them), everything else goes to the main window as `ot://open-url`, where the web app parses it.
 
 A second launch hands its arguments to the running instance and exits.
 
@@ -82,24 +85,54 @@ windowrule {
 
 ## Install
 
-**macOS with Homebrew:** `brew install --cask spuder/openthings/openthings` (the [tap](https://github.com/spuder/homebrew-openthings) also links the `openthings` CLI). The same first-open step below applies.
+**macOS with Homebrew:** `brew tap spuder/openthings && brew trust spuder/openthings && brew install --cask openthings` (the [tap](https://github.com/spuder/homebrew-openthings) also links the `openthings` CLI).
 
-**macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. The build is not notarized, so the first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
+**macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. Releases and manual runs are notarized and open normally. Builds from pull requests are only ad-hoc signed, so their first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
 
-**Arch:** download `OpenThings-arch-x86_64` from the same run. Either run the AppImage, or install the package:
+**Arch:** run the AppImage from [Releases](https://github.com/spuder/OpenThings/releases), or install the package from a checkout (`makepkg` downloads the release tarball and checks it):
 
 ```sh
-# from a checkout, building from the release tarball the run produced
 cd packaging/arch/openthings-bin
-cp ~/Downloads/openthings-0.1.0-linux-x86_64.tar.gz .
 makepkg -si
 ```
 
-The `openthings` (source) and `openthings-bin` PKGBUILDs in `packaging/arch/` are ready for the AUR once a `v0.1.0` tag and release exist: run `updpkgsums` and `makepkg --printsrcinfo > .SRCINFO` first. CI checks that both build with `makepkg` in an `archlinux:latest` container and that `.SRCINFO` matches.
+To try a build from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) instead, download `OpenThings-arch-x86_64`, copy its `openthings-<version>-linux-x86_64.tar.gz` into `packaging/arch/openthings-bin/` and run `makepkg -si --skipchecksums` (its checksum differs from the release's).
+
+The `openthings` (source) and `openthings-bin` PKGBUILDs in `packaging/arch/` carry the checksums of the `v0.1.0` tag tarball and release asset. For a new release, bump `pkgver`, run `updpkgsums` and `makepkg --printsrcinfo > .SRCINFO`. CI checks that both build with `makepkg` in an `archlinux:latest` container (from this checkout's files, so with `--skipchecksums`) and that `.SRCINFO` matches.
 
 ## Releasing
 
-Bump `version` in `src-tauri/tauri.conf.json` (and `src-tauri/Cargo.toml`), then push a matching tag, e.g. `git tag v0.1.0 && git push origin v0.1.0`. The Desktop workflow's `release` job checks the tag matches the version, publishes a GitHub release with the `.dmg`, `.app.zip`, AppImage and Linux tarball, and pushes the new version and `.dmg` checksum to `Casks/openthings.rb` in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings). It pushes with a write deploy key on that repo, stored here as the `TAP_DEPLOY_KEY` secret; to rotate it, make a new key pair, replace the deploy key and the secret.
+Run `scripts/bump-version.sh X.Y.Z` (it updates `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` and the iOS `MARKETING_VERSION`), add a `CHANGELOG.md` entry, and open a `Release vX.Y.Z` PR. Merging it releases: the *Tag release* workflow sees the new version on `main`, checks the files agree, tags the commit `v<version>` and starts the Desktop and Container workflows on the tag. Don't push the tag yourself. (A matching tag pushed by hand still works; the workflow skips versions that are already tagged.) The Desktop workflow's `release` job refuses tags whose commit isn't on `main`, checks the tag matches the version, publishes a GitHub release with the `.dmg`, `.app.zip`, AppImage and Linux tarball, and pushes the new version and `.dmg` checksum to `Casks/openthings.rb` in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings). It pushes with a write deploy key on that repo, stored here as the `TAP_DEPLOY_KEY` secret; to rotate it, make a new key pair, replace the deploy key and the secret.
+
+## Signing and notarization
+
+The `macos` job signs and notarizes on `v*` tags and manual runs (Actions → Desktop → Run workflow) when these repository secrets exist. Pull requests and forks get ad-hoc signed builds, and the `release` job refuses to publish a tag whose macOS build wasn't notarized.
+
+| Secret | What |
+| --- | --- |
+| `APPLE_CERTIFICATE` | base64 of a `.p12` export of a **Developer ID Application** certificate and its private key |
+| `APPLE_CERTIFICATE_PASSWORD` | the password set when exporting the `.p12` |
+| `APP_STORE_CONNECT_API_KEY_ID` | App Store Connect API key ID (Developer role or higher) |
+| `APP_STORE_CONNECT_API_ISSUER_ID` | the key's issuer ID |
+| `APP_STORE_CONNECT_API_KEY_CONTENT` | contents of the key's `AuthKey_<id>.p8` |
+
+The API key secrets have the same names and values as in OpenSpool, so the same Apple Developer account and key can be reused. To set them up:
+
+1. **Certificate** (once per account): in Xcode → Settings → Accounts → Manage Certificates → + → *Developer ID Application* (needs the Account Holder), or at [developer.apple.com/account/resources/certificates](https://developer.apple.com/account/resources/certificates). In Keychain Access, under *My Certificates*, right-click *Developer ID Application: …* → Export → `.p12` with a password.
+2. Store them:
+
+   ```sh
+   base64 -i DeveloperID.p12 | gh secret set APPLE_CERTIFICATE --repo spuder/OpenThings
+   gh secret set APPLE_CERTIFICATE_PASSWORD --repo spuder/OpenThings
+   gh secret set APP_STORE_CONNECT_API_KEY_ID --repo spuder/OpenThings
+   gh secret set APP_STORE_CONNECT_API_ISSUER_ID --repo spuder/OpenThings
+   gh secret set APP_STORE_CONNECT_API_KEY_CONTENT --repo spuder/OpenThings < AuthKey_XXXXXXXXXX.p8
+   ```
+
+   GitHub secrets can't be read back, so copy the API key values from where you saved them for OpenSpool (or make a new key in App Store Connect → Users and Access → Integrations).
+3. Run the Desktop workflow by hand and check the *Notarize .dmg* step passes `spctl`.
+
+How it works: the job imports the certificate into a temporary keychain and passes its identity to Tauri as `APPLE_SIGNING_IDENTITY` (overriding the ad-hoc `"-"` in `tauri.conf.json`). With `APPLE_API_KEY` / `APPLE_API_ISSUER` / `APPLE_API_KEY_PATH` set, Tauri signs the `.app` with the hardened runtime, notarizes it and staples the ticket. Tauri doesn't notarize the `.dmg`, so the job signs, notarizes (`notarytool`) and staples it too, then deletes the keychain and key.
 
 ## Building
 
@@ -112,13 +145,13 @@ npm run tauri build -- --bundles appimage   # Linux
 npm run tauri build -- --target universal-apple-darwin --bundles app,dmg   # macOS
 ```
 
-Tray icons are drawn by `scripts/make-tray-icons.py`; app icons come from `public/icon-512.png` via `npx tauri icon`.
+Tray icons are drawn by `scripts/make-tray-icons.py`; app icons are generated from the logo by `scripts/make-app-icons.sh` (full-bleed for Linux and Windows, padded to Apple's icon grid for macOS).
 
 ## Manual test checklist
 
 macOS (not yet run on real hardware):
 
-- [ ] First launch: Gatekeeper "Open Anyway" works; window opens to an empty database (no demo data).
+- [ ] First launch of a notarized release opens without a Gatekeeper prompt; window opens to an empty database (no demo data).
 - [ ] Quit and relaunch: data, window size and position are kept.
 - [ ] ⌃⌥Space from another app opens the floating quick-add window; typing `Test @tomorrow %9am #x` previews tokens; ↵ adds it and the window hides; the to-do is in Upcoming with the tag and reminder. ⇧↵ adds and keeps the window open. Esc or clicking elsewhere hides it. Pressing ⌃⌥Space again hides it.
 - [ ] Settings → Desktop: record a new shortcut (e.g. ⌃⌥⌘T); the old one stops working, the new one works after relaunch. "Reset" and "Turn off" work. A shortcut taken by another app shows an error.
@@ -143,7 +176,6 @@ Arch / Hyprland:
 
 ## Not done yet / follow-ups
 
-- Code signing and notarization (Apple Developer ID).
 - Ubuntu/Fedora packages (.deb/.rpm), Flatpak.
 - A Windows build (the code compiles for Windows in principle; untested).
 - Auto-update (tauri-plugin-updater) once releases are signed.

@@ -5,6 +5,7 @@
  * and "Sync now". Network calls go through `transport`, so tests and native shells can swap it.
  */
 import * as db from '../db';
+import { normalizeUrl } from './pair';
 import { PROTOCOL_VERSION, type HealthResponse, type SyncRequest, type SyncResponse, type SyncState, type SyncStatus } from './protocol';
 
 export interface Transport {
@@ -43,12 +44,7 @@ export const httpTransport: Transport = {
   sync: (url, body) => request<SyncResponse>(`${url}/api/sync`, { method: 'POST', body: JSON.stringify(body) }),
 };
 
-export function normalizeUrl(input: string): string {
-  let u = input.trim();
-  if (!u) return '';
-  if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
-  return u.replace(/\/+$/, '');
-}
+export { normalizeUrl };
 
 const INTERVAL_MS = 30_000;
 const DEBOUNCE_MS = 1_500;
@@ -163,6 +159,9 @@ export class SyncEngine {
       // A different server starts from scratch: pull everything, push everything.
       db.metaSet('sync.cursor', null);
       db.metaSet('sync.pushed_seq', '0');
+      // "Last sync" (and phone pairing, which waits for one) refers to the new server only.
+      this.lastSyncedAt = null;
+      db.metaSet('sync.last_ok', null);
     }
     this.serverUrl = u;
     this.enabled = enabled && !!u;

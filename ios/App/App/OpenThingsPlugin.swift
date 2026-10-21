@@ -1,6 +1,7 @@
 // Bridge between the web app (src/lib/native/capacitor.svelte.ts) and the App Group.
 // JS name: "OpenThingsNative". Registered in OpenThingsViewController.
 
+import AVFoundation
 import Capacitor
 import Foundation
 import WidgetKit
@@ -13,6 +14,7 @@ public class OpenThingsPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "writeSnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "takePending", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "info", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "scanQRCode", returnType: CAPPluginReturnPromise),
     ]
 
     override public func load() {
@@ -75,5 +77,40 @@ public class OpenThingsPlugin: CAPPlugin, CAPBridgedPlugin {
             "appGroup": OTShared.appGroup,
             "containerAvailable": OTShared.containerURL != nil,
         ])
+    }
+
+    /// Phone pairing: open the camera, resolve with the first QR code it reads.
+    @objc func scanQRCode(_ call: CAPPluginCall) {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            presentScanner(call)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                if granted {
+                    self.presentScanner(call)
+                } else {
+                    call.reject("Camera access is off. Allow it in Settings → OpenThings → Camera.", "DENIED")
+                }
+            }
+        default:
+            call.reject("Camera access is off. Allow it in Settings → OpenThings → Camera.", "DENIED")
+        }
+    }
+
+    private func presentScanner(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let presenter = self.bridge?.viewController else {
+                call.reject("The app isn't ready to show the camera.")
+                return
+            }
+            let scanner = QRScannerViewController { outcome in
+                switch outcome {
+                case .scanned(let value): call.resolve(["value": value])
+                case .cancelled: call.reject("Scan cancelled", "CANCELLED")
+                case .failed(let message): call.reject(message)
+                }
+            }
+            presenter.present(scanner, animated: true)
+        }
     }
 }

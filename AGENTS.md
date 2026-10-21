@@ -68,6 +68,13 @@ npm run tauri dev  # desktop app (needs Rust; see docs/desktop.md)
 npx cap sync ios   # copy the build into the iOS project (open it in Xcode on a Mac)
 ```
 
+## Releasing
+
+Releases are automatic once a version bump merges to `main`; never push a `v*` tag by hand. Steps, details and how to check the result: `.claude/skills/release/SKILL.md` and `docs/desktop.md#releasing`.
+
+1. `scripts/bump-version.sh X.Y.Z`, add a `CHANGELOG.md` entry, open a `Release vX.Y.Z` PR.
+2. Merge it after checks pass. The *Tag release* workflow tags it, then Desktop notarizes, publishes the GitHub release and bumps the Homebrew cask (spuder/homebrew-openthings); Container publishes the image.
+
 ## Code map
 
 | Path | Purpose |

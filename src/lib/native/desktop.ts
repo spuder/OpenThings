@@ -56,6 +56,8 @@ export interface DesktopInfo {
 export const desktopInfo = () => invoke<DesktopInfo>('desktop_info');
 export const setHotkey = (hotkey: string) => invoke('set_hotkey', { hotkey });
 export const setAutostart = (enabled: boolean) => invoke<boolean>('set_autostart', { enabled });
+/** The webview can't open external links itself; this opens README#self-hosting in the browser. */
+export const openSelfHostingDocs = () => invoke('open_self_hosting_docs');
 
 /** Short label for the tray tooltip and menu, like the in-app sync badge. */
 export function syncLabel(s: SyncState): string {
@@ -113,6 +115,8 @@ interface MainHooks {
   /** Add a to-do from quick-add text (same parser and store as the in-app quick add). */
   add(text: string): void;
   reveal(taskId: string): void;
+  /** Open an `openthings://` link (lists, tasks, add links); see links.ts. */
+  openUrl(url: string): void;
   runCommand(id: string): void;
   syncNow(): Promise<void>;
   subscribeSync(fn: (s: SyncState) => void): () => void;
@@ -138,6 +142,7 @@ export function setupMainWindow(notifier: { useNative(n: NativeNotifier): void }
   void listen<string>('ot://command', (id) => hooks().runCommand(id));
   void listen<string>('ot://add', (text) => hooks().add(text));
   void listen<string>('ot://reveal', (id) => hooks().reveal(id));
+  void listen<string>('ot://open-url', (url) => hooks().openUrl(url));
   void listen('ot://sync-now', () => void hooks().syncNow());
   void listen('ot://will-quit', async () => {
     try {

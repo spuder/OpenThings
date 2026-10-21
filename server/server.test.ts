@@ -42,6 +42,12 @@ describe('sync', () => {
     expect(r.body).toEqual({ ok: true, server: 'openthings', protocol: 0, version: 'test' });
   });
 
+  it('reports the public URL when one is set', async () => {
+    const app = createApp({ db: new ServerDb(), version: 'test', publicUrl: 'https://openthings.tail1234.ts.net' });
+    const res = await app(new Request('http://ot.test/api/health', { headers: { host: 'ot.test' } }));
+    expect(await res.json()).toMatchObject({ server: 'openthings', publicUrl: 'https://openthings.tail1234.ts.net' });
+  });
+
   it('relays ops between devices, not back to the sender', async () => {
     const { call, db } = setup();
     const a = await sync(call, 'devA', [op('devA', 'tasks', 't1', 'insert', task('t1', 'Milk'))]);
@@ -197,6 +203,34 @@ describe('REST API', () => {
     const { body: t } = await call('POST', '/api/v1/tasks', { text: 'Stretch *daily #health' });
     const r = await call('POST', `/api/v1/tasks/${t.id}/complete`);
     expect(r.body.next).toMatchObject({ title: 'Stretch', when_date: '2026-10-19', tags: ['health'], completed_at: null });
+  });
+
+  it('repeats on weekdays and ordinal weekdays like the app, and counts down COUNT', async () => {
+    const { call } = setup();
+    // Today is Sunday 2026-10-18: a Mon/Thu repeat starts tomorrow.
+    const { body: t } = await call('POST', '/api/v1/tasks', { text: 'Water plants *mon,thu' });
+    expect(t).toMatchObject({ when_date: '2026-10-19', repeat: 'Weekly on Mon, Thu' });
+    const r = await call('POST', `/api/v1/tasks/${t.id}/complete`);
+    expect(r.body.next).toMatchObject({ when_date: '2026-10-22', rrule: t.rrule });
+
+    const { body: rent } = await call('POST', '/api/v1/tasks', { title: 'Pay rent', repeat: 'FREQ=MONTHLY;BYDAY=-1FR;COUNT=2' });
+    expect(rent).toMatchObject({ when_date: '2026-10-30', rrule: 'FREQ=MONTHLY;INTERVAL=1;BYDAY=-1FR;COUNT=2', repeat: 'Monthly on the last Friday, 2 times' });
+    const first = await call('POST', `/api/v1/tasks/${rent.id}/complete`);
+    expect(first.body.next).toMatchObject({ when_date: '2026-11-27', rrule: 'FREQ=MONTHLY;INTERVAL=1;BYDAY=-1FR;COUNT=1', repeat: 'Monthly on the last Friday, last time' });
+    const last = await call('POST', `/api/v1/tasks/${first.body.next.id}/complete`);
+    expect(last.body.next).toBeNull();
+  });
+
+  it('stops at UNTIL, rejects bad rules and clears with null', async () => {
+    const { call } = setup();
+    const { body: t } = await call('POST', '/api/v1/tasks', { title: 'Sprint review', when: '2026-10-23', repeat: 'FREQ=WEEKLY;INTERVAL=2;UNTIL=20261105' });
+    expect((await call('POST', `/api/v1/tasks/${t.id}/complete`)).body.next).toBeNull();
+    expect((await call('POST', '/api/v1/tasks', { title: 'x', repeat: 'FREQ=HOURLY' })).status).toBe(400);
+    expect((await call('POST', '/api/v1/tasks', { title: 'x', repeat: '*sometimes' })).status).toBe(400);
+    const { body: u } = await call('POST', '/api/v1/tasks', { text: 'Invoice *1st,15th' });
+    expect(u).toMatchObject({ when_date: '2026-11-01', repeat: 'Monthly on the 1st and 15th' });
+    const cleared = await call('PATCH', `/api/v1/tasks/${u.id}`, { repeat: null });
+    expect(cleared.body).toMatchObject({ rrule: null, repeat: null });
   });
 
   it('moves out of the brain dump', async () => {

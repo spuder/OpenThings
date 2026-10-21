@@ -4,6 +4,7 @@
   import { store, type Group } from '../store.svelte';
   import TaskRow from './TaskRow.svelte';
   import Icon from './Icon.svelte';
+  import { dropLine } from './drag.svelte';
 
   let { groups, showWhen = false, showContainer = false, empty = 'Nothing here.' }: {
     groups: Group[];
@@ -23,7 +24,7 @@
 {/if}
 
 {#each groups as g (g.key)}
-  <section class="group" class:titled={!!g.title}>
+  <section class="group" class:titled={!!g.title} data-group={g.key}>
     {#if g.title}
       <header class:evening={g.key === 'evening'}>
         {#if g.key === 'evening'}<Icon name="evening" size={15} />{/if}
@@ -31,9 +32,9 @@
         {#if g.subtitle}<span class="sub">{g.subtitle}</span>{/if}
       </header>
     {/if}
-    <div class="items" role="listbox" aria-label={g.title ?? store.viewTitle}>
+    <div class="items" class:drop-end={dropLine(g.key, null)} role="listbox" aria-multiselectable={store.isMulti} aria-label={g.title ?? store.viewTitle}>
       {#each g.items as t (t.id)}
-        <div animate:flip={{ duration: 220 }} in:slide={{ duration: 180 }} out:slide={{ duration: 160 }}>
+        <div class="slot" class:drop-before={dropLine(g.key, t.id)} animate:flip={{ duration: 220 }} in:slide={{ duration: 180 }} out:slide={{ duration: 160 }}>
           <TaskRow task={t} {showWhen} showContainer={showContainer && g.key !== t.project_id} />
         </div>
       {/each}
@@ -68,6 +69,10 @@
   .sub {
     font-size: 12.5px;
     color: var(--text-3);
+  }
+  .items {
+    /* Something to drop on when a group (an empty heading) has no rows. */
+    min-height: 8px;
   }
   .empty {
     display: grid;

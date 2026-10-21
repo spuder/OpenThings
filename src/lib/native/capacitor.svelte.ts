@@ -8,6 +8,8 @@
  *   - Opens the task when a notification is tapped, and handles `openthings://…` links from widgets.
  *   - Writes a small JSON snapshot (Today, upcoming reminders, sync state) to the App Group for widgets.
  *   - Reports the on-screen keyboard height so lists and quick add stay above it.
+ *   - Scans the pairing QR code from another device's Settings (`scanQrCode`) and opens
+ *     `openthings://pair` links in Settings → Sync.
  *   - Imports to-dos that the Share extension or Shortcuts left in the App Group, through
  *     `store.addParsed`, so they land in the op log like any other write.
  *
@@ -25,7 +27,8 @@ import type { ID, ViewKey } from '../types';
 import type { Parsed } from '../parse';
 import type { Area, Project, Task } from '../types';
 import { nativeStatus } from './status.svelte';
-import { buildSnapshot, MAX_SCHEDULED, notificationId, parseRoute, pendingToParsed, type PendingItem } from './snapshot';
+import { buildSnapshot, MAX_SCHEDULED, notificationId, pendingToParsed, type PendingItem } from './snapshot';
+import { openRoute } from './links';
 
 interface NativeShared {
   /** Write the widget snapshot into the App Group and reload widget timelines. */
@@ -34,10 +37,22 @@ interface NativeShared {
   takePending(): Promise<{ items: PendingItem[]; route: string | null }>;
   /** Diagnostics for Settings. */
   info(): Promise<{ appGroup: string; containerAvailable: boolean }>;
+  /** Open the camera and return the first QR code it reads. Rejects with code CANCELLED or DENIED. */
+  scanQRCode(): Promise<{ value: string }>;
   addListener(event: 'pendingChanged', fn: () => void): Promise<{ remove: () => Promise<void> }>;
 }
 
 const Shared = registerPlugin<NativeShared>('OpenThingsNative');
+
+/** Scan a QR code with the camera. Null when the user closes the scanner. */
+export async function scanQrCode(): Promise<string | null> {
+  try {
+    return (await Shared.scanQRCode()).value;
+  } catch (e) {
+    if ((e as { code?: string }).code === 'CANCELLED') return null;
+    throw e;
+  }
+}
 
 /** The slice of the store this module uses (keeps the import graph one-way). */
 export interface NativeStoreApi {
@@ -148,16 +163,6 @@ export async function startNative(store: NativeStoreApi) {
   });
 
   // ---- deep links from widgets and Shortcuts ----
-  const openRoute = (url: string) => {
-    const r = parseRoute(url);
-    if (!r) return;
-    if (r.kind === 'task') store.reveal(r.id);
-    else if (r.kind === 'view') store.go({ kind: r.view });
-    else {
-      store.quickAddPrefill = r.text;
-      store.overlay = 'quickadd';
-    }
-  };
   await App.addListener('appUrlOpen', (e) => openRoute(e.url));
 
   // ---- extension → app import ----

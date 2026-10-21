@@ -23,6 +23,9 @@
   import { classifySwipe, swipeIgnored } from './lib/gesture';
   import { installKeyboardInset } from './lib/keyboard';
   import ThemePicker from './lib/ui/ThemePicker.svelte';
+  import SelectionBar from './lib/ui/SelectionBar.svelte';
+  import { drag } from './lib/ui/drag.svelte';
+  import RepeatEditor from './lib/ui/RepeatEditor.svelte';
 
   store.init().then(() => store.start());
   installKeyboardInset();
@@ -40,6 +43,11 @@
   }
   function onTouchEnd(e: TouchEvent) {
     if (!touch) return;
+    // A long-press or drag of a to-do isn't a swipe.
+    if (drag.active || Date.now() - drag.endedAt < 400) {
+      touch = null;
+      return;
+    }
     const p = e.changedTouches[0];
     const swipe = classifySwipe(p.clientX - touch.x, p.clientY - touch.y, e.timeStamp - touch.t);
     const atTop = touch.atTop;
@@ -50,18 +58,33 @@
   }
 
   // Tapping or clicking outside an open to-do closes it. A drag (scrolling) doesn't count.
-  let outside: { x: number; y: number } | null = null;
+  // A click or tap outside: closes the open to-do, or clears a multi-selection when it lands on
+  // empty space in the list (not on a to-do, a control or the selection bar).
+  let outside: { x: number; y: number; clear: 'open' | 'multi' } | null = null;
   function onPointerDown(e: PointerEvent) {
     const t = e.target instanceof Element ? e.target : null;
-    outside = store.expandedId && !store.overlay && t && !t.closest('.task.expanded, [role="dialog"], [role="menu"]')
-      ? { x: e.clientX, y: e.clientY }
-      : null;
+    outside = null;
+    if (!t || store.overlay) return;
+    if (store.expandedId) {
+      if (!t.closest('.task.expanded, [role="dialog"], [role="menu"]')) outside = { x: e.clientX, y: e.clientY, clear: 'open' };
+    } else if (store.isMulti && t.closest('main .scroll') && !t.closest('.task, button, a, input, textarea, select, .selbar, [role="dialog"], [role="menu"]')) {
+      outside = { x: e.clientX, y: e.clientY, clear: 'multi' };
+    }
   }
   function onPointerUp(e: PointerEvent) {
     if (!outside) return;
     const moved = Math.hypot(e.clientX - outside.x, e.clientY - outside.y);
+    const clear = outside.clear;
     outside = null;
-    if (moved > 10 || !store.expandedId) return;
+    if (moved > 10) return;
+    if (clear === 'multi') {
+      // Not the end of a drag (a drop on empty space is refused, and keeps the selection).
+      if (drag.active || Date.now() - drag.endedAt < 400 || !store.isMulti) return;
+      store.clearMulti();
+      store.selectedId = null;
+      return;
+    }
+    if (!store.expandedId) return;
     // Blur first so the open to-do's fields save, as Escape does.
     const active = document.activeElement;
     if (active instanceof HTMLElement && active.closest('.task.expanded')) active.blur();
@@ -162,6 +185,7 @@
         </div>
       </div>
 
+      {#if store.isMulti && store.canMulti}<SelectionBar />{/if}
       <BottomBar />
     </main>
   </div>
@@ -172,10 +196,18 @@
   {#if store.overlay === 'focus'}<FocusView />{/if}
   {#if store.overlay === 'find'}<QuickFind />{/if}
   {#if store.overlay === 'themes'}<ThemePicker />{/if}
+  {#if store.overlay === 'repeat'}<RepeatEditor />{/if}
+
+  {#if drag.active}
+    {@const first = store.task(drag.ids[0] ?? null)}
+    <div class="drag-ghost" class:refused={drag.target !== null && !drag.target.ok} style:transform={`translate(${drag.x + 14}px, ${drag.y + 10}px)`} aria-hidden="true">
+      {drag.ids.length === 1 ? (first?.title ?? 'To-do') : `${drag.ids.length} to-dos`}
+    </div>
+  {/if}
 
   {#if store.toast}
     {#key store.toast.id}
-      <div class="toast" in:fly={{ y: 10, duration: 160 }} out:fade={{ duration: 200 }}>{store.toast.text}</div>
+      <div class="toast" class:above-bar={store.isMulti && store.canMulti} in:fly={{ y: 10, duration: 160 }} out:fade={{ duration: 200 }}>{store.toast.text}</div>
     {/key}
   {/if}
 {:else}
@@ -319,6 +351,34 @@
     font-weight: 500;
     z-index: 30;
     box-shadow: var(--card-shadow);
+  }
+  /* Phones: the selection bar sits across the bottom, so messages go above it. */
+  @media (max-width: 760px) {
+    .toast.above-bar {
+      bottom: calc(76px + env(safe-area-inset-bottom));
+    }
+  }
+  .drag-ghost {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 40;
+    pointer-events: none;
+    max-width: 260px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background: var(--card);
+    color: var(--text);
+    box-shadow: var(--card-shadow), 0 0 0 1px var(--line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: opacity 0.12s;
+  }
+  .drag-ghost.refused {
+    opacity: 0.55;
   }
   .menu-btn {
     display: grid;

@@ -1,8 +1,11 @@
 name: Desktop
 
 # Builds the Tauri desktop app (src-tauri/):
-#   - macOS: universal (Apple silicon + Intel) .app and .dmg, ad-hoc signed, not notarized
-#   - Arch Linux (Omarchy): release binary tarball + AppImage, and checks both AUR PKGBUILDs build
+#   - macOS: universal (Apple silicon + Intel) .app and .dmg. On v* tags and manual runs they're
+#     signed with the Developer ID certificate and notarized (secrets below); PR builds stay
+#     ad-hoc signed. See docs/desktop.md#signing-and-notarization.
+#   - Arch Linux (Omarchy): release binary tarball + AppImage, Rust unit tests, and checks both
+#     AUR PKGBUILDs build, in parallel jobs (arch, arch-test, arch-aur)
 # Bundles are uploaded as workflow artifacts. A v* tag also publishes them as a GitHub release and
 # bumps the Homebrew cask (see the release job).
 on:
@@ -16,9 +19,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Packages every Arch Linux job installs (build, tests, AUR source package).
+  ARCH_DEPS: >-
+    base-devel git rust nodejs npm
+    webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg xdotool openssl
+    curl wget file patchelf squashfs-tools namcap sudo
+
 jobs:
   macos:
     runs-on: macos-latest
+    outputs:
+      notarized: ${{ steps.sign.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,13 +44,96 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
+
+      # Sign and notarize on v* tags and manual runs, when the Apple secrets exist (forks and PRs
+      # get ad-hoc builds). Secrets: APPLE_CERTIFICATE (base64 .p12 of a "Developer ID
+      # Application" certificate), APPLE_CERTIFICATE_PASSWORD, and the App Store Connect API key
+      # APP_STORE_CONNECT_API_KEY_ID / _ISSUER_ID / _CONTENT (the .p8), same names as OpenSpool.
+      - name: Import Developer ID certificate
+        id: sign
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          set -eu
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] || [ -z "$APPLE_CERTIFICATE" ] || [ -z "$API_KEY_ID" ]; then
+            echo "Not signing: ad-hoc build."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          umask 077
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          kc_pass="$(openssl rand -hex 24)"
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$kc_pass" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$kc_pass" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kc_pass" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          rm "$RUNNER_TEMP/cert.p12"
+          identity="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application: .*\)"/\1/p' | head -1)"
+          if [ -z "$identity" ]; then
+            echo "::error::APPLE_CERTIFICATE has no \"Developer ID Application\" identity."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s\n' "$API_KEY_CONTENT" > "$RUNNER_TEMP/private_keys/AuthKey_$API_KEY_ID.p8"
+          echo "Signing as: $identity"
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+          echo "keychain=$keychain" >> "$GITHUB_OUTPUT"
+
+      # With APPLE_SIGNING_IDENTITY (overrides the ad-hoc "-" in tauri.conf.json) and the API key,
+      # Tauri signs the .app with the hardened runtime, notarizes it and staples the ticket.
       - name: Build universal .app and .dmg
-        run: npx tauri build --target universal-apple-darwin --bundles app,dmg
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ steps.sign.outputs.identity }}
+          APPLE_API_KEY: ${{ steps.sign.outputs.enabled == 'true' && secrets.APP_STORE_CONNECT_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ steps.sign.outputs.enabled == 'true' && secrets.APP_STORE_CONNECT_API_ISSUER_ID || '' }}
+          APPLE_API_KEY_PATH: ${{ steps.sign.outputs.enabled == 'true' && format('{0}/private_keys/AuthKey_{1}.p8', runner.temp, secrets.APP_STORE_CONNECT_API_KEY_ID) || '' }}
+        run: |
+          # Empty variables would still count as set; drop them for ad-hoc builds.
+          for v in APPLE_SIGNING_IDENTITY APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          npx tauri build --target universal-apple-darwin --bundles app,dmg
+
+      # Tauri only notarizes the .app; sign, notarize and staple the .dmg too so it opens offline
+      # without a Gatekeeper prompt.
+      - name: Notarize .dmg
+        if: steps.sign.outputs.enabled == 'true'
+        env:
+          IDENTITY: ${{ steps.sign.outputs.identity }}
+          KEYCHAIN: ${{ steps.sign.outputs.keychain }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          set -eu
+          bundle=src-tauri/target/universal-apple-darwin/release/bundle
+          dmg="$(ls "$bundle"/dmg/*.dmg)"
+          codesign --force --timestamp --keychain "$KEYCHAIN" --sign "$IDENTITY" "$dmg"
+          xcrun notarytool submit "$dmg" --wait --timeout 30m \
+            --key "$RUNNER_TEMP/private_keys/AuthKey_$API_KEY_ID.p8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID"
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$bundle/macos/OpenThings.app"
+          xcrun stapler validate "$dmg"
+          spctl --assess --type execute -vv "$bundle/macos/OpenThings.app"
+          spctl --assess --type open --context context:primary-signature -vv "$dmg"
+
+      - name: Remove signing keychain and API key
+        if: always() && steps.sign.outputs.enabled == 'true'
+        run: |
+          security delete-keychain "${{ steps.sign.outputs.keychain }}" || true
+          rm -rf "$RUNNER_TEMP/private_keys"
+
       - name: Collect bundles
         run: |
           mkdir -p out
           cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg out/
-          # Zip the .app with ditto so permissions and the ad-hoc signature survive.
+          # Zip the .app with ditto so permissions, the signature and the stapled ticket survive.
           ditto -c -k --keepParent src-tauri/target/universal-apple-darwin/release/bundle/macos/OpenThings.app out/OpenThings-macos-universal.app.zip
           codesign -dv --verbose=2 src-tauri/target/universal-apple-darwin/release/bundle/macos/OpenThings.app || true
           ls -la out
@@ -48,6 +143,10 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  # Arch Linux runs as three jobs side by side, each on GitHub's Ubuntu runner in an
+  # archlinux:latest container (GitHub has no Arch runners): `arch` builds the release binary,
+  # AppImage and openthings-bin package; `arch-test` runs the Rust unit tests; `arch-aur` builds
+  # the from-source `openthings` AUR package, which compiles everything again on its own.
   arch:
     runs-on: ubuntu-latest
     container: archlinux:latest
@@ -58,11 +157,7 @@ jobs:
       APPIMAGE_EXTRACT_AND_RUN: '1'
     steps:
       - name: Install build dependencies
-        run: |
-          pacman -Syu --noconfirm --needed \
-            base-devel git rust nodejs npm \
-            webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg xdotool openssl \
-            curl wget file patchelf squashfs-tools namcap sudo
+        run: pacman -Syu --noconfirm --needed ${{ env.ARCH_DEPS }}
       - uses: actions/checkout@v4
       - name: Version
         id: v
@@ -71,8 +166,6 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
-      - name: Rust unit tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
       - name: Build release binary and AppImage
         run: npx tauri build --bundles appimage
       - name: Release tarball (input of openthings-bin)
@@ -87,7 +180,7 @@ jobs:
           path: out/*
           if-no-files-found: error
 
-      - name: Check PKGBUILDs (makepkg as an unprivileged user)
+      - name: Check the openthings-bin PKGBUILD (makepkg as an unprivileged user)
         run: |
           set -eux
           ver="${{ steps.v.outputs.version }}"
@@ -95,33 +188,86 @@ jobs:
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
           work=/home/builder/pkg
           mkdir -p "$work"
-          cp -r packaging/arch/openthings packaging/arch/openthings-bin "$work/"
+          cp -r packaging/arch/openthings-bin "$work/"
           # makepkg uses an existing source file instead of downloading it: stand in for the
-          # not-yet-published v$ver tag tarball and release asset with this checkout's files.
-          tar --exclude=./node_modules --exclude=./src-tauri/target --exclude=./.git --exclude=./out \
-              --transform "s,^\.,OpenThings-$ver," -czf "$work/openthings/openthings-$ver.tar.gz" .
+          # published release asset with this build's tarball. Its checksum differs from the real
+          # download, so the build skips checksum verification.
           cp "out/openthings-$ver-linux-x86_64.tar.gz" "$work/openthings-bin/"
           chown -R builder: /home/builder
-          for p in openthings-bin openthings; do
-            cd "$work/$p"
-            # .SRCINFO must match the PKGBUILD.
-            sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
-            sudo -u builder makepkg -s --noconfirm --cleanbuild
-            namcap PKGBUILD *.pkg.tar.zst || true
-            pacman -Qlp *.pkg.tar.zst
-          done
-          cd "$work/openthings-bin" && pacman -U --noconfirm *.pkg.tar.zst && test -x /usr/bin/openthings
+          cd "$work/openthings-bin"
+          # .SRCINFO must match the PKGBUILD.
+          sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
+          sudo -u builder makepkg -s --noconfirm --cleanbuild --skipchecksums
+          namcap PKGBUILD *.pkg.tar.zst || true
+          pacman -Qlp *.pkg.tar.zst
+          pacman -U --noconfirm *.pkg.tar.zst && test -x /usr/bin/openthings
+
+  arch-test:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: pacman -Syu --noconfirm --needed ${{ env.ARCH_DEPS }}
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Rust unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+  arch-aur:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: pacman -Syu --noconfirm --needed ${{ env.ARCH_DEPS }}
+      - uses: actions/checkout@v4
+      - name: Check the openthings PKGBUILD (from source; makepkg as an unprivileged user)
+        run: |
+          set -eux
+          ver="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          work=/home/builder/pkg
+          mkdir -p "$work"
+          cp -r packaging/arch/openthings "$work/"
+          # makepkg uses an existing source file instead of downloading it: stand in for the
+          # published v$ver tag tarball with this checkout's files. Its checksum differs from the
+          # real download, so the build skips checksum verification.
+          tar --exclude=./node_modules --exclude=./src-tauri/target --exclude=./.git \
+              --transform "s,^\.,OpenThings-$ver," -czf "$work/openthings/openthings-$ver.tar.gz" .
+          chown -R builder: /home/builder
+          cd "$work/openthings"
+          # .SRCINFO must match the PKGBUILD.
+          sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
+          sudo -u builder makepkg -s --noconfirm --cleanbuild --skipchecksums
+          namcap PKGBUILD *.pkg.tar.zst || true
+          pacman -Qlp *.pkg.tar.zst
 
   # On a v* tag: publish a GitHub release with the bundles, then bump the Homebrew cask in
   # spuder/homebrew-openthings (pushed with the TAP_DEPLOY_KEY deploy key).
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [macos, arch]
+    needs: [macos, arch, arch-test, arch-aur]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Require a notarized macOS build
+        if: needs.macos.outputs.notarized != 'true'
+        run: |
+          echo "::error::The macOS build wasn't signed and notarized; set the Apple secrets (docs/desktop.md#signing-and-notarization)."
+          exit 1
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Only commits that reached main (through a reviewed merge) are released, whoever pushed the tag.
+      - name: Require the tag to be on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) isn't on main; only commits merged to main are released."
+            exit 1
+          fi
       - name: Version
         id: v
         run: |

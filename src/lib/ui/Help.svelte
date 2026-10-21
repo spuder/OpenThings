@@ -9,6 +9,9 @@
       ['Next / previous', 'J / K'],
       ['First / last', 'G G / ⇧G'],
       ['Close / deselect', 'Esc'],
+      ['Extend selection', '⇧↑ / ⇧↓'],
+      ['Select a range / one more', `⇧ click / ${keyLabel('mod')} click`],
+      ['Pick / unpick (selection mode)', 'Space'],
     ],
     App: [['Command palette', keyLabel('mod+k')]],
   };
@@ -24,6 +27,9 @@
     ['%9am %in30m %fri-9am', 'Reminder'],
     ['~30m  ~1h30m', 'Time estimate'],
     ['*daily *weekly *weekdays *2w', 'Repeat'],
+    ['*mon,thu *2w-mon,thu', 'Repeat on days of the week'],
+    ['*1st,15th *last-day', 'Repeat on days of the month'],
+    ['*2nd-tue *last-fri', 'Repeat on a weekday of the month'],
     ['^u ^i ^ui', 'Urgent / important'],
     ['… // notes', 'Notes after //'],
   ];

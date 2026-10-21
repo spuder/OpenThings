@@ -16,7 +16,8 @@ Status: **implemented.** Client in `src/lib/sync/`, server in `server/` (Bun + S
 
 ```
 GET  /api/health
-  -> { "ok": true, "server": "openthings", "protocol": 0, "version": "x.y.z" }
+  -> { "ok": true, "server": "openthings", "protocol": 0, "version": "x.y.z", "publicUrl": "https://…" }
+     publicUrl only when OPENTHINGS_PUBLIC_URL is set
 
 POST /api/sync
   <- { "protocol": 0, "device": "a1b2c3d4e5f6", "cursor": "<opaque>" | null, "ops": [Op, …] }
@@ -28,7 +29,7 @@ POST /api/sync
 - Malformed ops (bad HLC, table or column names that aren't identifiers, non-scalar values) are ignored; the rest of the request still applies. A different `protocol` is rejected with 400.
 - Auth: none in v0. The server is only reachable on the tailnet (DockTail). Device tokens are planned before anything is exposed more widely.
 - Browsers: requests with an `Origin` other than the server's own, the native shells (`capacitor://localhost`, Tauri) and `localhost` are refused with 403 unless listed in `OPENTHINGS_ALLOWED_ORIGINS`.
-- The web app is served by the same container, so the default server URL can be the page's own origin ("Use this site" in Settings).
+- The web app is served by the same container, so the default server URL can be the page's own origin ("Use this site" in Settings), or `publicUrl` when the server reports one.
 
 ## Server
 
@@ -54,6 +55,10 @@ POST /api/sync
 | `error` | Server unreachable or rejected the request (reason shown) |
 
 Changing the server URL resets the cursor and re-pushes all local ops to the new server.
+
+### Pairing a phone
+
+Settings → Sync → **Show QR code** (desktop and web) shows this device's sync server as a QR code holding `openthings://pair?server=<url>`. If the server sets `OPENTHINGS_PUBLIC_URL`, `/api/health` reports it as `publicUrl` and the code carries that address instead of the one this device uses (Settings asks the sync server, or this site when the container serves the web app; the web app also prefills the Server URL field with it). It's only available once sync is on and has succeeded at least once with that server, and never for `localhost` addresses, which a phone can't reach; until then Settings says why, and links to [Self-hosting](../README.md#self-hosting) when there's no server. Changing the server URL clears *Last sync*, so pairing waits for the new server. It's generated on the device (`uqr`), so the address isn't sent anywhere. In the iOS app, Settings → Sync → **Scan QR code** opens the camera; the scanned server fills the Server URL field and is tested, then you tap *Turn on sync*. Scanning with the iPhone Camera app opens the same link and does the same. A plain `http(s)://` URL in a QR code works too. Nothing secret is in the code: sync has no auth yet. Parsing lives in `src/lib/sync/pair.ts`.
 
 ## Native shells (Tauri desktop, Capacitor mobile)
 

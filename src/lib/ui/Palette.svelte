@@ -2,6 +2,7 @@
   import { fade, fly } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { commands, keyLabel } from '../commands';
+  import { viewEnabled } from '../features.svelte';
   import { parseDateWord, parseReminder, reminderLabel } from '../parse';
   import { notifier } from '../reminders.svelte';
   import { parseSchedule, scheduleToString, type HabitSchedule } from '../views';
@@ -87,7 +88,21 @@
           store.each(targets, 'move', (id) => store.moveToDumpSection(id, sectionId));
           store.notify(`Moved${many} to ${name}`);
         };
-        const out: Item[] = [{ label: 'Inbox', run: () => moveTo('Inbox', { inbox: true }) }];
+        // Top-level lists first, only those turned on in Settings → Features. Upcoming and This Week
+        // need a day, so they open When for the same to-dos.
+        const toWhen = () => {
+          store.paletteMode = { kind: 'when' };
+          store.overlay = 'palette';
+        };
+        const out: Item[] = [
+          { label: 'Inbox', hint: 'List', run: () => store.moveToList(targets, 'inbox') },
+          { label: 'Today', hint: 'List', run: () => store.moveToList(targets, 'today') },
+          ...(viewEnabled('week') ? [{ label: 'This Week', hint: 'List · pick a day', run: toWhen }] : []),
+          { label: 'Upcoming', hint: 'List · pick a day', run: toWhen },
+          { label: 'Anytime', hint: 'List', run: () => store.moveToList(targets, 'anytime') },
+          { label: 'Someday', hint: 'List', run: () => store.moveToList(targets, 'someday') },
+          ...(viewEnabled('dump') && !first.dump ? [{ label: 'Brain Dump', hint: 'List · deleted after 48h unless kept', run: () => store.moveToList(targets, 'dump') }] : []),
+        ];
         for (const a of store.areas) {
           out.push({ label: a.name, hint: 'Area', run: () => moveTo(a.name, { area_id: a.id }) });
           for (const p of store.projects.filter((p) => p.area_id === a.id && !p.completed_at)) {
@@ -97,7 +112,7 @@
         for (const p of store.projects.filter((p) => !p.area_id && !p.completed_at)) {
           out.push({ label: p.name, hint: 'Project', run: () => moveTo(p.name, { project_id: p.id }) });
         }
-        if (first.dump) {
+        if (first.dump && viewEnabled('dump')) {
           out.push({ label: 'Brain Dump', hint: 'No section', run: () => toDump('Brain Dump', null) });
           for (const s of store.dumpSections) out.push({ label: `Brain Dump / ${s.name}`, hint: 'Section', run: () => toDump(`Brain Dump / ${s.name}`, s.id) });
         }

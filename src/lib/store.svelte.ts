@@ -75,6 +75,9 @@ function norm(s: string) {
   return s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
 }
 
+/** Top-level lists a to-do can be moved to directly (see `moveToList`). */
+export type MoveList = 'inbox' | 'today' | 'anytime' | 'someday' | 'dump';
+
 class Store {
   ready = $state(false);
   areas = $state<Area[]>([]);
@@ -991,8 +994,49 @@ class Store {
 
   /** Whether dropping `ids` on a sidebar list does something. */
   acceptsDrop(v: ViewKey): boolean {
-    if (this.isView(v)) return false;
-    return ['inbox', 'today', 'someday', 'logbook', 'trash', 'project', 'area'].includes(v.kind);
+    if (this.isView(v) || !viewEnabled(v.kind)) return false;
+    return ['inbox', 'today', 'anytime', 'someday', 'dump', 'logbook', 'trash', 'project', 'area'].includes(v.kind);
+  }
+
+  /**
+   * Move to-dos to a top-level list, as one undo step: the Move palette and dropping on the sidebar.
+   * Lists that need a day (Upcoming, This Week) go through When instead. Brain Dump only while
+   * that feature is on.
+   */
+  moveToList(ids: ID[], list: MoveList) {
+    if (!ids.length || (list === 'dump' && !viewEnabled('dump'))) return;
+    const now = new Date().toISOString();
+    this.each(ids, 'move', (id) => {
+      const t = this.task(id);
+      if (!t) return;
+      const out = t.dump ? { dump: 0, dump_section_id: null } : {};
+      switch (list) {
+        case 'inbox':
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 0, project_id: null, area_id: null, heading_id: null }, 'move');
+          break;
+        case 'today':
+          this.update(id, { ...out, when_date: this.day, evening: 0, someday: 0 }, 'move');
+          break;
+        case 'anytime':
+          // Anytime keeps the project or area; a to-do in neither lands in the Inbox (said below).
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 0 }, 'move');
+          break;
+        case 'someday':
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 1 }, 'move');
+          break;
+        case 'dump':
+          // Brain Dump deletes unchecked items 48h after created_at; restart the clock so an older
+          // to-do isn't purged the moment it arrives.
+          if (!t.dump) this.update(id, { dump: 1, dump_section_id: null, created_at: now }, 'move');
+          break;
+      }
+    });
+    const n = ids.length === 1 ? '' : ` ${ids.length} to-dos`;
+    const name = { inbox: 'Inbox', today: 'Today', anytime: 'Anytime', someday: 'Someday', dump: 'Brain Dump' }[list];
+    const loose = list === 'anytime' ? ids.filter((id) => { const t = this.task(id); return t && !t.project_id && !t.area_id; }).length : 0;
+    if (loose === ids.length) this.notify(`Moved${n} to Inbox: Anytime needs a project or area`);
+    else if (loose) this.notify(`Moved${n} to Anytime; ${loose} without a project or area went to the Inbox`);
+    else this.notify(list === 'dump' ? `Moved${n} to Brain Dump; ${ids.length === 1 ? 'it goes' : 'they go'} in 48 hours unless kept` : `Moved${n} to ${name}`);
   }
 
   /** Drag and drop onto a sidebar list: schedule, move, complete or trash every dragged to-do. One undo step. */
@@ -1001,16 +1045,11 @@ class Store {
     const n = ids.length === 1 ? '' : ` ${ids.length} to-dos`;
     switch (v.kind) {
       case 'inbox':
-        this.each(ids, 'move', (id) => this.setWhen(id, { date: null, evening: false, someday: false, inbox: true }));
-        this.notify(`Moved${n} to Inbox`);
-        break;
       case 'today':
-        this.each(ids, 'date change', (id) => this.setToday(id));
-        this.notify(`Moved${n} to Today`);
-        break;
+      case 'anytime':
       case 'someday':
-        this.each(ids, 'date change', (id) => this.setSomeday(id));
-        this.notify(`Moved${n} to Someday`);
+      case 'dump':
+        this.moveToList(ids, v.kind);
         break;
       case 'logbook': {
         const open = ids.filter((id) => !this.task(id)?.completed_at);

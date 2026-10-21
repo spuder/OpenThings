@@ -78,6 +78,10 @@ describe('nextOccurrence: daily and weekly', () => {
   it('daily rules can be limited to weekdays', () => {
     expect(nextOccurrence('FREQ=DAILY;BYDAY=SA,SU', '2026-10-19')).toBe('2026-10-24');
   });
+  it('weekly rules can be limited to months', () => {
+    expect(nextOccurrence('FREQ=WEEKLY;BYMONTH=1;BYDAY=MO', '2026-01-25')).toBe('2026-01-26');
+    expect(nextOccurrence('FREQ=WEEKLY;BYMONTH=1;BYDAY=MO', '2026-01-26')).toBe('2027-01-04');
+  });
 });
 
 describe('nextOccurrence: monthly', () => {
@@ -145,6 +149,11 @@ describe('nextOccurrence: yearly, COUNT and UNTIL', () => {
     // 4th Thursday of November: Nov 26 2026, Nov 25 2027.
     expect(nextOccurrence('FREQ=YEARLY;BYMONTH=11;BYDAY=4TH', REF)).toBe('2026-11-26');
     expect(nextOccurrence('FREQ=YEARLY;BYMONTH=11;BYDAY=4TH', '2026-11-26')).toBe('2027-11-25');
+  });
+  it('yearly month days and weekdays apply across the year without BYMONTH', () => {
+    expect(nextOccurrence('FREQ=YEARLY;BYMONTHDAY=1', REF)).toBe('2026-11-01');
+    expect(nextOccurrence('FREQ=YEARLY;BYDAY=MO', REF)).toBe('2026-10-19');
+    expect(nextOccurrence('FREQ=YEARLY;BYDAY=1MO', REF)).toBe('2027-01-04');
   });
   it('COUNT is what is left: the last one has no next', () => {
     expect(nextOccurrence('FREQ=DAILY;COUNT=1', REF)).toBeNull();

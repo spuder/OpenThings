@@ -212,7 +212,9 @@ function candidates(r: Rule, p: number, anchor: string): string[] {
     case 'WEEKLY': {
       const monday = addDays(EPOCH, p * 7);
       const days = r.byDay.length ? uniq(r.byDay.map((x) => x.day)) : [a.getDay()];
-      const dates = days.map((d) => addDays(monday, dayOrder(d))).sort();
+      const dates = days.map((d) => addDays(monday, dayOrder(d)))
+        .filter((date) => !r.byMonth.length || r.byMonth.includes(parseYmd(date).getMonth() + 1))
+        .sort();
       return pick(dates, r.bySetPos);
     }
     case 'MONTHLY': {
@@ -222,8 +224,35 @@ function candidates(r: Rule, p: number, anchor: string): string[] {
       return pick(monthDays(r, y, m0, a.getDate()).map((d) => dateOf(y, m0, d)), r.bySetPos);
     }
     case 'YEARLY': {
-      const months = r.byMonth.length ? [...r.byMonth].sort((x, y) => x - y) : [a.getMonth() + 1];
-      const dates = months.flatMap((m) => monthDays(r, p, m - 1, a.getDate()).map((d) => dateOf(p, m - 1, d)));
+      const months = r.byMonth.length
+        ? [...r.byMonth].sort((x, y) => x - y)
+        : r.byMonthDay.length || r.byDay.length
+          ? Array.from({ length: 12 }, (_, i) => i + 1)
+          : [a.getMonth() + 1];
+      const annualOrdinal = !r.byMonth.length && r.byDay.some((x) => x.n !== 0);
+      let dates = months.flatMap((m) => monthDays(
+        annualOrdinal ? { ...r, byDay: [] } : r,
+        p,
+        m - 1,
+        a.getDate(),
+      ).map((d) => dateOf(p, m - 1, d)));
+      if (annualOrdinal) {
+        const weekdays = new Set<string>();
+        for (const { day, n } of r.byDay) {
+          const matching = months.flatMap((m) =>
+            Array.from({ length: daysIn(p, m - 1) }, (_, i) => dateOf(p, m - 1, i + 1))
+              .filter((date) => parseYmd(date).getDay() === day),
+          );
+          if (n === 0) matching.forEach((date) => weekdays.add(date));
+          else {
+            const date = n > 0 ? matching[n - 1] : matching[matching.length + n];
+            if (date) weekdays.add(date);
+          }
+        }
+        dates = r.byMonthDay.length
+          ? dates.filter((date) => weekdays.has(date))
+          : [...weekdays].sort();
+      }
       return pick(dates, r.bySetPos);
     }
   }

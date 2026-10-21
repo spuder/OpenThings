@@ -134,6 +134,21 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
   store.overlay = 'palette';
 }
 
+/** Right-click menu for a to-do: its Task commands, shown in the palette like the list menu. */
+export function openTaskMenu(id: string) {
+  const t = store.task(id);
+  if (!t) return;
+  store.selectedId = id;
+  store.paletteMode = {
+    kind: 'choose',
+    label: t.title,
+    options: commands
+      .filter((c) => c.group === 'Task' && !c.hidden && applicable(c))
+      .map((c) => ({ label: c.title, hint: c.keys[0] ? keyLabel(c.keys[0]) : undefined, run: c.run })),
+  };
+  store.overlay = 'palette';
+}
+
 const nav = (title: string, v: ViewKey, n: number | null, letter: string): Command => ({
   id: `go.${v.kind}`,
   title: `Go to ${title}`,
@@ -280,6 +295,7 @@ export const commands: Command[] = [
   { id: 'task.when', title: 'When…', group: 'Task', keys: ['w'], when: hasTargets, run: () => openPalette('when') },
   { id: 'task.deadline', title: 'Deadline…', group: 'Task', keys: ['d'], when: hasTargets, run: () => openPalette('deadline') },
   { id: 'task.reminder', title: 'Reminder…', group: 'Task', keys: ['a'], when: hasTask, run: () => openPalette('reminder') },
+  { id: 'task.repeat', title: 'Repeat…', group: 'Task', keys: ['shift+w'], when: hasTask, run: () => (store.overlay = 'repeat') },
   { id: 'task.move', title: 'Move to…', group: 'Task', keys: ['m'], when: hasTargets, run: () => openPalette('move') },
   { id: 'task.tag', title: 'Add tag…', group: 'Task', keys: ['#', 'l'], when: hasTask, run: () => openPalette('tag') },
   { id: 'task.urgent', title: 'Toggle urgent', group: 'Task', keys: ['u'], when: hasTask, run: withTask((id) => { store.toggleUrgent(id); store.notify(sel()?.urgent ? 'Marked urgent' : 'Not urgent'); }) },

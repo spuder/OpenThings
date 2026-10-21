@@ -9,12 +9,14 @@
  *   !fri !2026-11-02                                deadline
  *   ~30m ~1h ~1h30m                                 time estimate
  *   *daily *weekly *monthly *yearly *weekdays *2d *3w   repeat
+ *   *mon,thu *2w-mon,thu *1st,15th *last-fri *2nd-tue  repeat on days (see parseRepeat)
  *   ^u ^i ^ui  (or #urgent #important)              Eisenhower: urgent / important
  *   %9am %18:30 %fri-9am %tomorrow-8am %in30m %in2h   reminder (notification)
  *   title // notes                                  everything after // becomes notes
  */
 import * as chrono from 'chrono-node';
 import { addDays, addMonths, nextWeekday, parseYmd, today as todayFn, weekdayIndex, ymd } from './dates';
+import { advance, describe, emptyRule, firstDate, formatRule, nextDate, parseRule, pinRule, WEEKDAYS, type Rule } from './rrule';
 
 export interface When {
   date: string | null;
@@ -91,44 +93,101 @@ export function parseEstimate(s: string): number | null {
   return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0);
 }
 
+const ORDINAL_WORDS: Record<string, number> = {
+  '1st': 1, first: 1, '2nd': 2, second: 2, '3rd': 3, third: 3, '4th': 4, fourth: 4, '5th': 5, fifth: 5, last: -1,
+};
+const isDayName = (w: string) => DAY_NAMES.test(w);
+const ruleText = (r: Partial<Rule> & { freq: Rule['freq'] }) => formatRule({ ...emptyRule(r.freq), ...r });
+
+/**
+ * Quick-add repeat syntax (after `*`) to an RRULE string, or null:
+ *   daily weekly monthly yearly weekdays weekends   2d 3w 2m 1y (every N days/weeks/months/years)
+ *   mon  mon,thu  2w-mon,thu                         weekly on those days (every 2 weeks)
+ *   15th  1st,15th  1st,last  last-day               monthly on those days of the month
+ *   2nd-tue  last-fri  first-mon  last-weekday       monthly on an ordinal weekday
+ */
 export function parseRepeat(s: string): string | null {
-  const w = s.toLowerCase();
+  const w = s.toLowerCase().trim();
   const named: Record<string, string> = {
     daily: 'FREQ=DAILY;INTERVAL=1',
     weekly: 'FREQ=WEEKLY;INTERVAL=1',
     monthly: 'FREQ=MONTHLY;INTERVAL=1',
     yearly: 'FREQ=YEARLY;INTERVAL=1',
-    weekdays: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+    annually: 'FREQ=YEARLY;INTERVAL=1',
+    weekdays: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR',
+    weekends: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=SA,SU',
   };
   if (named[w]) return named[w];
-  const m = /^(\d+)([dwmy])$/.exec(w);
-  if (!m) return null;
-  const freq = { d: 'DAILY', w: 'WEEKLY', m: 'MONTHLY', y: 'YEARLY' }[m[2] as 'd' | 'w' | 'm' | 'y'];
-  return `FREQ=${freq};INTERVAL=${Number(m[1])}`;
-}
-
-export function describeRule(rrule: string): string {
-  if (rrule.includes('BYDAY=MO,TU,WE,TH,FR')) return 'Weekdays';
-  const freq = /FREQ=(\w+)/.exec(rrule)?.[1] ?? 'DAILY';
-  const n = Number(/INTERVAL=(\d+)/.exec(rrule)?.[1] ?? 1);
-  const unit = { DAILY: 'day', WEEKLY: 'week', MONTHLY: 'month', YEARLY: 'year' }[freq] ?? 'day';
-  if (n === 1) return { DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', YEARLY: 'Yearly' }[freq] ?? 'Repeats';
-  return `Every ${n} ${unit}s`;
-}
-
-/** Next date for a rule, counted from `from` (the completed occurrence's date or today). */
-export function nextOccurrence(rrule: string, from: string): string {
-  if (rrule.includes('BYDAY=MO,TU,WE,TH,FR')) {
-    let d = addDays(from, 1);
-    while ([0, 6].includes(parseYmd(d).getDay())) d = addDays(d, 1);
-    return d;
+  const every = /^(\d+)([dwmy])$/.exec(w);
+  if (every) {
+    const n = Number(every[1]);
+    if (n < 1) return null;
+    const freq = ({ d: 'DAILY', w: 'WEEKLY', m: 'MONTHLY', y: 'YEARLY' } as const)[every[2] as 'd' | 'w' | 'm' | 'y'];
+    return `FREQ=${freq};INTERVAL=${n}`;
   }
-  const freq = /FREQ=(\w+)/.exec(rrule)?.[1] ?? 'DAILY';
-  const n = Number(/INTERVAL=(\d+)/.exec(rrule)?.[1] ?? 1);
-  if (freq === 'WEEKLY') return addDays(from, 7 * n);
-  if (freq === 'MONTHLY') return addMonths(from, n);
-  if (freq === 'YEARLY') return addMonths(from, 12 * n);
-  return addDays(from, n);
+  // Weekly on days: "mon,thu", optionally every N weeks: "2w-mon,thu".
+  const weekly = /^(?:(\d+)w-)?([a-z]+(?:,[a-z]+)*)$/.exec(w);
+  if (weekly && weekly[2].split(',').every(isDayName)) {
+    const interval = Number(weekly[1] ?? 1);
+    if (interval < 1) return null;
+    return ruleText({ freq: 'WEEKLY', interval, byDay: weekly[2].split(',').map((d) => ({ day: weekdayIndex(d), n: 0 })) });
+  }
+  // Monthly on an ordinal weekday: "2nd-tue", "last-fri", "last-weekday", "last-day".
+  const ord = /^([a-z0-9]+)-([a-z]+)$/.exec(w);
+  if (ord && ORDINAL_WORDS[ord[1]] !== undefined) {
+    const n = ORDINAL_WORDS[ord[1]];
+    if (isDayName(ord[2])) return ruleText({ freq: 'MONTHLY', byDay: [{ day: weekdayIndex(ord[2]), n }] });
+    if (ord[2] === 'weekday') return ruleText({ freq: 'MONTHLY', byDay: WEEKDAYS.map((day) => ({ day, n: 0 })), bySetPos: [n] });
+    if (ord[2] === 'day') return ruleText({ freq: 'MONTHLY', byMonthDay: [n] });
+    return null;
+  }
+  // Monthly on days of the month: "15th", "1st,15th", "1st,last".
+  const days = w.split(',');
+  if (days.every((d) => d === 'last' || /^([1-9]|[12]\d|3[01])(st|nd|rd|th)$/.test(d))) {
+    return ruleText({ freq: 'MONTHLY', byMonthDay: days.map((d) => (d === 'last' ? -1 : parseInt(d, 10))) });
+  }
+  return null;
+}
+
+/** Readable label: "Weekdays", "Every 2 weeks on Mon, Thu", "Monthly on the last Friday". */
+export function describeRule(rrule: string, ref: string = todayFn()): string {
+  const r = parseRule(rrule);
+  return r ? describe(r, ref) : 'Repeats';
+}
+
+/**
+ * Next date for a rule after `from` (the completed occurrence's date, or today if that's later).
+ * `anchor` is the completed to-do's own date, so "every 2 weeks" keeps to its weeks. Null when the
+ * repeat has ended (COUNT used up, past UNTIL) or the rule can't be read.
+ */
+export function nextOccurrence(rrule: string, from: string, anchor: string = from): string | null {
+  const r = parseRule(rrule);
+  return r ? nextDate(r, from, anchor) : null;
+}
+
+/**
+ * What completing a repeating to-do creates: the next date and the rule the new to-do carries
+ * (COUNT one lower; otherwise the same text). Null when the repeat has ended. Used by the app and the server.
+ */
+export function nextRepeat(rrule: string, from: string, anchor: string = from): { date: string; rrule: string } | null {
+  const r = parseRule(rrule);
+  const next = r && advance(r, from, anchor);
+  if (!next) return null;
+  return { date: next.date, rrule: r.count === null ? rrule : formatRule(next.rule) };
+}
+
+/** Where a new repeating to-do starting at `start` goes: the first matching day on or after it. */
+export function firstOccurrence(rrule: string, start: string): string | null {
+  const r = parseRule(rrule);
+  return r ? firstDate(r, start) : null;
+}
+
+/** pinRule (see rrule.ts) for stored text: unchanged unless the start day needs pinning. */
+export function pinRepeat(rrule: string, start: string): string {
+  const r = parseRule(rrule);
+  if (!r) return rrule;
+  const pinned = pinRule(r, start);
+  return pinned === r ? rrule : formatRule(pinned);
 }
 
 /**
@@ -263,7 +322,7 @@ export function parseQuickAdd(input: string, ref: string = todayFn(), now: Date 
       const rule = parseRepeat(body);
       if (rule) {
         out.rrule = rule;
-        out.tokens.push({ text: raw, kind: 'repeat', label: describeRule(rule) });
+        out.tokens.push({ text: raw, kind: 'repeat', label: describeRule(rule, ref) });
         continue;
       }
     }
@@ -283,8 +342,15 @@ export function parseQuickAdd(input: string, ref: string = todayFn(), now: Date 
   }
 
   out.title = words.join(' ').trim();
-  // A repeating task with no start date starts today.
-  if (out.rrule && !out.when) out.when = { date: ref, evening: false, someday: false, inbox: false };
+  if (out.rrule) {
+    // A repeating task with no start date starts on its first matching day from today.
+    if (!out.when) out.when = { date: firstOccurrence(out.rrule, ref) ?? ref, evening: false, someday: false, inbox: false };
+    if (out.when.date) {
+      out.rrule = pinRepeat(out.rrule, out.when.date);
+      const tok = out.tokens.find((t) => t.kind === 'repeat');
+      if (tok) tok.label = describeRule(out.rrule, ref);
+    }
+  }
   if (reminderSpec) {
     // A bare time ("%9am") applies to the task's scheduled day, else today.
     const at = parseReminder(reminderSpec.spec, out.when?.date ?? ref, now);

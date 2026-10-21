@@ -59,6 +59,7 @@
 
 - **Lists:** Inbox, Today with This Evening, Upcoming, Anytime, Someday, Logbook.
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
+- **Repeating to-dos:** every N days, weeks, months or years; chosen days of the week; days of the month (the 1st and 15th, the last day) or an ordinal weekday (the 2nd Tuesday, the last Friday); ending never, after N times or on a date. Set it in quick add (`*mon,thu`) or in the repeat editor (`⇧W`, the repeat button on an open to-do, or right-click), which previews the next dates. Checking one off schedules the next.
 - **This Week** (optional, off by default): everything scheduled or due from today through Sunday, grouped by day; overdue items fold into today. `G W` to open.
 - **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default) and This Week (off).
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
@@ -94,7 +95,11 @@
 | `!fri` | Deadline |
 | `%9am` `%18:30` `%in30m` `%fri-9am` | Reminder |
 | `~30m` `~1h30m` | Time estimate |
-| `*daily` `*weekly` `*weekdays` `*2w` | Repeat |
+| `*daily` `*weekly` `*monthly` `*yearly` `*weekdays` `*weekends` | Repeat |
+| `*2d` `*3w` `*2m` `*1y` | Repeat every N days, weeks, months, years |
+| `*mon,thu` `*fri` `*2w-mon,thu` | Repeat weekly on those days (every 2 weeks) |
+| `*1st,15th` `*15th` `*last-day` `*1st,last` | Repeat monthly on those days of the month |
+| `*2nd-tue` `*last-fri` `*first-mon` `*last-weekday` | Repeat monthly on an ordinal weekday |
 | `#urgent` `#important` (or `^u` `^i` `^ui`) | Urgent / important (Matrix) |
 | `… // notes` | Everything after `//` becomes notes |
 
@@ -113,6 +118,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `X` | Complete |
 | `T` `E` `R` `S` | Today, This Evening, Tomorrow, Someday |
 | `W` / `D` / `A` | When… / Deadline… / Reminder… |
+| `⇧W` | Repeat… (also on right-click and in an open to-do) |
 | `M` | Move to list |
 | `#` | Tag |
 | `U` / `I` | Urgent / important |

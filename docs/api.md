@@ -21,7 +21,7 @@ All bodies are JSON. Errors are `{"error": "…"}` with status 400 (bad input), 
 | GET | `/api/v1/tasks/:id` | One to-do. |
 | POST | `/api/v1/tasks` | Create. `{"text": "…"}` is parsed like quick add; or send fields (below). Fields win over the text. |
 | PATCH | `/api/v1/tasks/:id` | Change fields. `null` clears a date, deadline, reminder or repeat. |
-| POST | `/api/v1/tasks/:id/complete` | Check off. A repeating to-do returns `next`, its next occurrence. |
+| POST | `/api/v1/tasks/:id/complete` | Check off. A repeating to-do returns `next`, its next occurrence (`null` once its COUNT or UNTIL has run out). |
 | POST | `/api/v1/tasks/:id/uncomplete` | Un-check. |
 | POST | `/api/v1/tasks/:id/move` | `{"project": "…"}`, `{"area": "…"}`, `{"inbox": true}` or `{"dump": true}`. Leaving the Brain Dump makes it permanent. |
 | DELETE | `/api/v1/tasks/:id` | Move to the Trash (restorable for 30 days). |
@@ -39,7 +39,7 @@ Fields for create and update:
 | `when` | `today`, `tonight`, `tomorrow`, `fri`, `next-week`, `in3d`, `someday`, `anytime`, `inbox`, `2026-11-02` | `inbox` on update also clears the project and area. |
 | `deadline` | `fri`, `2026-11-02` | |
 | `reminder` | `9am`, `fri 9am`, `in 30m`, ISO timestamp | A bare time lands on the to-do's day. |
-| `repeat` | `daily`, `weekly`, `weekdays`, `2w` | |
+| `repeat` | `daily`, `weekly`, `weekdays`, `2w`, `mon,thu`, `1st,15th`, `last-fri`, `FREQ=MONTHLY;BYDAY=2TU` | Quick-add repeat words or an RFC 5545 RRULE (FREQ, INTERVAL, BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS, COUNT, UNTIL). `null` stops repeating. |
 | `project`, `area` | `"Health"` | An existing one, by name or id. (Quick-add `+Name` creates a project, as in the app.) |
 | `tags` | `["phone"]` | Replaces all tags. Update also takes `add_tags` and `remove_tags`. |
 | `urgent`, `important` | `true` | Eisenhower flags. |

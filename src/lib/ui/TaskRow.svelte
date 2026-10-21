@@ -8,10 +8,15 @@
   import Icon from './Icon.svelte';
   import Checkbox from './Checkbox.svelte';
   import { isTouch } from '../env';
+  import { drag, draggable } from './drag.svelte';
+  import { isMac } from '../commands';
 
   let { task, showWhen = false, showContainer = false }: { task: Task; showWhen?: boolean; showContainer?: boolean } = $props();
 
-  const selected = $derived(store.selectedId === task.id);
+  const selected = $derived(store.isPicked(task.id));
+  /** Keyboard cursor inside a multi-selection (Shift+arrows, selection mode). */
+  const cursor = $derived(store.isMulti && store.selectedId === task.id);
+  const dragging = $derived(drag.active && drag.ids.includes(task.id));
   const expanded = $derived(store.expandedId === task.id);
   const done = $derived(task.completed_at !== null);
   const tags = $derived(store.tagsFor(task.id));
@@ -27,19 +32,29 @@
   let newItem = $state('');
 
   $effect(() => {
-    if (selected && el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (store.selectedId === task.id && el && !drag.active) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
   $effect(() => {
     if (expanded && titleInput) titleInput.focus({ preventScroll: true });
   });
 
-  function select() {
+  function select(e: MouseEvent) {
+    if (expanded) return;
+    // Selection mode (long-press on touch, or V): taps and clicks pick rows.
+    if (store.selecting) return store.toggleSelect(task.id);
+    if (e.shiftKey) return store.selectRange(task.id);
+    if (isMac ? e.metaKey : e.ctrlKey) return store.toggleSelect(task.id);
+    if (store.isMulti) store.clearMulti();
     // Touch has no double click: a tap opens the task; taps inside an open task are left alone.
     if (isTouch) {
-      if (!expanded) toggleOpen();
+      toggleOpen();
       return;
     }
     store.selectedId = task.id;
+  }
+  function openOnDouble(e: MouseEvent) {
+    if (store.selecting || e.shiftKey || e.metaKey || e.ctrlKey) return;
+    toggleOpen();
   }
   function toggleOpen() {
     store.selectedId = task.id;
@@ -80,6 +95,9 @@
 <div
   class="task"
   class:selected
+  class:cursor
+  class:picking={store.selecting}
+  class:dragging
   class:expanded
   class:done
   bind:this={el}
@@ -88,8 +106,9 @@
   aria-selected={selected}
   tabindex="-1"
   onclick={select}
-  ondblclick={toggleOpen}
+  ondblclick={openOnDouble}
   onkeydown={() => {}}
+  {@attach draggable(task.id)}
 >
   <div class="row">
     <Checkbox checked={done} onToggle={() => store.toggleComplete(task.id)} urgent={!!task.urgent && !!task.important} />
@@ -202,6 +221,19 @@
       margin 0.2s var(--ease);
     cursor: default;
     user-select: none;
+    -webkit-user-select: none;
+    /* Long-press picks the row; no iOS callout. */
+    -webkit-touch-callout: none;
+  }
+  .task.cursor:not(.expanded) {
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .task.dragging {
+    opacity: 0.45;
+  }
+  /* In selection mode a tap anywhere on the row picks it, including where the checkbox is. */
+  .task.picking :global(.box) {
+    pointer-events: none;
   }
   .task.selected:not(.expanded) {
     background: var(--select);

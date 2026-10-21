@@ -6,6 +6,7 @@
   import { openListMenu, prompt } from '../commands';
   import { fly } from 'svelte/transition';
   import { viewEnabled } from '../features.svelte';
+  import { dropOn } from './drag.svelte';
 
   let newListOpen = $state(false);
   function newList(kind: 'project' | 'area') {
@@ -51,7 +52,7 @@
 {#snippet navRow(item: NavItem)}
   {@const n = item.count ? store.openCount(item.v) : 0}
   <li>
-    <button class="row" class:active={store.isView(item.v)} onclick={() => store.go(item.v)}>
+    <button class="row" class:active={store.isView(item.v)} class:drop-ok={dropOn(item.v) === 'ok'} data-drop-view={JSON.stringify(item.v)} onclick={() => store.go(item.v)}>
       <Icon name={item.icon} />
       <span class="label">{item.label}</span>
       {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
@@ -80,7 +81,7 @@
       <ul>
         {#each looseProjects as p (p.id)}
           <li class="has-menu">
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
@@ -93,7 +94,7 @@
     {#each store.areas as a (a.id)}
       <ul class="area">
         <li class="has-menu">
-          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
+          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
             <Icon name="area" />
             <span class="label">{a.name}</span>
           </button>
@@ -101,7 +102,7 @@
         </li>
         {#each projectsIn(a.id) as p (p.id)}
           <li class="has-menu">
-            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
@@ -185,6 +186,11 @@
   }
   .row.active {
     background: var(--sidebar-active);
+  }
+  /* A list that will take the to-dos being dragged. */
+  .row.drop-ok {
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1.5px var(--accent);
   }
   .label {
     flex: 1;

@@ -1,7 +1,7 @@
 import { SvelteSet } from 'svelte/reactivity';
 import * as db from './db';
 import { addDays, longLabel, relLabel, shiftReminder, today as todayFn } from './dates';
-import { nextOccurrence, parseHabit, type Parsed, type When } from './parse';
+import { describeRule, firstOccurrence, nextRepeat, parseHabit, type Parsed, type When } from './parse';
 import * as sound from './sound';
 import type {
   Area,
@@ -40,7 +40,7 @@ export interface Group {
   items: Task[];
 }
 
-export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes';
+export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes' | 'repeat';
 
 export interface FocusSession {
   taskId: ID;
@@ -771,14 +771,18 @@ class Store {
       } else if (t.dump) sound.playScratch();
       else sound.playComplete();
       if (this.tracking?.taskId === id) this.stopTracking();
-      if (t.rrule) {
-        const from = t.when_date && t.when_date > this.day ? t.when_date : this.day;
-        const next = nextOccurrence(t.rrule, from);
+      const from = t.when_date && t.when_date > this.day ? t.when_date : this.day;
+      // Counted from the to-do's own date, so a late check-off keeps the schedule; null once COUNT/UNTIL run out.
+      const repeat = t.rrule ? nextRepeat(t.rrule, from, t.when_date ?? from) : null;
+      if (t.rrule && !repeat) this.notify('That was the last repeat');
+      if (repeat) {
+        const next = repeat.date;
         const nid = db.uuid7();
         spawned = nid;
         db.insert('tasks', {
           ...(t as unknown as db.Row),
           id: nid,
+          rrule: repeat.rrule,
           when_date: next,
           evening: t.evening,
           completed_at: null,
@@ -793,6 +797,26 @@ class Store {
       }
     }
     this.load();
+  }
+
+  /**
+   * Set or clear a to-do's repeat (an RRULE string, see rrule.ts). With a `start` date the to-do moves to
+   * the rule's first day on or after it, which is also where the series counts its weeks or months from.
+   */
+  setRepeat(id: ID, rrule: string | null, start?: string) {
+    const t = this.task(id);
+    if (!t) return;
+    const fields: Partial<Task> = { rrule };
+    if (rrule && start) {
+      const first = firstOccurrence(rrule, start) ?? start;
+      if (first !== t.when_date || t.someday) Object.assign(fields, { when_date: first, someday: 0 });
+      if (t.reminder_at && t.when_date && first !== t.when_date) {
+        fields.reminder_at = shiftReminder(t.reminder_at, t.when_date, first);
+        fields.reminder_sent_at = null;
+      }
+    }
+    this.update(id, fields, rrule ? 'repeat' : 'stop repeating');
+    this.notify(rrule ? `Repeats: ${describeRule(rrule, this.day)}` : 'No longer repeats');
   }
 
   setWhen(id: ID, w: When) {

@@ -6,15 +6,18 @@
 import { addDays, shiftReminder, today as localToday } from '../src/lib/dates';
 import {
   describeRule,
-  nextOccurrence,
+  firstOccurrence,
+  nextRepeat,
   parseDateWord,
   parseHabit,
   parseQuickAdd,
   parseReminder,
   parseRepeat,
   parseWhen,
+  pinRepeat,
   type Parsed,
 } from '../src/lib/parse';
+import { formatRule, parseRule } from '../src/lib/rrule';
 import { mergeTags, uuid7, type Row } from '../src/lib/schema';
 import type { Area, ChecklistItem, Habit, Project, Tag, Task, TaskTag, TimeEntry } from '../src/lib/types';
 import * as V from '../src/lib/views';
@@ -54,7 +57,7 @@ export interface TaskInput {
   deadline?: string | null;
   /** "9am", "fri 9am", "in 30m", or an ISO timestamp. */
   reminder?: string | null;
-  /** daily, weekly, weekdays, 2w… */
+  /** daily, weekly, weekdays, 2w, mon,thu, 1st,15th, last-fri… or an RRULE (FREQ=…). */
   repeat?: string | null;
   project?: string | null;
   area?: string | null;
@@ -120,7 +123,7 @@ export class Service {
         project: t.project_id ? (projects.get(t.project_id) ?? null) : null,
         area: t.area_id ? (areas.get(t.area_id) ?? null) : null,
         checklist: checklistOf.get(t.id) ?? [],
-        repeat: t.rrule ? describeRule(t.rrule) : null,
+        repeat: t.rrule ? describeRule(t.rrule, this.today()) : null,
       };
       const g = group?.(t);
       if (g) out.group = g;
@@ -304,7 +307,11 @@ export class Service {
 
   private repeat(v: string | null): string | null {
     if (v === null || v === '') return null;
-    if (/^FREQ=/i.test(v)) return v.toUpperCase();
+    if (/^(RRULE:)?FREQ=/i.test(v.trim())) {
+      const rule = parseRule(v);
+      if (!rule) throw new UserError(`Unknown repeat rule "${v}"`);
+      return formatRule(rule);
+    }
     const r = parseRepeat(v.trim().replace(/^\*/, ''));
     if (!r) throw new UserError(`Unknown repeat "${v}"`);
     return r;
@@ -350,7 +357,9 @@ export class Service {
     if (input.deadline !== undefined) row.deadline = this.date(input.deadline, 'deadline');
     if (input.repeat !== undefined) {
       row.rrule = this.repeat(input.repeat);
-      if (row.rrule && !row.when_date && !row.someday) row.when_date = day;
+      // As in quick add: no date means the first matching day from today.
+      if (row.rrule && !row.when_date && !row.someday) row.when_date = firstOccurrence(row.rrule, day) ?? day;
+      if (row.rrule && row.when_date) row.rrule = pinRepeat(row.rrule, row.when_date);
     }
     if (input.reminder !== undefined) row.reminder_at = this.reminder(input.reminder, row.when_date);
 
@@ -389,7 +398,11 @@ export class Service {
       Object.assign(fields, w, inbox ? { project_id: null, area_id: null, heading_id: null } : {});
     }
     if (input.deadline !== undefined) fields.deadline = this.date(input.deadline, 'deadline');
-    if (input.repeat !== undefined) fields.rrule = this.repeat(input.repeat);
+    if (input.repeat !== undefined) {
+      fields.rrule = this.repeat(input.repeat);
+      const day = fields.when_date ?? t.when_date;
+      if (fields.rrule && day) fields.rrule = pinRepeat(fields.rrule, day);
+    }
     if (input.reminder !== undefined) {
       fields.reminder_at = this.reminder(input.reminder, fields.when_date ?? t.when_date);
       fields.reminder_sent_at = null;
@@ -457,11 +470,15 @@ export class Service {
       if (!t.rrule) return;
       const day = this.today();
       const from = t.when_date && t.when_date > day ? t.when_date : day;
-      const next = nextOccurrence(t.rrule, from);
+      // Same as the app: counted from the to-do's own date; nothing more once COUNT or UNTIL runs out.
+      const repeat = nextRepeat(t.rrule, from, t.when_date ?? from);
+      if (!repeat) return;
+      const next = repeat.date;
       nextId = uuid7();
       this.db.insert('tasks', {
         ...(t as unknown as Row),
         id: nextId,
+        rrule: repeat.rrule,
         when_date: next,
         completed_at: null,
         created_at: now,

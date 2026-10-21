@@ -9,7 +9,7 @@ export const MCP_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', 
 
 const QUICK_ADD_HELP =
   'Quick-add syntax (same as the app): #tag, +Project (hyphens for spaces), @today @tonight @tomorrow @fri @someday @2026-11-02 (when), ' +
-  '!fri (deadline), %9am or %fri-9am (reminder), *daily *weekly *weekdays *2w (repeat), ~30m (estimate), ^u ^i (urgent / important), ' +
+  '!fri (deadline), %9am or %fri-9am (reminder), *daily *weekly *weekdays *2w *mon,thu *1st,15th *last-fri (repeat), ~30m (estimate), ^u ^i (urgent / important), ' +
   '@dump (brain dump), and "title // notes".';
 
 type Json = Record<string, unknown>;
@@ -117,7 +117,7 @@ export const TOOLS: Tool[] = [
         when: strOrNull(WHEN),
         deadline: strOrNull('Deadline: a day word or YYYY-MM-DD'),
         reminder: strOrNull('Reminder: "9am", "fri 9am", "in 30m", or an ISO timestamp'),
-        repeat: strOrNull('daily, weekly, monthly, yearly, weekdays, 2d, 3w…'),
+        repeat: strOrNull('daily, weekly, monthly, yearly, weekdays, 2d, 3w, mon,thu, 2w-mon,thu, 1st,15th, last-day, 2nd-tue, last-fri, or an RRULE like FREQ=MONTHLY;BYDAY=-1FR'),
         project: str('Existing project name or id'),
         area: str('Existing area name or id'),
         tags: tagList('Tag names'),
@@ -140,7 +140,7 @@ export const TOOLS: Tool[] = [
         when: strOrNull(WHEN),
         deadline: strOrNull('Deadline: a day word or YYYY-MM-DD'),
         reminder: strOrNull('Reminder: "9am", "fri 9am", "in 30m", or an ISO timestamp'),
-        repeat: strOrNull('daily, weekly, weekdays, 2w…; null stops repeating'),
+        repeat: strOrNull('daily, weekly, weekdays, 2w, mon,thu, 1st,15th, last-fri, or an RRULE (FREQ=…); null stops repeating'),
         tags: tagList('Replace all tags'),
         add_tags: tagList('Tags to add'),
         remove_tags: tagList('Tags to remove'),

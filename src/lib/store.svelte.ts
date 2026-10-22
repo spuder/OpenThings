@@ -435,7 +435,8 @@ class Store {
       this.undoStack.group(label, fn);
     } finally {
       this.deferLoad--;
-      if (!this.deferLoad && this.loadPending) this.load();
+      // Always reload: some actions (Move to Trash) write without calling load() themselves.
+      if (!this.deferLoad) this.load();
     }
     this.pruneSelection();
   }

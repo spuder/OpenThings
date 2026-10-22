@@ -1,9 +1,15 @@
 apply plugin: 'com.android.application'
 
-// The version comes from package.json (set by scripts/bump-version.sh), like the other apps.
-// versionCode must grow with each release: X.Y.Z becomes X*10000 + Y*100 + Z (0.3.0 -> 300).
+// The version name comes from package.json (set by scripts/bump-version.sh), like the other apps.
+// versionCode must grow with every build anyone installs, previews between releases included, so
+// it's the Android workflow's run number (ANDROID_BUILD_NUMBER), which only goes up. Local builds use 1.
 def appVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
-def appVersionCode = appVersion.tokenize('.').collect { it.toInteger() }.with { it[0] * 10000 + it[1] * 100 + it[2] }
+def appVersionCode = (System.getenv('ANDROID_BUILD_NUMBER') ?: '1').toInteger()
+
+// Release signing (docs/android.md#signing): the keystore and its passwords come from the
+// environment, which CI fills from GitHub secrets. Without them the release build is unsigned;
+// debug builds always use the local debug key.
+def releaseKeystore = System.getenv('ANDROID_KEYSTORE_FILE')
 
 android {
     namespace = "io.github.spuder.openthings"
@@ -13,7 +19,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
-        versionName appVersion
+        versionName appVersion + (System.getenv('ANDROID_VERSION_SUFFIX') ?: '')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -21,8 +27,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseKeystore) {
+            release {
+                storeFile file(releaseKeystore)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseKeystore) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

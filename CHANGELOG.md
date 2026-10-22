@@ -2,6 +2,18 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.4.0](https://github.com/spuder/OpenThings/releases/tag/v0.4.0) - 2026-10-22
+
+### What's Changed
+
+* Repeating to-dos: a repeat editor (⇧W, the repeat button on an open to-do, or right-click) for daily, weekly on chosen days, monthly on days of the month or a weekday such as the 2nd Tuesday, and yearly, every N periods, ending never, after N times or on a date, with a preview of the next dates. Quick add takes the new forms too, such as `*mon,thu` and `*1st,15th`. By @spuder in https://github.com/spuder/OpenThings/pull/52 (https://github.com/spuder/OpenThings/issues/37)
+* Nix flake: `nix run github:spuder/OpenThings` installs the desktop app or the server on Linux and macOS (x86_64 and aarch64), with a NixOS module. Each release tag is also published to FlakeHub. By @spuder in https://github.com/spuder/OpenThings/pull/27 (https://github.com/spuder/OpenThings/issues/12)
+* Move to Trash takes the to-do off the list right away again; since multi-select it stayed until the list reloaded. By @spuder in https://github.com/spuder/OpenThings/pull/57 (https://github.com/spuder/OpenThings/issues/56)
+* How to use Siri and Shortcuts on iPhone is documented in [docs/ios.md](docs/ios.md#siri-and-shortcuts). By @spuder in https://github.com/spuder/OpenThings/pull/51 (https://github.com/spuder/OpenThings/issues/42)
+* Desktop builds finish sooner: the Arch Linux CI work runs as three parallel jobs. By @spuder in https://github.com/spuder/OpenThings/pull/50
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.3.0...v0.4.0
+
 ## [v0.3.0](https://github.com/spuder/OpenThings/releases/tag/v0.3.0) - 2026-10-20
 
 ### What's Changed

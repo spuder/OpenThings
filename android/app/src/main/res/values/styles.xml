@@ -13,12 +13,14 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Behind the web view until it paints, and behind the system bars on older WebViews. -->
+        <item name="android:windowBackground">@color/app_background</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
         <!-- Android 12+ draws its own launch screen (the app icon on this colour). -->
-        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenBackground">@color/app_background</item>
     </style>
 </resources>

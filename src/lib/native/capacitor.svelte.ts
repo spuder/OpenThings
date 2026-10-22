@@ -22,7 +22,7 @@
 import { App } from '@capacitor/app';
 import { Keyboard } from '@capacitor/keyboard';
 import { setKeyboardHeight } from '../keyboard';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { notifier, type NotifyPermission, type UpcomingReminder } from '../reminders.svelte';
 import { reminderLabel } from '../parse';
@@ -33,6 +33,9 @@ import type { Area, Project, Task } from '../types';
 import { nativeStatus } from './status.svelte';
 import { buildSnapshot, MAX_SCHEDULED, notificationId, pendingToParsed, type PendingItem } from './snapshot';
 import { openRoute } from './links';
+import { backStep } from './back';
+import { tick } from 'svelte';
+import { theme } from '../theme.svelte';
 
 interface NativeShared {
   /** Write the widget snapshot into the App Group and reload widget timelines. */
@@ -101,12 +104,76 @@ export interface NativeStoreApi {
   now: number;
   overlay: string | null;
   quickAddPrefill: string;
+  view: ViewKey;
+  sidebarOpen: boolean;
+  expandedId: ID | null;
+  readonly isMulti: boolean;
+  selecting: boolean;
+  clearMulti(): void;
+  closeFocus(): void;
   reveal(id: ID): void;
   go(v: ViewKey): void;
   addParsed(p: Parsed, opts: { useContext: boolean }): ID | null;
   notify(text: string): void;
 }
 
+/**
+ * Android: light or dark status and navigation bar icons to match the app's theme, which can differ
+ * from the system's (Settings → Appearance, Omarchy themes). The page draws behind the bars.
+ */
+function followTheme() {
+  let last: boolean | null = null;
+  const apply = () => {
+    const dark = theme.isDark;
+    if (dark === last) return;
+    last = dark;
+    // SystemBarsStyle.Dark means light icons, for a dark background.
+    void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
+  };
+  $effect.root(() => {
+    $effect(() => {
+      void theme.pref;
+      void theme.omarchy;
+      apply();
+    });
+  });
+  // "System" follows the phone's dark mode, which can change while the app is open.
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', apply);
+}
+
+/** What's open, to tell whether an Escape closed anything. */
+function openState(store: NativeStoreApi): string {
+  return JSON.stringify([store.overlay, store.sidebarOpen, store.expandedId, store.isMulti, store.selecting, document.querySelectorAll('[role="menu"]').length]);
+}
+
+/** Android back button / gesture: step out one level (src/lib/native/back.ts). */
+async function goBack(store: NativeStoreApi) {
+  const step = backStep({
+    sidebarOpen: store.sidebarOpen,
+    overlay: store.overlay,
+    expandedId: store.expandedId,
+    isMulti: store.isMulti,
+    selecting: store.selecting,
+    menuOpen: !!document.querySelector('[role="menu"]'),
+    viewKind: store.view.kind,
+  });
+  if (step === 'drawer') store.sidebarOpen = false;
+  else if (step === 'today') store.go({ kind: 'today' });
+  else if (step === 'exit') await App.minimizeApp();
+  else {
+    // Send Escape to whatever has focus (a field in quick add, the open to-do's notes…) so it closes
+    // the way it does from a keyboard, saving what was typed. If nothing listened, close it here.
+    const before = openState(store);
+    const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+    await tick();
+    if (openState(store) !== before) return;
+    if (store.overlay === 'focus') store.closeFocus();
+    else if (store.overlay) store.overlay = null;
+    else if (store.expandedId) store.expandedId = null;
+    else store.clearMulti();
+  }
+}
 
 function mapPermission(p: string): NotifyPermission {
   if (p === 'granted') return 'granted';
@@ -220,6 +287,9 @@ export async function startNative(store: NativeStoreApi) {
       const before = nativeStatus.exactAlarms;
       if ((await exactAllowed()) !== before) reschedule(upcoming(), store.day);
     });
+    // Without a listener Capacitor closes the app on back, whatever is open.
+    await App.addListener('backButton', () => void goBack(store));
+    followTheme();
   }
 
   await LocalNotifications.addListener('localNotificationActionPerformed', (a) => {

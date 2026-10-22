@@ -14,9 +14,12 @@ Status: **preview, looking for testers** ([#6](https://github.com/spuder/OpenThi
 | `openthings://` links: add to-dos, open lists, pairing ([url-scheme.md](url-scheme.md)) | `android/app/src/main/AndroidManifest.xml` | Implemented |
 | Scan the pairing QR code (Settings → Sync → Scan QR code) | `android/app/src/main/java/io/github/spuder/openthings/OpenThingsPlugin.java` | Implemented |
 | Multi-select (press and hold), quick add above the keyboard | the web app | Implemented |
+| Back button / gesture: closes what's open, then back to Today, then leaves the app | `src/lib/native/back.ts` | Implemented |
+| Dark mode: launch screen, background and system bar icons follow the app's theme | `android/app/src/main/res/values-night`, `MainActivity.java`, `capacitor.svelte.ts` | Implemented |
+| App shortcuts (press and hold the icon): New to-do, Today, Inbox, Upcoming | `android/app/src/main/res/xml/shortcuts.xml` | Implemented |
 | Home screen widgets | — | Not started (a Glance widget reading a snapshot in SharedPreferences) |
 | Share to OpenThings from other apps | — | Not started (an `ACTION_SEND` intent filter) |
-| Google Assistant / app shortcuts | — | Not started |
+| Google Assistant | — | Not planned for now: automation apps (Tasker, …) can open `openthings://add?…&save=1` |
 
 ## Install a test build
 
@@ -27,6 +30,17 @@ Every pull request and every push to `main` builds a debug APK in the **Android*
 3. Or, with USB debugging on: `adb install OpenThings-*-android-debug.apk`.
 
 Debug builds are signed with a throwaway key, so a build from a different run can't update this one in place: uninstall first, and your local data goes with it. Turn on sync (Settings → Sync) to keep your to-dos on your server.
+
+## Back button
+
+Android's back button or back gesture steps out one level at a time (`src/lib/native/back.ts`):
+
+1. With the keyboard up, Android hides the keyboard first.
+2. An open overlay (quick add, Quick Find, the command palette, a menu) closes, exactly as Escape does on a keyboard.
+3. The list drawer closes.
+4. The open to-do closes (its edits are saved), or a multi-selection ends.
+5. In any list other than Today, back goes to Today.
+6. On Today, back leaves the app. It keeps running in the background, as with the Home button.
 
 ## Reminders
 

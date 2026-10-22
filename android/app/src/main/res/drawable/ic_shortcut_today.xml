@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher shortcut icon (xml/shortcuts.xml): the app's own glyph from src/lib/ui/Icon.svelte. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M0,24a24,24 0 1 0 48,0a24,24 0 1 0 -48,0Z" />
+    <group
+        android:translateX="12"
+        android:translateY="12"
+        android:scaleX="1.2"
+        android:scaleY="1.2">
+        <path
+            android:fillColor="#FFF2B72E"
+            android:strokeColor="#FFF2B72E"
+            android:strokeWidth="1.7"
+            android:strokeLineJoin="round"
+            android:pathData="M10 2.8l2.1 4.4 4.8.6-3.5 3.3.9 4.8L10 13.6l-4.3 2.3.9-4.8-3.5-3.3 4.8-.6z" />
+    </group>
+</vector>

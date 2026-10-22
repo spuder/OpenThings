@@ -26,6 +26,9 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="openthings" />
             </intent-filter>
+
+            <!-- Press and hold the app icon: New to-do, Today, Inbox, Upcoming. -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
         <provider

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- The app's background colour (bg token in src/app.css), so launch doesn't flash a different colour. -->
-    <color name="splash_background">#FFFFFF</color>
+    <color name="app_background">#FFFFFF</color>
 </resources>

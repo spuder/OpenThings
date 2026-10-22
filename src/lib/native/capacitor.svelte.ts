@@ -118,6 +118,9 @@ let scheduling: Promise<void> = Promise.resolve();
 
 /** Cancel every reminder notification we scheduled and schedule the current list. Serialized. */
 function reschedule(list: UpcomingReminder[], day: string) {
+  // Reminders that were upcoming last time and aren't now: completed, deleted, moved, or just fired
+  // by the app's own timer (store.fireDueReminders). The ones whose time has passed were fired.
+  const dropped = latest.list.filter((r) => !list.some((l) => l.taskId === r.taskId));
   latest = { list, day };
   scheduling = scheduling.then(async () => {
     try {
@@ -132,14 +135,19 @@ function reschedule(list: UpcomingReminder[], day: string) {
       if (ours.length) await LocalNotifications.cancel({ notifications: ours.map((n) => ({ id: n.id })) });
       const now = Date.now();
       // Android delivers inexact alarms minutes late, and keeps the app running for a while after it
-      // leaves the screen, so the app's own timer can fire first and land here. If the app isn't on
-      // screen nobody saw its chime and message: post those due reminders now instead of dropping them.
-      // (iOS doesn't list a notification once it's delivered, so this only happens on Android.)
-      const overdue = ours.filter((n) => n.schedule?.at && new Date(n.schedule.at).getTime() <= now);
-      if (overdue.length && document.visibilityState === 'hidden') {
-        await LocalNotifications.schedule({
-          notifications: overdue.map((n) => ({ id: n.id, title: n.title, body: n.body, extra: n.extra, isExactNotification: false })),
-        });
+      // leaves the screen, so the app's own timer can fire a reminder first. If the app isn't on
+      // screen nobody saw its chime and message: post it now instead of dropping it with the cancel
+      // above. Skip any that Android already shows: getPending() on Android also lists delivered
+      // notifications until they're tapped or dismissed, so `ours` alone would post them twice.
+      if (android && document.visibilityState === 'hidden') {
+        const fired = new Set(dropped.filter((r) => Date.parse(r.at) <= now).map((r) => notificationId(r.taskId)));
+        const shown = new Set((await LocalNotifications.getDeliveredNotifications()).notifications.map((n) => n.id));
+        const missed = ours.filter((n) => fired.has(n.id) && !shown.has(n.id));
+        if (missed.length) {
+          await LocalNotifications.schedule({
+            notifications: missed.map((n) => ({ id: n.id, title: n.title, body: n.body, extra: n.extra, isExactNotification: false })),
+          });
+        }
       }
       const next = list.filter((r) => Date.parse(r.at) > now).slice(0, MAX_SCHEDULED);
       if (next.length) {

@@ -61,7 +61,7 @@ After web changes: `npm run build && npx cap sync android`. The version comes fr
 
 - **Origin and storage:** the page is served from `https://localhost`, Capacitor's Android default. IndexedDB (all task data) is keyed by origin, so keep it fixed. The iOS app uses `capacitor://localhost`; the two never share local data, only the sync server.
 - **Native plugin:** Android registers the same `OpenThingsNative` plugin name as iOS, but implements only `scanQRCode`, with [Google's code scanner](https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner) from Play services. It shows its own camera screen and needs no camera permission. The first scan may wait while Play services downloads the scanner. The App Group methods (widgets, share inbox) are called on iOS only.
-- **Icons:** `android/app/src/main/res/mipmap-*` are generated from `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` with `@capacitor/assets` (an adaptive icon on Android 8 and newer).
+- **Icons:** `android/app/src/main/res/mipmap-*` are generated from `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` with `@capacitor/assets` (an adaptive icon on Android 8 and newer). The launch screen (`drawable/splash.xml`, the icon as a vector on the app's light or dark background) and the notification icon (`drawable/ic_stat_openthings.xml`, set in `capacitor.config.ts`) are vectors drawn for this project.
 
 ## Next
 

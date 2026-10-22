@@ -21,4 +21,24 @@
     <string name="share_added_inbox">Added to your Inbox</string>
     <string name="share_added_dump">Added to your Brain Dump</string>
     <string name="share_failed">Couldn\'t add it: %1$s</string>
+    <string name="widget_today">Today</string>
+    <string name="widget_today_label">Today</string>
+    <string name="widget_today_description">Your Today list from OpenThings.</string>
+    <string name="widget_sync">Sync</string>
+    <string name="widget_sync_label">Sync status</string>
+    <string name="widget_sync_description">Whether OpenThings is synced with your server.</string>
+    <string name="widget_open_once">Open OpenThings once to show your Today list here.</string>
+    <string name="widget_open_once_short">Open OpenThings once</string>
+    <string name="widget_stale">Open OpenThings to refresh</string>
+    <string name="widget_nothing_left">Nothing left today</string>
+    <string name="widget_more">+%1$d more</string>
+    <string name="sync_local">Local only</string>
+    <string name="sync_idle">Synced</string>
+    <string name="sync_pending">%1$d to sync</string>
+    <string name="sync_syncing">Syncing…</string>
+    <string name="sync_offline">Offline</string>
+    <string name="sync_offline_waiting">Offline · %1$d waiting</string>
+    <string name="sync_error">Sync error</string>
+    <string name="sync_last">Last synced %1$s</string>
+    <string name="sync_local_detail">Data stays on this device</string>
 </resources>

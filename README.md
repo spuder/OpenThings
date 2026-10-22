@@ -221,7 +221,7 @@ In Xcode, check *Signing & Capabilities* on the **App**, **OpenThingsWidgets** a
 
 ## Android app
 
-The same app for Android 7.0 and newer, from the same Capacitor setup: reminders as Android notifications (they arrive with the app closed), `openthings://` links, multi-select, and pairing with your server by scanning the QR code. Widgets and sharing from other apps aren't there yet. Every pull request and push to `main` builds a debug APK you can install: download it from the latest [Android workflow run](https://github.com/spuder/OpenThings/actions/workflows/android.yml). It's tested in the Android emulator so far; if you'd like to try it on your phone, [sign up as a tester](https://docs.google.com/forms/d/e/1FAIpQLSf0Vke8v5YCE53KemDdbn5VFub2v2MIK32OaTM-B6Sf1psgVg/viewform). Details and how to build it: [docs/android.md](docs/android.md).
+The same app for Android 7.0 and newer, from the same Capacitor setup: reminders as Android notifications (they arrive with the app closed), Today and Sync status widgets, share to OpenThings from any app, app shortcuts (press and hold the icon), `openthings://` links, the back gesture, and pairing with your server by scanning the QR code. Install the latest build from the [Android preview](https://github.com/spuder/OpenThings/releases/tag/android-preview) release; later builds install over it and keep your to-dos. It's tested in the Android emulator so far; if you'd like to try it on your phone, [sign up as a tester](https://docs.google.com/forms/d/e/1FAIpQLSf0Vke8v5YCE53KemDdbn5VFub2v2MIK32OaTM-B6Sf1psgVg/viewform). Details and how to build it: [docs/android.md](docs/android.md).
 
 ## Self-hosting
 
@@ -293,7 +293,7 @@ Run the server locally with `npm run build && npm run server` (http://localhost:
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
 3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew and on Linux and macOS with Nix, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, nixpkgs, Ubuntu/Fedora packages.
-4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Android app in preview ([docs/android.md](docs/android.md), [testers wanted](https://github.com/spuder/OpenThings/issues/6)). Next: interactive widgets, and Android widgets and sharing.
+4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Android app with widgets, share and app shortcuts in preview ([docs/android.md](docs/android.md), [testers wanted](https://github.com/spuder/OpenThings/issues/6)). Next: interactive widgets on both.
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 
 ## License

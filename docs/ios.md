@@ -174,5 +174,5 @@ CI (`.github/workflows/ios.yml`) builds the App scheme (which builds and embeds 
 ## Next
 
 - Interactive widgets (iOS 17 `Button(intent:)`): complete a to-do from the Home Screen by queueing a `complete` item and importing it like the others.
-- Android: `npx cap add android`; the same `src/lib/native` module works, with SharedPreferences + a Glance widget instead of the App Group.
+- Android: in preview from the same `src/lib/native` module, with the app's own files instead of the App Group; see [android.md](android.md).
 - Optional: a background refresh task so widgets roll over to the new day without opening the app.

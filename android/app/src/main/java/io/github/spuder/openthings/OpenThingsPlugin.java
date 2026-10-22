@@ -51,6 +51,7 @@ public class OpenThingsPlugin extends Plugin {
         }
         try {
             SharedQueue.writeAtomic(SharedQueue.snapshotFile(getContext()), json);
+            Widgets.refreshAll(getContext());
             call.resolve();
         } catch (IOException e) {
             call.reject("Couldn't write the widget snapshot: " + e.getMessage(), e);

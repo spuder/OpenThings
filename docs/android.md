@@ -17,7 +17,7 @@ Status: **preview, looking for testers** ([#6](https://github.com/spuder/OpenThi
 | Back button / gesture: closes what's open, then back to Today, then leaves the app | `src/lib/native/back.ts` | Implemented |
 | Dark mode: launch screen, background and system bar icons follow the app's theme | `android/app/src/main/res/values-night`, `MainActivity.java`, `capacitor.svelte.ts` | Implemented |
 | App shortcuts (press and hold the icon): New to-do, Today, Inbox, Upcoming | `android/app/src/main/res/xml/shortcuts.xml` | Implemented |
-| Home screen widgets | — | Not started (a Glance widget reading a snapshot in SharedPreferences) |
+| Home screen widgets: Today (resizable; tap a to-do to open it) and Sync status | `android/app/src/main/java/io/github/spuder/openthings/TodayWidget.java`, `SyncWidget.java` | Implemented |
 | Share to OpenThings from other apps → Inbox or Brain Dump; "Add to OpenThings" on selected text | `android/app/src/main/java/io/github/spuder/openthings/ShareActivity.java` | Implemented |
 | Google Assistant | — | Not planned for now: automation apps (Tasker, …) can open `openthings://add?…&save=1` |
 
@@ -62,6 +62,15 @@ Share a page or text from any app (Chrome, Notes, Messages…) and pick **OpenTh
 - If OpenThings is running it adds the to-do right away; otherwise the next time it opens. Either way it goes through the app's store, so it syncs like any other to-do.
 - With Brain Dump turned off (Settings), shared items go to the Inbox instead.
 
+## Widgets
+
+Two home screen widgets (press and hold the home screen → Widgets → OpenThings):
+
+- **Today**: your Today and This Evening to-dos, as many as fit, then "+N more". Tap a to-do to open it, anywhere else to open Today. Wider widgets also show each to-do's project or area. Resize it to show more.
+- **Sync status**: Local only, Synced, waiting, Offline or Sync error, and when it last synced.
+
+Like the iOS widgets they can't run the app: they show the snapshot the app writes whenever your to-dos or the sync state change (`snapshot.json`, the same format as [iOS](ios.md#snapshot-app--widgets)). They also redraw every 30 minutes and just after midnight; on a new day, before you've opened the app, Today says "Open OpenThings to refresh" rather than showing yesterday's list. They follow the system's light or dark mode. Checking off a to-do from the widget isn't there yet (it isn't on iOS either).
+
 ## Reminders
 
 Reminders are scheduled with Android's alarm manager, so they arrive with the app closed.
@@ -101,4 +110,4 @@ After web changes: `npm run build && npx cap sync android`. `versionName` comes 
 
 1. Test on phones from the [tester sign-up](https://docs.google.com/forms/d/e/1FAIpQLSf0Vke8v5YCE53KemDdbn5VFub2v2MIK32OaTM-B6Sf1psgVg/viewform).
 2. Google Play (internal testing first), with the same signing key as the upload key.
-3. Share to OpenThings, then a home screen widget.
+3. Check off to-dos from the Today widget (with iOS's interactive widgets).

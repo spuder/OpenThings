@@ -1,19 +1,19 @@
 /**
  * Capacitor (iOS and Android) integration. Loaded with a dynamic import only when
  * `isNativeShell()` is true, so none of this runs in the browser, PWA or Docker builds.
- * Android has notifications, the keyboard, links and the QR scanner; the widget snapshot and the
- * share inbox are iOS-only for now (see docs/android.md).
  *
  * What it does:
  *   - Schedules OS-level local notifications from `window.OpenThings.reminders.upcoming()` and
  *     reschedules them on every `openthings:reminders` event (they fire even when the app is closed).
  *   - Opens the task when a notification is tapped, and handles `openthings://…` links from widgets.
- *   - Writes a small JSON snapshot (Today, upcoming reminders, sync state) to the App Group for widgets.
+ *   - Writes a small JSON snapshot (Today, upcoming reminders, sync state) for widgets (iOS: the App
+ *     Group; Android: the app's files).
  *   - Reports the on-screen keyboard height so lists and quick add stay above it.
  *   - Scans the pairing QR code from another device's Settings (`scanQrCode`) and opens
  *     `openthings://pair` links in Settings → Sync.
- *   - Imports to-dos that the Share extension or Shortcuts left in the App Group, through
- *     `store.addParsed`, so they land in the op log like any other write.
+ *   - Imports to-dos that Share (or Shortcuts on iOS) queued, through `store.addParsed`, so they
+ *     land in the op log like any other write.
+ *   - Android: the back button (./back.ts) and system bar icons that follow the app's theme.
  *
  * Native side: ios/App/App/OpenThingsPlugin.swift and
  * android/app/src/main/java/io/github/spuder/openthings/OpenThingsPlugin.java (jsName "OpenThingsNative").
@@ -36,6 +36,7 @@ import { openRoute } from './links';
 import { backStep } from './back';
 import { tick } from 'svelte';
 import { theme } from '../theme.svelte';
+import { viewEnabled } from '../features.svelte';
 
 interface NativeShared {
   /** Write the widget snapshot into the App Group and reload widget timelines. */
@@ -50,8 +51,6 @@ interface NativeShared {
 }
 
 const Shared = registerPlugin<NativeShared>('OpenThingsNative');
-/** The App Group (widgets, Share extension, Shortcuts) exists on iOS only; Android's plugin only scans QR codes. */
-const appGroup = Capacitor.getPlatform() === 'ios';
 const android = Capacitor.getPlatform() === 'android';
 
 /**
@@ -305,11 +304,14 @@ export async function startNative(store: NativeStoreApi) {
   // ---- deep links from widgets and Shortcuts ----
   await App.addListener('appUrlOpen', (e) => openRoute(e.url));
 
-  if (appGroup) await startAppGroup(store, upcoming);
+  await startShared(store, upcoming);
 }
 
-/** iOS: import to-dos from the Share extension and Shortcuts, and keep the widget snapshot current. */
-async function startAppGroup(store: NativeStoreApi, upcoming: () => UpcomingReminder[]) {
+/**
+ * Import to-dos queued by Share (and Shortcuts on iOS), and keep the widget snapshot current. iOS
+ * keeps both in the App Group; Android in the app's files (android/…/SharedQueue.java).
+ */
+async function startShared(store: NativeStoreApi, upcoming: () => UpcomingReminder[]) {
   // ---- extension → app import ----
   let importing = false;
   const importPending = async () => {
@@ -319,7 +321,8 @@ async function startAppGroup(store: NativeStoreApi, upcoming: () => UpcomingRemi
       const { items, route } = await Shared.takePending();
       let added = 0;
       for (const item of items ?? []) {
-        const p = pendingToParsed(item, store.day);
+        // With Brain Dump turned off its list is hidden and items in it expire unseen: use the Inbox.
+        const p = pendingToParsed(viewEnabled('dump') ? item : { ...item, target: 'inbox' }, store.day);
         if (p && store.addParsed(p, { useContext: false })) added++;
       }
       if (added) store.notify(added === 1 ? 'Added 1 shared to-do' : `Added ${added} shared to-dos`);

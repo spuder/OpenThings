@@ -23,4 +23,13 @@
         <!-- Android 12+ draws its own launch screen (the app icon on this colour). -->
         <item name="windowSplashScreenBackground">@color/app_background</item>
     </style>
+
+    <!-- Share to OpenThings (ShareActivity): a dialog over the app you share from. -->
+    <style name="AppTheme.Share" parent="Theme.AppCompat.DayNight.Dialog.Alert">
+        <item name="colorAccent">@color/accent</item>
+        <item name="colorPrimary">@color/accent</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowMinWidthMajor">90%</item>
+        <item name="android:windowMinWidthMinor">90%</item>
+    </style>
 </resources>

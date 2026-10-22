@@ -2,4 +2,6 @@
 <resources>
     <!-- The app's background colour (bg token in src/app.css), so launch doesn't flash a different colour. -->
     <color name="app_background">#FFFFFF</color>
+    <!-- The accent token (src/app.css). -->
+    <color name="accent">#2F6FED</color>
 </resources>

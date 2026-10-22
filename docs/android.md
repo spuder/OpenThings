@@ -18,7 +18,7 @@ Status: **preview, looking for testers** ([#6](https://github.com/spuder/OpenThi
 | Dark mode: launch screen, background and system bar icons follow the app's theme | `android/app/src/main/res/values-night`, `MainActivity.java`, `capacitor.svelte.ts` | Implemented |
 | App shortcuts (press and hold the icon): New to-do, Today, Inbox, Upcoming | `android/app/src/main/res/xml/shortcuts.xml` | Implemented |
 | Home screen widgets | — | Not started (a Glance widget reading a snapshot in SharedPreferences) |
-| Share to OpenThings from other apps | — | Not started (an `ACTION_SEND` intent filter) |
+| Share to OpenThings from other apps → Inbox or Brain Dump; "Add to OpenThings" on selected text | `android/app/src/main/java/io/github/spuder/openthings/ShareActivity.java` | Implemented |
 | Google Assistant | — | Not planned for now: automation apps (Tasker, …) can open `openthings://add?…&save=1` |
 
 ## Test builds
@@ -54,6 +54,14 @@ Android's back button or back gesture steps out one level at a time (`src/lib/na
 5. In any list other than Today, back goes to Today.
 6. On Today, back leaves the app. It keeps running in the background, as with the Home button.
 
+## Share to OpenThings
+
+Share a page or text from any app (Chrome, Notes, Messages…) and pick **OpenThings**, or select text and choose **Add to OpenThings** from the menu. A small dialog lets you edit the title and pick **Inbox** or **Brain Dump**.
+
+- A shared link goes into the to-do's notes; the page title (or the rest of the text) becomes the title. Text is taken literally: a `#` or `@` in it isn't quick-add syntax.
+- If OpenThings is running it adds the to-do right away; otherwise the next time it opens. Either way it goes through the app's store, so it syncs like any other to-do.
+- With Brain Dump turned off (Settings), shared items go to the Inbox instead.
+
 ## Reminders
 
 Reminders are scheduled with Android's alarm manager, so they arrive with the app closed.
@@ -86,7 +94,7 @@ After web changes: `npm run build && npx cap sync android`. `versionName` comes 
 ## Notes
 
 - **Origin and storage:** the page is served from `https://localhost`, Capacitor's Android default. IndexedDB (all task data) is keyed by origin, so keep it fixed. The iOS app uses `capacitor://localhost`; the two never share local data, only the sync server.
-- **Native plugin:** Android registers the same `OpenThingsNative` plugin name as iOS, but implements only `scanQRCode`, with [Google's code scanner](https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner) from Play services. It shows its own camera screen and needs no camera permission. The first scan may wait while Play services downloads the scanner. The App Group methods (widgets, share inbox) are called on iOS only.
+- **Native plugin:** Android registers the same `OpenThingsNative` plugin as iOS, with the same methods (`OpenThingsPlugin.java`). `scanQRCode` uses [Google's code scanner](https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner) from Play services: it shows its own camera screen and needs no camera permission, and the first scan may wait while Play services downloads it. Where iOS uses the App Group, Android keeps the widget snapshot and queued to-dos in the app's own files (`SharedQueue.java`, same formats as [iOS](ios.md#pending-to-dos-extensions--app)).
 - **Icons:** `android/app/src/main/res/mipmap-*` are generated from `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` with `@capacitor/assets` (an adaptive icon on Android 8 and newer). The launch screen (`drawable/splash.xml`, the icon as a vector on the app's light or dark background) and the notification icon (`drawable/ic_stat_openthings.xml`, set in `capacitor.config.ts`) are vectors drawn for this project.
 
 ## Next

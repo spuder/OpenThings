@@ -2,4 +2,6 @@
 <resources>
     <!-- The app's dark background colour (bg token in src/app.css). -->
     <color name="app_background">#1D1E21</color>
+    <!-- The accent token (src/app.css). -->
+    <color name="accent">#5B8FF9</color>
 </resources>

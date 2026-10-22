@@ -8,4 +8,17 @@
     <string name="shortcut_today">Today</string>
     <string name="shortcut_inbox">Inbox</string>
     <string name="shortcut_upcoming">Upcoming</string>
+    <string name="share_label">OpenThings</string>
+    <string name="share_process_text">Add to OpenThings</string>
+    <string name="share_heading">Add to OpenThings</string>
+    <string name="share_title_hint">Title</string>
+    <string name="share_inbox">Inbox</string>
+    <string name="share_dump">Brain Dump</string>
+    <string name="share_hint_inbox">It goes to your Inbox.</string>
+    <string name="share_hint_dump">Brain Dump items disappear after 48 hours unless you keep them.</string>
+    <string name="share_cancel">Cancel</string>
+    <string name="share_add">Add</string>
+    <string name="share_added_inbox">Added to your Inbox</string>
+    <string name="share_added_dump">Added to your Brain Dump</string>
+    <string name="share_failed">Couldn\'t add it: %1$s</string>
 </resources>

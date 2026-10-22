@@ -973,6 +973,7 @@ class Store {
     });
     if (!this.isMulti) this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
     if (this.expandedId && ids.includes(this.expandedId)) this.expandedId = null;
+    sound.playCrumple();
     this.notify(ids.length === 1 ? 'Moved to Trash' : `Moved ${ids.length} to-dos to Trash`);
   }
 
@@ -1116,6 +1117,7 @@ class Store {
   }
 
   emptyTrash() {
+    if (this.trashed.length) sound.playCrumple();
     for (const t of this.trashed) this.hardDelete(t.id);
     this.load();
     this.selectedId = null;

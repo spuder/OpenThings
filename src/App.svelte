@@ -25,6 +25,7 @@
   import ThemePicker from './lib/ui/ThemePicker.svelte';
   import SelectionBar from './lib/ui/SelectionBar.svelte';
   import { drag } from './lib/ui/drag.svelte';
+  import RepeatEditor from './lib/ui/RepeatEditor.svelte';
 
   store.init().then(() => store.start());
   installKeyboardInset();
@@ -195,6 +196,7 @@
   {#if store.overlay === 'focus'}<FocusView />{/if}
   {#if store.overlay === 'find'}<QuickFind />{/if}
   {#if store.overlay === 'themes'}<ThemePicker />{/if}
+  {#if store.overlay === 'repeat'}<RepeatEditor />{/if}
 
   {#if drag.active}
     {@const first = store.task(drag.ids[0] ?? null)}

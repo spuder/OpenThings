@@ -1,0 +1,50 @@
+name: FlakeHub
+
+# Publishes the flake to FlakeHub (https://flakehub.com/flake/spuder/OpenThings) for every release
+# tag, as version X.Y.Z. The Tag release workflow starts this on each new vX.Y.Z tag (tags it pushes
+# don't trigger `push` workflows); a tag pushed by hand also does. To publish an existing tag again:
+# Actions → FlakeHub → Run workflow, with that tag. FlakeHub authenticates the run through GitHub's
+# OIDC token, so there's no secret to store. See docs/nix.md#publishing.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The existing tag to publish, e.g. v0.3.0 (empty = the ref this runs on)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick the tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::FlakeHub publishes release tags (vX.Y.Z), not \"$tag\". Run this on a tag, or pass one."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      # Don't publish a flake that doesn't evaluate; the Nix workflow builds it on all four platforms.
+      - name: Check flake
+        run: nix flake check --no-build --all-systems
+      - uses: DeterminateSystems/flakehub-push@v7
+        with:
+          visibility: public
+          tag: ${{ steps.tag.outputs.tag }}

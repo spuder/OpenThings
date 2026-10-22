@@ -4,7 +4,7 @@
   import type { Task } from '../types';
   import { daysBetween, formatDuration, relLabel } from '../dates';
   import { describeRule, reminderLabel } from '../parse';
-  import { commands, keyLabel } from '../commands';
+  import { commands, keyLabel, openTaskMenu } from '../commands';
   import Icon from './Icon.svelte';
   import Checkbox from './Checkbox.svelte';
   import { isTouch } from '../env';
@@ -26,6 +26,7 @@
   const tracked = $derived(store.trackedMs(task.id));
   const reminderPending = $derived(!!task.reminder_at && !task.reminder_sent_at && !task.completed_at);
   const deadlineDiff = $derived(task.deadline ? daysBetween(store.day, task.deadline) : null);
+  const repeatLabel = $derived(task.rrule ? describeRule(task.rrule, store.day) : '');
 
   let el: HTMLElement | undefined = $state();
   let titleInput: HTMLInputElement | undefined = $state();
@@ -90,6 +91,14 @@
     commands.find((c) => c.id === id)?.run();
   }
   const key = (id: string) => keyLabel(commands.find((c) => c.id === id)?.keys[0] ?? '');
+  /** Right-click: the to-do's actions (text fields keep the browser's own menu). */
+  function contextMenu(e: MouseEvent) {
+    if (e.target instanceof Element && e.target.closest('input, textarea')) return;
+    // On touch screens a long press starts multi-select (drag.svelte.ts), not this menu.
+    if (isTouch || store.selecting) return;
+    e.preventDefault();
+    openTaskMenu(task.id);
+  }
 </script>
 
 <div
@@ -107,6 +116,7 @@
   tabindex="-1"
   onclick={select}
   ondblclick={openOnDouble}
+  oncontextmenu={contextMenu}
   onkeydown={() => {}}
   {@attach draggable(task.id)}
 >
@@ -138,7 +148,7 @@
         {#each tags as t (t.id)}<span class="tag">{t.name}</span>{/each}
         {#if task.urgent}<span class="dot urgent" title="Urgent"></span>{/if}
         {#if task.important}<span class="dot important" title="Important"></span>{/if}
-        {#if task.rrule}<span class="mini" title={describeRule(task.rrule)}><Icon name="repeat" size={13} /></span>{/if}
+        {#if task.rrule}<span class="repeat" title={repeatLabel}><Icon name="repeat" size={13} /><span class="repeat-label">{repeatLabel}</span></span>{/if}
         {#if reminderPending}<span class="reminder" title="Reminder"><Icon name="bell" size={12} />{reminderLabel(task.reminder_at!, store.day).replace(/^Today /, '')}</span>{/if}
         {#if tracking}
           <span class="timer live"><span class="pulse"></span>{formatDuration(tracked)}</span>
@@ -183,7 +193,7 @@
             </span>
           {/if}
           {#if task.deadline}<span class="chip deadline-chip"><Icon name="flag" size={12} /> {relLabel(task.deadline, store.day)}</span>{/if}
-          {#if task.rrule}<span class="chip"><Icon name="repeat" size={12} /> {describeRule(task.rrule)}</span>{/if}
+          {#if task.rrule}<button class="chip chip-btn" onclick={() => run('task.repeat')} title="Change repeat ({key('task.repeat')})"><Icon name="repeat" size={12} /> {repeatLabel}</button>{/if}
           {#if task.reminder_at}
             <span class="chip" class:sent={!!task.reminder_sent_at}><Icon name="bell" size={12} /> {reminderLabel(task.reminder_at, store.day)}<button class="x" onclick={() => store.setReminder(task.id, null)} aria-label="Remove reminder">×</button></span>
           {/if}
@@ -196,6 +206,7 @@
           <button onclick={() => run('task.when')} title="When ({key('task.when')})"><Icon name="today" size={15} /></button>
           <button onclick={() => run('task.deadline')} title="Deadline ({key('task.deadline')})"><Icon name="flag" size={15} /></button>
           <button class:on={reminderPending} onclick={() => run('task.reminder')} title="Reminder ({key('task.reminder')})"><Icon name="bell" size={15} /></button>
+          <button class:on={!!task.rrule} onclick={() => run('task.repeat')} title="Repeat ({key('task.repeat')})" aria-label="Repeat"><Icon name="repeat" size={15} /></button>
           <button onclick={() => run('task.tag')} title="Tag ({key('task.tag')})">#</button>
           <button onclick={() => run('task.move')} title="Move ({key('task.move')})">→</button>
           <button class:on={task.urgent} onclick={() => store.toggleUrgent(task.id)} title="Urgent ({key('task.urgent')})">U</button>
@@ -348,6 +359,23 @@
     50% {
       opacity: 0.3;
     }
+  }
+  .repeat {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    color: var(--text-3);
+    font-size: 11.5px;
+  }
+  .repeat-label {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chip-btn:hover {
+    color: var(--accent);
   }
   .reminder {
     display: inline-flex;
@@ -519,7 +547,8 @@
       justify-content: flex-end;
       max-width: 40%;
     }
-    .meta .tag {
+    .meta .tag,
+    .repeat-label {
       display: none;
     }
     .task.expanded {

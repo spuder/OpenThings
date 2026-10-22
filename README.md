@@ -59,6 +59,7 @@
 
 - **Lists:** Inbox, Today with This Evening, Upcoming, Anytime, Someday, Logbook.
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
+- **Repeating to-dos:** every N days, weeks, months or years; chosen days of the week; days of the month (the 1st and 15th, the last day) or an ordinal weekday (the 2nd Tuesday, the last Friday); ending never, after N times or on a date. Set it in quick add (`*mon,thu`) or in the repeat editor (`⇧W`, the repeat button on an open to-do, or right-click), which previews the next dates. Checking one off schedules the next.
 - **This Week** (optional, off by default): everything scheduled or due from today through Sunday, grouped by day; overdue items fold into today. `G W` to open.
 - **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default) and This Week (off).
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
@@ -94,7 +95,11 @@
 | `!fri` | Deadline |
 | `%9am` `%18:30` `%in30m` `%fri-9am` | Reminder |
 | `~30m` `~1h30m` | Time estimate |
-| `*daily` `*weekly` `*weekdays` `*2w` | Repeat |
+| `*daily` `*weekly` `*monthly` `*yearly` `*weekdays` `*weekends` | Repeat |
+| `*2d` `*3w` `*2m` `*1y` | Repeat every N days, weeks, months, years |
+| `*mon,thu` `*fri` `*2w-mon,thu` | Repeat weekly on those days (every 2 weeks) |
+| `*1st,15th` `*15th` `*last-day` `*1st,last` | Repeat monthly on those days of the month |
+| `*2nd-tue` `*last-fri` `*first-mon` `*last-weekday` | Repeat monthly on an ordinal weekday |
 | `#urgent` `#important` (or `^u` `^i` `^ui`) | Urgent / important (Matrix) |
 | `… // notes` | Everything after `//` becomes notes |
 
@@ -113,6 +118,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `X` | Complete |
 | `T` `E` `R` `S` | Today, This Evening, Tomorrow, Someday |
 | `W` / `D` / `A` | When… / Deadline… / Reminder… |
+| `⇧W` | Repeat… (also on right-click and in an open to-do) |
 | `M` | Move to list |
 | `#` | Tag |
 | `U` / `I` | Urgent / important |
@@ -172,6 +178,8 @@ Recent Homebrew versions refuse to load casks from untrusted taps, so the `brew 
 The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings) and also puts the `openthings` CLI on your PATH. Update with `brew upgrade --cask openthings`.
 
 **Download:** tagged versions are on the [Releases](https://github.com/spuder/OpenThings/releases) page. For a build of the latest commit, open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).
+
+**Nix** (Linux and macOS, Intel and ARM): `nix run github:spuder/OpenThings`, or `nix profile install github:spuder/OpenThings`. Each release is also on [FlakeHub](https://flakehub.com/flake/spuder/OpenThings). See [docs/nix.md](docs/nix.md).
 
 **macOS first launch:** releases are signed and notarized. Builds from pull requests aren't, so macOS blocks them the first time: open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
 
@@ -276,13 +284,15 @@ claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/m
 
 There's no login: anyone who can reach the server can read and change your to-dos, so keep it on your tailnet (as DockTail does) or another private network. Browsers on other websites are refused, so a page you visit can't reach it through your browser. Device tokens are planned before anything is exposed more widely.
 
+**Without Docker:** `nix run github:spuder/OpenThings#openthings-server`, or on NixOS `services.openthings.enable = true;` from the flake's module ([docs/nix.md](docs/nix.md)).
+
 Run the server locally with `npm run build && npm run server` (http://localhost:8080); `npm run dev` proxies `/api` and `/mcp` to it.
 
 ## Roadmap
 
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
-3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, Ubuntu/Fedora packages.
+3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew and on Linux and macOS with Nix, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, nixpkgs, Ubuntu/Fedora packages.
 4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Android app in preview ([docs/android.md](docs/android.md), [testers wanted](https://github.com/spuder/OpenThings/issues/6)). Next: interactive widgets, and Android widgets and sharing.
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 

@@ -21,8 +21,9 @@ If `git push` over SSH fails with `communication with agent failed` (the 1Passwo
 
 ## Verify (don't report done before this)
 
-- `gh run list -R spuder/OpenThings -w "Tag release" -L 1` succeeded, and `gh run list -R spuder/OpenThings -b vX.Y.Z` shows Desktop and Container succeeded. If Tag release failed, read its log: it names any version file that doesn't match.
+- `gh run list -R spuder/OpenThings -w "Tag release" -L 1` succeeded, and `gh run list -R spuder/OpenThings -b vX.Y.Z` shows Desktop, Container, Nix and FlakeHub succeeded. If Tag release failed, read its log: it names any version file that doesn't match.
 - `gh release view vX.Y.Z -R spuder/OpenThings` lists the `.dmg`, `.app.zip`, AppImage and Linux tarball.
 - The macOS build is notarized: download the `.dmg` and `.app.zip`, then `spctl -a -vv -t exec OpenThings.app` and `spctl -a -vv -t open --context context:primary-signature <dmg>` both say `source=Notarized Developer ID`.
 - `Casks/openthings.rb` in spuder/homebrew-openthings has `version "X.Y.Z"` (pushed by `github-actions[bot]`).
 - `ghcr.io/spuder/openthings:X.Y.Z` exists.
+- FlakeHub lists the version: `curl -fsSIL https://flakehub.com/f/spuder/OpenThings/X.Y.Z.tar.gz` succeeds (or see https://flakehub.com/flake/spuder/OpenThings).

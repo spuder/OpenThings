@@ -54,7 +54,8 @@ describe('parseQuickAdd', () => {
   it('repeat implies a start date, matrix flags, notes', () => {
     const p = parseQuickAdd('Standup *weekdays ^ui // bring notes', REF);
     expect(p.rrule).toContain('BYDAY=MO,TU,WE,TH,FR');
-    expect(p.when?.date).toBe(REF);
+    // REF is a Sunday: a weekdays repeat starts on Monday.
+    expect(p.when?.date).toBe('2026-10-19');
     expect(p.urgent && p.important).toBe(true);
     expect(p.notes).toBe('bring notes');
     expect(p.title).toBe('Standup');

@@ -103,6 +103,7 @@ Releases are automatic once a version bump merges to `main`; never push a `v*` t
 | `src/lib/native/` | Desktop (Tauri) bridge: `desktop.ts` (guarded by `isDesktop`), main-window wiring, quick-add window, Settings → Desktop — see `docs/desktop.md` |
 | `src-tauri/` | Tauri desktop shell (Rust): windows, tray, menu bar, global hotkey, deep links / CLI, native notifications. `npm run tauri dev` |
 | `packaging/arch/` | AUR PKGBUILDs (`openthings` from source, `openthings-bin`), checked by `.github/workflows/desktop.yml` |
+| `flake.nix`, `nix/` | Nix flake: desktop app and server packages for Linux and macOS (x86_64 and aarch64), NixOS module; built by `.github/workflows/nix.yml` — see `docs/nix.md` |
 | `site/` | Product website for GitHub Pages (plain HTML/CSS); the app demo is built into `/app/` by `.github/workflows/pages.yml` |
 
 ## Conventions

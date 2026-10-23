@@ -2,6 +2,16 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.4.1](https://github.com/spuder/OpenThings/releases/tag/v0.4.1) - 2026-10-22
+
+### What's Changed
+
+* Moving a to-do to the Trash or emptying the Trash plays a short paper crumple, synthesized like the completion chime and muted with ⇧M. By @spuder in https://github.com/spuder/OpenThings/pull/62 (https://github.com/spuder/OpenThings/issues/61)
+* On a phone, the open to-do's buttons wrap onto a second row, so Done is no longer cut off. By @Copilot in https://github.com/spuder/OpenThings/pull/64 (https://github.com/spuder/OpenThings/issues/63)
+* Nix CI caches its builds in the GitHub Actions cache, so the Nix jobs finish sooner. By @spuder in https://github.com/spuder/OpenThings/pull/59
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.4.0...v0.4.1
+
 ## [v0.4.0](https://github.com/spuder/OpenThings/releases/tag/v0.4.0) - 2026-10-22
 
 ### What's Changed

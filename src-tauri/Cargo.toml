@@ -1,6 +1,6 @@
 [package]
 name = "openthings"
-version = "0.4.0"
+version = "0.4.1"
 description = "OpenThings desktop app: a native shell around the local-first web app"
 authors = ["OpenThings contributors"]
 license = "MIT"

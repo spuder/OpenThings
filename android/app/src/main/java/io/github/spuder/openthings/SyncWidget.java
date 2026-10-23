@@ -3,6 +3,7 @@ package io.github.spuder.openthings;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.Context;
+import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -47,7 +48,7 @@ public class SyncWidget extends AppWidgetProvider {
             detail.add(c.getString(R.string.sync_local_detail));
         }
         if ("error".equals(s.syncStatus) && s.syncError != null && !s.syncError.isEmpty()) detail.add(s.syncError);
-        v.setTextViewText(R.id.widget_sync_detail, String.join("\n", detail));
+        v.setTextViewText(R.id.widget_sync_detail, TextUtils.join("\n", detail));
         v.setViewVisibility(R.id.widget_sync_detail, detail.isEmpty() ? View.GONE : View.VISIBLE);
         m.updateAppWidget(id, v);
     }

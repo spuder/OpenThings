@@ -283,8 +283,14 @@ export async function startNative(store: NativeStoreApi) {
     // OpenThings is in the background: check again on return, and reschedule if it changed.
     await exactAllowed();
     await App.addListener('resume', async () => {
-      const before = nativeStatus.exactAlarms;
-      if ((await exactAllowed()) !== before) reschedule(upcoming(), store.day);
+      const exactBefore = nativeStatus.exactAlarms;
+      const permissionBefore = notifier.permission;
+      const exactChanged = (await exactAllowed()) !== exactBefore;
+      const permission = mapPermission((await LocalNotifications.checkPermissions()).display);
+      notifier.permission = permission;
+      if (exactChanged || (permission === 'granted' && permissionBefore !== 'granted')) {
+        reschedule(upcoming(), store.day);
+      }
     });
     // Without a listener Capacitor closes the app on back, whatever is open.
     await App.addListener('backButton', () => void goBack(store));

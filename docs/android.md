@@ -23,7 +23,7 @@ Status: **preview, looking for testers** ([#6](https://github.com/spuder/OpenThi
 
 ## Test builds
 
-The **Android** workflow builds an APK for every pull request and every push to `main`, signed with the OpenThings key (see [Signing](#signing)), so each build installs over the last one and keeps your data.
+The **Android** workflow builds a debug APK for every pull request and manual run. Pushes to `main` and release tags build an APK signed with the OpenThings key (see [Signing](#signing)), so each trusted build installs over the last one and keeps your data.
 
 **Easiest:** download [`OpenThings-android.apk`](https://github.com/spuder/OpenThings/releases/download/android-preview/OpenThings-android.apk) from the [Android preview](https://github.com/spuder/OpenThings/releases/tag/android-preview) pre-release, which always has the latest build from `main`.
 
@@ -33,7 +33,7 @@ The **Android** workflow builds an APK for every pull request and every push to 
 
 Versioned releases (`v0.4.0`, …) have the APK too, next to the desktop downloads. Builds from a pull request are in that PR's workflow run, as the `OpenThings-android` artifact (sign in to GitHub to download it).
 
-Pull requests from forks can't use the signing key, so they build a debug APK (`…-android-debug.apk`) signed with a throwaway key. It can't update the regular app, and the regular app can't update it: uninstall first, and local data goes with it. Turn on sync (Settings → Sync) to keep your to-dos on your server.
+Pull request builds don't receive the signing key and produce a debug APK (`…-android-debug.apk`) signed with a throwaway key. It can't update the regular app, and the regular app can't update it: uninstall first, and local data goes with it. Turn on sync (Settings → Sync) to keep your to-dos on your server.
 
 ## Signing
 

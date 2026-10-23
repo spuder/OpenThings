@@ -1,9 +1,9 @@
 name: Android
 
 # Builds the Capacitor Android app (android/). See docs/android.md#test-builds and #signing.
-#   - With the signing secrets (pushes and PRs in this repo): a release APK signed with the OpenThings
-#     key, so each build installs over the last and keeps your data. Without them (PRs from forks):
-#     a debug APK, signed with the runner's throwaway key.
+#   - Pushes to main and release tags with signing secrets: a release APK signed with the OpenThings
+#     key, so each build installs over the last and keeps your data. PRs and manual runs build a
+#     debug APK, signed with the runner's throwaway key.
 #   - Every run uploads the APK as a workflow artifact.
 #   - Push to main: replaces the APK on the "android-preview" pre-release, the testers' download link.
 #   - v* tag (started by the Tag release workflow): attaches the APK to that GitHub release, once
@@ -49,8 +49,23 @@ jobs:
       - run: npm run build
       - run: npx cap sync android
 
+      # Check release tags before any signing secret is made available to the build.
+      - name: Require release tag to be on main
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+            git fetch --no-tags --unshallow origin main
+          else
+            git fetch --no-tags origin main
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) isn't on main; only commits merged to main are released."
+            exit 1
+          fi
+
       - name: Signing key
         id: key
+        if: github.event_name == 'push'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -58,7 +73,7 @@ jobs:
             echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/openthings.jks"
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "No signing secrets (a PR from a fork?): building a debug APK."
+            echo "No signing secrets: building a debug APK."
             echo "signed=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -70,9 +85,9 @@ jobs:
           # Release tags are "0.4.0"; everything else "0.4.0-preview.123".
           ANDROID_VERSION_SUFFIX: ${{ !startsWith(github.ref, 'refs/tags/v') && format('-preview.{0}', github.run_number) || '' }}
           ANDROID_KEYSTORE_FILE: ${{ steps.key.outputs.signed == 'true' && format('{0}/openthings.jks', runner.temp) || '' }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ steps.key.outputs.signed == 'true' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ steps.key.outputs.signed == 'true' && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ steps.key.outputs.signed == 'true' && secrets.ANDROID_KEY_PASSWORD || '' }}
         run: |
           if [ "${{ steps.key.outputs.signed }}" = true ]; then
             ./gradlew --no-daemon assembleRelease
@@ -130,7 +145,7 @@ jobs:
 
   # v* tag: attach the APK to the release the Desktop workflow publishes for the same tag.
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 90

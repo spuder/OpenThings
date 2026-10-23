@@ -569,6 +569,14 @@
     }
     .actions {
       justify-content: space-between;
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    .actions button {
+      flex-shrink: 0;
+    }
+    .actions .done-btn {
+      margin-left: auto;
     }
   }
 </style>

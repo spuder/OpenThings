@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.4.2](https://github.com/spuder/OpenThings/releases/tag/v0.4.2) - 2026-10-23
+
+### What's Changed
+
+* Version bump only; no user-facing changes.
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.4.1...v0.4.2
+
 ## [v0.4.1](https://github.com/spuder/OpenThings/releases/tag/v0.4.1) - 2026-10-22
 
 ### What's Changed

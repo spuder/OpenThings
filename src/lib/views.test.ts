@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { describeWhen, dumpSectionsEmptiedBy, thisWeek } from './views';
-import type { Task } from './types';
+import { describeWhen, thisWeek, visibleDumpSections } from './views';
+import type { DumpSection, Task } from './types';
 
 const base = {
   notes: '', project_id: null, area_id: null, heading_id: null, someday: 0, evening: 0, dump: 0, dump_section_id: null,
@@ -8,16 +8,18 @@ const base = {
 } as unknown as Task;
 const t = (id: string, p: Partial<Task>): Task => ({ ...base, id, title: id, ...p }) as Task;
 
-describe('dumpSectionsEmptiedBy', () => {
-  it('removes a section only when its last task expires', () => {
-    const expired = [
-      t('expired-a', { dump: 1, dump_section_id: 'a' }),
-      t('expired-loose', { dump: 1 }),
-      t('expired-b', { dump: 1, dump_section_id: 'b' }),
-    ];
-    const remaining = [t('still-in-b', { dump: 1, dump_section_id: 'b' })];
+describe('visibleDumpSections', () => {
+  const sections: DumpSection[] = [
+    { id: 'unused', name: 'Unused', sort: 0 },
+    { id: 'active', name: 'Active', sort: 1 },
+    { id: 'trashed', name: 'Trashed', sort: 2 },
+  ];
 
-    expect(dumpSectionsEmptiedBy(expired, remaining)).toEqual(['a']);
+  it('keeps unused sections and hides sections whose tasks are all in Trash', () => {
+    const items = [t('active-task', { dump: 1, dump_section_id: 'active' })];
+    const trashed = [t('trashed-task', { dump: 1, dump_section_id: 'trashed', deleted_at: '2026-10-20T00:00:00Z' })];
+
+    expect(visibleDumpSections(sections, items, trashed).map((section) => section.id)).toEqual(['unused', 'active']);
   });
 });
 

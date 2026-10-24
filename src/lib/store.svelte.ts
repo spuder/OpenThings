@@ -247,10 +247,6 @@ class Store {
     const now = Date.now();
     const expired = db.all<Task>('SELECT * FROM tasks WHERE dump = 1 AND completed_at IS NULL').filter((t) => V.isDumpExpired(t, now));
     for (const t of expired) this.hardDelete(t.id);
-    if (expired.length) {
-      const remaining = db.all<Task>('SELECT * FROM tasks WHERE dump = 1 AND dump_section_id IS NOT NULL');
-      for (const id of V.dumpSectionsEmptiedBy(expired, remaining)) db.remove('dump_sections', id);
-    }
     return expired.length > 0;
   }
 
@@ -513,7 +509,7 @@ class Store {
       case 'dump': {
         const items = V.dump(ts, keep, this.now);
         const out: Group[] = [{ key: 'dump-loose', sectionId: null, items: items.filter((t) => !t.dump_section_id) }];
-        for (const s of this.dumpSections) {
+        for (const s of V.visibleDumpSections(this.dumpSections, items, this.trashed)) {
           out.push({ key: s.id, title: s.name, sectionId: s.id, items: items.filter((t) => t.dump_section_id === s.id) });
         }
         return out;
@@ -949,9 +945,11 @@ class Store {
   }
 
   private hardDelete(id: ID) {
+    const sectionId = db.one<Task>('SELECT dump_section_id FROM tasks WHERE id = ?', [id])?.dump_section_id;
     for (const tt of db.all<TaskTag>('SELECT * FROM task_tags WHERE task_id = ?', [id])) db.remove('task_tags', tt.id);
     for (const c of db.all<ChecklistItem>('SELECT * FROM checklist WHERE task_id = ?', [id])) db.remove('checklist', c.id);
     db.remove('tasks', id);
+    if (sectionId && !db.one('SELECT id FROM tasks WHERE dump_section_id = ?', [sectionId])) db.remove('dump_sections', sectionId);
   }
 
   /** Move a task to the Trash. It can be restored for 30 days. */

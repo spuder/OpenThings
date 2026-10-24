@@ -1,5 +1,5 @@
 /** Pure view filters over task rows, so they can be unit tested. */
-import type { Task } from './types';
+import type { DumpSection, Task } from './types';
 import { addDays, parseYmd, relLabel } from './dates';
 
 export const DUMP_TTL_MS = 48 * 60 * 60 * 1000;
@@ -20,11 +20,12 @@ export function isDumpExpired(t: Task, now: number): boolean {
   return t.dump === 1 && t.completed_at === null && now - Date.parse(t.created_at) >= DUMP_TTL_MS;
 }
 
-export function dumpSectionsEmptiedBy(expired: Task[], remaining: Task[]): string[] {
-  const expiredSections = new Set(
-    expired.map((t) => t.dump_section_id).filter((id): id is string => id !== null),
+export function visibleDumpSections(sections: DumpSection[], items: Task[], trashed: Task[]): DumpSection[] {
+  return sections.filter(
+    (section) =>
+      items.some((t) => t.dump_section_id === section.id) ||
+      !trashed.some((t) => t.dump_section_id === section.id),
   );
-  return [...expiredSections].filter((id) => !remaining.some((t) => t.dump_section_id === id));
 }
 
 export function inbox(tasks: Task[], keep: Set<string>): Task[] {

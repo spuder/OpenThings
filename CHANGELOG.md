@@ -2,6 +2,18 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.5.0](https://github.com/spuder/OpenThings/releases/tag/v0.5.0) - 2026-10-24
+
+### What's Changed
+
+* Android app: the Capacitor shell with reminders, links, QR pairing for sync, share to OpenThings, Today and Sync status widgets, the back button, dark mode and app shortcuts. Releases include signed APKs. Not yet tested on a real phone. By @spuder in https://github.com/spuder/OpenThings/pull/53 (https://github.com/spuder/OpenThings/issues/6)
+* Brain Dump sections can be removed with the × next to their heading or ⇧⌫, and ⌘Z brings one back. A section also falls off on its own 48 hours after its last to-do was added. Project headings can be removed the same way, or from the list menu (⇧L). By @Copilot and @spuder in https://github.com/spuder/OpenThings/pull/68 (https://github.com/spuder/OpenThings/issues/67)
+* Shortcuts: quick add is `N` (`Q` is gone), New project is ⌘⇧N, and ⇧H adds a heading in a project, a section in the Brain Dump or a habit in Habits. ⇧N is no longer used. By @spuder in https://github.com/spuder/OpenThings/pull/68
+* The macOS app icon no longer shows dark bars along its edges in the ⌘Tab switcher. By @spuder in https://github.com/spuder/OpenThings/pull/70 (https://github.com/spuder/OpenThings/issues/69)
+* A root-level `logo.PNG` for repository previews. By @Copilot in https://github.com/spuder/OpenThings/pull/73 (https://github.com/spuder/OpenThings/issues/71)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.4.2...v0.5.0
+
 ## [v0.4.2](https://github.com/spuder/OpenThings/releases/tag/v0.4.2) - 2026-10-23
 
 ### What's Changed

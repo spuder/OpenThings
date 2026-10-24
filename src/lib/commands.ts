@@ -197,10 +197,7 @@ export const commands: Command[] = [
     id: 'create.project',
     title: 'New project',
     group: 'Create',
-    // In the Brain Dump, Shift+N makes a section instead, so the palette and help show only ⌘⇧N there.
-    get keys() {
-      return store.view.kind === 'dump' ? ['mod+shift+n'] : ['shift+n', 'mod+shift+n'];
-    },
+    keys: ['mod+shift+n'],
     when: () => !inHabits(),
     run: () =>
       prompt('New project', (name) => {
@@ -230,7 +227,8 @@ export const commands: Command[] = [
     id: 'create.section',
     title: 'New brain dump section',
     group: 'Brain dump',
-    keys: ['shift+n', 'shift+s'],
+    // Shift+H, like a new heading in a project.
+    keys: ['shift+h', 'shift+s'],
     when: () => store.view.kind === 'dump',
     run: () => prompt('New section', (name) => store.addDumpSection(name)),
   },

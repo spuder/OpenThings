@@ -247,14 +247,16 @@ class Store {
     const now = Date.now();
     const expired = db.all<Task>('SELECT * FROM tasks WHERE dump = 1 AND completed_at IS NULL').filter((t) => V.isDumpExpired(t, now));
     for (const t of expired) this.hardDelete(t.id);
+    this.dropEmptyDumpSections(expired.map((t) => t.dump_section_id));
     return expired.length > 0;
   }
 
   /** Trashed tasks older than 30 days are deleted for good. */
   purgeTrash(): boolean {
     const cutoff = new Date(Date.now() - TRASH_DAYS * 86_400_000).toISOString();
-    const old = db.all<{ id: string }>('SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
+    const old = db.all<Pick<Task, 'id' | 'dump_section_id'>>('SELECT id, dump_section_id FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
     for (const t of old) this.hardDelete(t.id);
+    this.dropEmptyDumpSections(old.map((t) => t.dump_section_id));
     return old.length > 0;
   }
 
@@ -508,11 +510,11 @@ class Store {
       }
       case 'dump': {
         const items = V.dump(ts, keep, this.now);
-        const out: Group[] = [{ key: 'dump-loose', sectionId: null, items: items.filter((t) => !t.dump_section_id) }];
-        for (const s of V.visibleDumpSections(this.dumpSections, items, this.trashed)) {
-          out.push({ key: s.id, title: s.name, sectionId: s.id, items: items.filter((t) => t.dump_section_id === s.id) });
-        }
-        return out;
+        const g = V.dumpGroups(this.dumpSections, items, this.trashed);
+        return [
+          { key: 'dump-loose', sectionId: null, items: g.loose },
+          ...g.sections.map(({ section: s, items }) => ({ key: s.id, title: s.name, sectionId: s.id, items })),
+        ];
       }
       case 'matrix': {
         const m = V.matrix(ts, keep);
@@ -945,11 +947,24 @@ class Store {
   }
 
   private hardDelete(id: ID) {
-    const sectionId = db.one<Task>('SELECT dump_section_id FROM tasks WHERE id = ?', [id])?.dump_section_id;
     for (const tt of db.all<TaskTag>('SELECT * FROM task_tags WHERE task_id = ?', [id])) db.remove('task_tags', tt.id);
     for (const c of db.all<ChecklistItem>('SELECT * FROM checklist WHERE task_id = ?', [id])) db.remove('checklist', c.id);
     db.remove('tasks', id);
-    if (sectionId && !db.one('SELECT id FROM tasks WHERE dump_section_id = ?', [sectionId])) db.remove('dump_sections', sectionId);
+  }
+
+  /** True if the dump section still has an open to-do: unchecked and not in the Trash. */
+  private dumpSectionInUse(id: ID): boolean {
+    return !!db.one('SELECT id FROM tasks WHERE dump_section_id = ? AND dump = 1 AND completed_at IS NULL AND deleted_at IS NULL', [id]);
+  }
+
+  /**
+   * Remove the given dump sections once their last open to-do is gone. Checked or trashed to-dos
+   * that still name a removed section show as unsectioned (see V.dumpGroups).
+   */
+  private dropEmptyDumpSections(ids: (ID | null)[]) {
+    for (const id of new Set(ids)) {
+      if (id && this.dumpSections.some((s) => s.id === id) && !this.dumpSectionInUse(id)) db.remove('dump_sections', id);
+    }
   }
 
   /** Move a task to the Trash. It can be restored for 30 days. */
@@ -1113,7 +1128,9 @@ class Store {
 
   purgeTask(id: ID) {
     const idx = this.selectable.indexOf(id);
+    const sectionId = this.task(id)?.dump_section_id ?? null;
     this.hardDelete(id);
+    this.dropEmptyDumpSections([sectionId]);
     this.load();
     this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
   }
@@ -1121,6 +1138,7 @@ class Store {
   emptyTrash() {
     if (this.trashed.length) sound.playCrumple();
     for (const t of this.trashed) this.hardDelete(t.id);
+    this.dropEmptyDumpSections(this.trashed.map((t) => t.dump_section_id));
     this.load();
     this.selectedId = null;
     this.notify('Trash emptied');
@@ -1190,16 +1208,32 @@ class Store {
     this.load();
   }
   addDumpSection(name: string) {
-    this.dumpSectionId(name);
+    const id = this.dumpSectionId(name);
+    // A section whose to-dos are all in the Trash is hidden. Re-creating it detaches them, so it shows.
+    if (!this.dumpSectionInUse(id)) {
+      for (const t of this.trashed) if (t.dump_section_id === id) db.update('tasks', t.id, { dump_section_id: null });
+    }
     this.load();
   }
+  /**
+   * Remove a dump section; its to-dos become unsectioned. Undo recreates it under a new id,
+   * because a synced delete is final, and moves back the to-dos that are still unsectioned.
+   */
   deleteDumpSection(id: ID) {
-    for (const t of db.all<Task>('SELECT * FROM tasks WHERE dump_section_id = ?', [id])) {
-      db.update('tasks', t.id, { dump_section_id: null });
-    }
+    const s = this.dumpSections.find((x) => x.id === id);
+    if (!s) return;
+    const taskIds = db.all<{ id: ID }>('SELECT id FROM tasks WHERE dump_section_id = ?', [id]).map((t) => t.id);
+    for (const tid of taskIds) db.update('tasks', tid, { dump_section_id: null });
     db.remove('dump_sections', id);
+    this.undoStack.push('remove section', () => {
+      const nid = db.uuid7();
+      db.insert('dump_sections', { id: nid, name: s.name, sort: s.sort });
+      for (const tid of taskIds) {
+        if (db.one('SELECT id FROM tasks WHERE id = ? AND dump = 1 AND dump_section_id IS NULL', [tid])) db.update('tasks', tid, { dump_section_id: nid });
+      }
+    });
     this.load();
-    this.notify('Section removed; its tasks are unsectioned');
+    this.notify(`Removed “${s.name}”; its to-dos are unsectioned`);
   }
   renameArea(id: ID, name: string) {
     db.update('areas', id, { name });

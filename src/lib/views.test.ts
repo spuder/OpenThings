@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeWhen, thisWeek, visibleDumpSections } from './views';
+import { describeWhen, dumpGroups, thisWeek } from './views';
 import type { DumpSection, Task } from './types';
 
 const base = {
@@ -8,18 +8,36 @@ const base = {
 } as unknown as Task;
 const t = (id: string, p: Partial<Task>): Task => ({ ...base, id, title: id, ...p }) as Task;
 
-describe('visibleDumpSections', () => {
+describe('dumpGroups', () => {
   const sections: DumpSection[] = [
     { id: 'unused', name: 'Unused', sort: 0 },
     { id: 'active', name: 'Active', sort: 1 },
     { id: 'trashed', name: 'Trashed', sort: 2 },
   ];
+  const ids = (ts: Task[]) => ts.map((x) => x.id);
 
   it('keeps unused sections and hides sections whose tasks are all in Trash', () => {
     const items = [t('active-task', { dump: 1, dump_section_id: 'active' })];
     const trashed = [t('trashed-task', { dump: 1, dump_section_id: 'trashed', deleted_at: '2026-10-20T00:00:00Z' })];
 
-    expect(visibleDumpSections(sections, items, trashed).map((section) => section.id)).toEqual(['unused', 'active']);
+    const g = dumpGroups(sections, items, trashed);
+    expect(g.sections.map((s) => s.section.id)).toEqual(['unused', 'active']);
+    expect(ids(g.sections[1].items)).toEqual(['active-task']);
+  });
+
+  it('shows a section with open tasks even if others from it are in Trash', () => {
+    const items = [t('open', { dump: 1, dump_section_id: 'trashed' })];
+    const trashed = [t('gone', { dump: 1, dump_section_id: 'trashed', deleted_at: '2026-10-20T00:00:00Z' })];
+
+    expect(dumpGroups(sections, items, trashed).sections.map((s) => s.section.id)).toContain('trashed');
+  });
+
+  it('lists tasks whose section was removed as unsectioned', () => {
+    const items = [t('loose', { dump: 1 }), t('orphan', { dump: 1, dump_section_id: 'removed' }), t('kept', { dump: 1, dump_section_id: 'active' })];
+
+    const g = dumpGroups(sections, items, []);
+    expect(ids(g.loose)).toEqual(['loose', 'orphan']);
+    expect(g.sections.flatMap((s) => ids(s.items))).toEqual(['kept']);
   });
 });
 

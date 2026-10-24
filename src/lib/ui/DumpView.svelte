@@ -57,8 +57,8 @@
     {#each store.groups as g (g.key)}
       <section>
         {#if g.title}
-          <h3>
-            {g.title}
+          <div class="section-head">
+            <h3>{g.title}</h3>
             {#if g.sectionId}
               <button
                 class="delete-section"
@@ -67,7 +67,7 @@
                 title="Remove section"
               >×</button>
             {/if}
-          </h3>
+          </div>
         {/if}
         <ul>
           {#each g.items as t (t.id)}
@@ -168,7 +168,14 @@
     opacity: 0.55;
     margin-bottom: var(--line-h);
   }
+  .section-head {
+    display: flex;
+    align-items: center;
+    height: var(--line-h);
+  }
   h3 {
+    flex: 1;
+    min-width: 0;
     margin: 0;
     font-size: 27px;
     font-weight: 600;
@@ -182,9 +189,11 @@
     text-decoration-thickness: 1px;
   }
   .delete-section {
-    margin-left: auto;
+    flex: none;
     width: 44px;
     height: 44px;
+    /* A 44px touch target in a 34px row, without pushing the ruled lines apart. */
+    margin-block: calc((var(--line-h) - 44px) / 2);
     font-family: 'Inter', system-ui, sans-serif;
     font-size: 22px;
     line-height: 1;

@@ -20,12 +20,21 @@ export function isDumpExpired(t: Task, now: number): boolean {
   return t.dump === 1 && t.completed_at === null && now - Date.parse(t.created_at) >= DUMP_TTL_MS;
 }
 
-export function visibleDumpSections(sections: DumpSection[], items: Task[], trashed: Task[]): DumpSection[] {
-  return sections.filter(
-    (section) =>
-      items.some((t) => t.dump_section_id === section.id) ||
-      !trashed.some((t) => t.dump_section_id === section.id),
-  );
+/**
+ * Brain Dump groups: unsectioned to-dos, then one group per section. A section whose to-dos are
+ * all in the Trash is hidden. A to-do whose section no longer exists (removed here, or on
+ * another device before this one synced) counts as unsectioned, so it never disappears.
+ */
+export function dumpGroups(sections: DumpSection[], items: Task[], trashed: Task[]): { loose: Task[]; sections: { section: DumpSection; items: Task[] }[] } {
+  const known = new Set(sections.map((s) => s.id));
+  const used = new Set(items.map((t) => t.dump_section_id));
+  const inTrash = new Set(trashed.map((t) => t.dump_section_id));
+  return {
+    loose: items.filter((t) => !t.dump_section_id || !known.has(t.dump_section_id)),
+    sections: sections
+      .filter((s) => used.has(s.id) || !inTrash.has(s.id))
+      .map((section) => ({ section, items: items.filter((t) => t.dump_section_id === section.id) })),
+  };
 }
 
 export function inbox(tasks: Task[], keep: Set<string>): Task[] {

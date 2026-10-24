@@ -232,6 +232,22 @@ export const commands: Command[] = [
     run: () => prompt('New section', (name) => store.addDumpSection(name)),
   },
   {
+    id: 'dump.removeSection',
+    title: 'Remove brain dump section…',
+    group: 'Brain dump',
+    keys: ['shift+backspace'],
+    when: () => store.view.kind === 'dump' && store.dumpSections.length > 0,
+    run: () => {
+      const current = sel()?.dump_section_id;
+      store.paletteMode = {
+        kind: 'choose',
+        label: 'Remove section (its to-dos are kept)',
+        options: store.dumpSections.map((s) => ({ label: s.name, hint: s.id === current ? 'current' : undefined, run: () => store.deleteDumpSection(s.id) })),
+      };
+      store.overlay = 'palette';
+    },
+  },
+  {
     id: 'create.habit',
     title: 'New habit',
     group: 'Habits',

@@ -252,7 +252,7 @@ export const commands: Command[] = [
     id: 'create.habit',
     title: 'New habit',
     group: 'Habits',
-    keys: ['shift+n'],
+    keys: ['shift+h'],
     when: inHabits,
     run: () => prompt('New habit', (name) => store.addHabit(name)),
   },

@@ -2,6 +2,15 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.6.0](https://github.com/spuder/OpenThings/releases/tag/v0.6.0) - 2026-10-24
+
+### What's Changed
+
+* The desktop and web apps show the app version in small text at the bottom right. By @spuder in https://github.com/spuder/OpenThings/pull/82 (https://github.com/spuder/OpenThings/issues/81)
+* Settings has an About section with the version and platform, such as "OpenThings v0.6.0 · iOS app", on every platform. By @spuder in https://github.com/spuder/OpenThings/pull/84
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.5.0...v0.6.0
+
 ## [v0.5.0](https://github.com/spuder/OpenThings/releases/tag/v0.5.0) - 2026-10-24
 
 ### What's Changed

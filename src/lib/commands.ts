@@ -192,7 +192,7 @@ export const commands: Command[] = [
     id: 'create.quickadd',
     title: 'Quick add',
     group: 'Create',
-    keys: ['q', 'n', 'mod+n', 'ctrl+space'],
+    keys: ['n', 'mod+n', 'ctrl+space'],
     run: () => {
       store.quickAddPrefill = store.contextToken();
       store.overlay = 'quickadd';

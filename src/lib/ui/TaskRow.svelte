@@ -254,6 +254,21 @@
   .task:global([data-swipe='delete']) {
     background: color-mix(in srgb, var(--deadline) 32%, transparent);
   }
+  /* A right swipe on a done row unchecks it, so a neutral tint rather than the "complete" green. */
+  .task:global([data-swipe='hint-uncheck']) {
+    background: color-mix(in srgb, var(--text-2) 10%, transparent);
+  }
+  .task:global([data-swipe='uncheck']) {
+    background: color-mix(in srgb, var(--text-2) 24%, transparent);
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .task {
+      /* The browser keeps vertical scrolling and pinch-zoom; sideways motion is left to the row swipe. */
+      touch-action: pan-y pinch-zoom;
+      /* A swiped row slides under its tint instead of widening the list. */
+      overflow-x: clip;
+    }
+  }
   .task.dragging {
     opacity: 0.45;
   }

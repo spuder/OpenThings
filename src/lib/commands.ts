@@ -122,6 +122,22 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
           },
         },
         { label: 'New heading…', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
+        ...(store.headings.some((h) => h.project_id === p.id)
+          ? [
+              {
+                label: 'Remove heading…',
+                hint: 'its to-dos stay in the project',
+                run: () => {
+                  store.paletteMode = {
+                    kind: 'choose',
+                    label: 'Remove heading',
+                    options: store.headings.filter((h) => h.project_id === p.id).map((h) => ({ label: h.name, run: () => store.deleteHeading(h.id) })),
+                  };
+                  store.overlay = 'palette';
+                },
+              },
+            ]
+          : []),
         { label: 'Complete project', run: () => store.completeProject(p.id) },
         {
           label: 'Delete project',

@@ -37,6 +37,8 @@ export interface Group {
   subtitle?: string;
   /** For dump sections: the section id (null = unsectioned). */
   sectionId?: ID | null;
+  /** For project headings: the heading id. */
+  headingId?: ID;
   items: Task[];
 }
 
@@ -532,9 +534,11 @@ class Store {
       }
       case 'project': {
         const items = ts.filter((t) => t.project_id === v.id && !t.dump && (t.completed_at === null || keep.has(t.id))).sort((a, b) => a.sort - b.sort);
-        const out: Group[] = [{ key: 'p-loose', items: items.filter((t) => !t.heading_id) }];
-        for (const h of this.headings.filter((h) => h.project_id === v.id)) {
-          out.push({ key: h.id, title: h.name, items: items.filter((t) => t.heading_id === h.id) });
+        const hs = this.headings.filter((h) => h.project_id === v.id);
+        // A to-do whose heading no longer exists (removed, or on another device) shows without one.
+        const out: Group[] = [{ key: 'p-loose', items: items.filter((t) => !t.heading_id || !hs.some((h) => h.id === t.heading_id)) }];
+        for (const h of hs) {
+          out.push({ key: h.id, title: h.name, headingId: h.id, items: items.filter((t) => t.heading_id === h.id) });
         }
         return out;
       }
@@ -1193,6 +1197,26 @@ class Store {
   addHeading(projectId: ID, name: string) {
     db.insert('headings', { id: db.uuid7(), project_id: projectId, name, sort: this.nextSort() });
     this.load();
+  }
+  /**
+   * Remove a project heading; its to-dos stay in the project without a heading. Undo recreates
+   * it under a new id, because a synced delete is final, and moves back the to-dos still without one.
+   */
+  deleteHeading(id: ID) {
+    const h = this.headings.find((x) => x.id === id);
+    if (!h) return;
+    const taskIds = db.all<{ id: ID }>('SELECT id FROM tasks WHERE heading_id = ?', [id]).map((t) => t.id);
+    for (const tid of taskIds) db.update('tasks', tid, { heading_id: null });
+    db.remove('headings', id);
+    this.undoStack.push('remove heading', () => {
+      const nid = db.uuid7();
+      db.insert('headings', { id: nid, project_id: h.project_id, name: h.name, sort: h.sort });
+      for (const tid of taskIds) {
+        if (db.one('SELECT id FROM tasks WHERE id = ? AND project_id = ? AND heading_id IS NULL', [tid, h.project_id])) db.update('tasks', tid, { heading_id: nid });
+      }
+    });
+    this.load();
+    this.notify(`Removed “${h.name}”; its to-dos stay in the project`);
   }
   addDumpSection(name: string) {
     this.dumpSectionId(name);

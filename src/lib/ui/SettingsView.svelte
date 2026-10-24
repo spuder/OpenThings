@@ -92,6 +92,12 @@
     void openSelfHostingDocs();
   }
 
+  /** Android: open "Alarms & reminders" so reminders use exact alarms. */
+  async function allowExact() {
+    const { allowExactReminders } = await import('../native/capacitor.svelte');
+    await allowExactReminders();
+  }
+
   let scanning = $state(false);
   async function scan() {
     scanning = true;
@@ -291,8 +297,17 @@ curl '${base}/api/v1/tasks?view=today'`);
       {#if native}
       <dt>Scheduled with the system</dt>
       <dd>{nativeStatus.scheduled}</dd>
+      {#if nativeStatus.exactAlarms !== null}
+      <dt>Exact timing</dt>
+      <dd>
+        {nativeStatus.exactAlarms ? 'on' : 'off: Android may deliver reminders a few minutes late'}
+        {#if !nativeStatus.exactAlarms}<div class="row-actions"><button class="btn" onclick={allowExact}>Allow exact timing</button></div>{/if}
+      </dd>
+      {/if}
+      {#if nativeStatus.appGroup}
       <dt>App Group</dt>
-      <dd>{nativeStatus.appGroup || 'unknown'} · {nativeStatus.containerAvailable ? 'available' : 'not available (widgets and share sheet off)'}</dd>
+      <dd>{nativeStatus.appGroup} · {nativeStatus.containerAvailable ? 'available' : 'not available (widgets and share sheet off)'}</dd>
+      {/if}
       {#if nativeStatus.lastError}<dt>Native error</dt><dd class="err">{nativeStatus.lastError}</dd>{/if}
       {:else}
       <dt>Service worker</dt>

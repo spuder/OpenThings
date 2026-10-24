@@ -1,24 +1,28 @@
 /**
- * Capacitor (iOS today, Android later) integration. Loaded with a dynamic import only when
+ * Capacitor (iOS and Android) integration. Loaded with a dynamic import only when
  * `isNativeShell()` is true, so none of this runs in the browser, PWA or Docker builds.
  *
  * What it does:
  *   - Schedules OS-level local notifications from `window.OpenThings.reminders.upcoming()` and
  *     reschedules them on every `openthings:reminders` event (they fire even when the app is closed).
  *   - Opens the task when a notification is tapped, and handles `openthings://…` links from widgets.
- *   - Writes a small JSON snapshot (Today, upcoming reminders, sync state) to the App Group for widgets.
+ *   - Writes a small JSON snapshot (Today, upcoming reminders, sync state) for widgets (iOS: the App
+ *     Group; Android: the app's files).
  *   - Reports the on-screen keyboard height so lists and quick add stay above it.
  *   - Scans the pairing QR code from another device's Settings (`scanQrCode`) and opens
  *     `openthings://pair` links in Settings → Sync.
- *   - Imports to-dos that the Share extension or Shortcuts left in the App Group, through
- *     `store.addParsed`, so they land in the op log like any other write.
+ *   - Imports to-dos that Share (or Shortcuts on iOS) queued, through `store.addParsed`, so they
+ *     land in the op log like any other write.
+ *   - Android: the back button (./back.ts) and system bar icons that follow the app's theme.
  *
- * Native side: ios/App/App/OpenThingsPlugin.swift (jsName "OpenThingsNative"). See docs/ios.md.
+ * Native side: ios/App/App/OpenThingsPlugin.swift and
+ * android/app/src/main/java/io/github/spuder/openthings/OpenThingsPlugin.java (jsName "OpenThingsNative").
+ * See docs/ios.md and docs/android.md.
  */
 import { App } from '@capacitor/app';
 import { Keyboard } from '@capacitor/keyboard';
 import { setKeyboardHeight } from '../keyboard';
-import { registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { notifier, type NotifyPermission, type UpcomingReminder } from '../reminders.svelte';
 import { reminderLabel } from '../parse';
@@ -29,6 +33,10 @@ import type { Area, Project, Task } from '../types';
 import { nativeStatus } from './status.svelte';
 import { buildSnapshot, MAX_SCHEDULED, notificationId, pendingToParsed, type PendingItem } from './snapshot';
 import { openRoute } from './links';
+import { backStep } from './back';
+import { tick } from 'svelte';
+import { theme } from '../theme.svelte';
+import { viewEnabled } from '../features.svelte';
 
 interface NativeShared {
   /** Write the widget snapshot into the App Group and reload widget timelines. */
@@ -43,6 +51,38 @@ interface NativeShared {
 }
 
 const Shared = registerPlugin<NativeShared>('OpenThingsNative');
+const android = Capacitor.getPlatform() === 'android';
+
+/**
+ * Android 12+: may reminders use exact alarms? Without that permission (off by default on Android 14+),
+ * asking for an exact alarm makes the plugin open the "Alarms & reminders" screen on every schedule, so
+ * reminders are scheduled inexact instead, which Android may deliver a few minutes late. Settings
+ * offers `allowExactReminders` to turn exact timing on.
+ */
+async function exactAllowed(): Promise<boolean> {
+  if (!android) return true;
+  try {
+    const s = await LocalNotifications.checkExactNotificationSetting();
+    nativeStatus.exactAlarms = s.exact_alarm === 'granted';
+  } catch {
+    nativeStatus.exactAlarms = false;
+  }
+  return nativeStatus.exactAlarms;
+}
+
+let latest: { list: UpcomingReminder[]; day: string } = { list: [], day: '' };
+
+/** Android: open "Alarms & reminders" so reminders can use exact alarms, then reschedule them. */
+export async function allowExactReminders() {
+  if (!android) return;
+  try {
+    await LocalNotifications.changeExactNotificationSetting();
+  } catch (e) {
+    nativeStatus.lastError = (e as Error).message || String(e);
+  }
+  await exactAllowed();
+  reschedule(latest.list, latest.day);
+}
 
 /** Scan a QR code with the camera. Null when the user closes the scanner. */
 export async function scanQrCode(): Promise<string | null> {
@@ -63,12 +103,76 @@ export interface NativeStoreApi {
   now: number;
   overlay: string | null;
   quickAddPrefill: string;
+  view: ViewKey;
+  sidebarOpen: boolean;
+  expandedId: ID | null;
+  readonly isMulti: boolean;
+  selecting: boolean;
+  clearMulti(): void;
+  closeFocus(): void;
   reveal(id: ID): void;
   go(v: ViewKey): void;
   addParsed(p: Parsed, opts: { useContext: boolean }): ID | null;
   notify(text: string): void;
 }
 
+/**
+ * Android: light or dark status and navigation bar icons to match the app's theme, which can differ
+ * from the system's (Settings → Appearance, Omarchy themes). The page draws behind the bars.
+ */
+function followTheme() {
+  let last: boolean | null = null;
+  const apply = () => {
+    const dark = theme.isDark;
+    if (dark === last) return;
+    last = dark;
+    // SystemBarsStyle.Dark means light icons, for a dark background.
+    void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
+  };
+  $effect.root(() => {
+    $effect(() => {
+      void theme.pref;
+      void theme.omarchy;
+      apply();
+    });
+  });
+  // "System" follows the phone's dark mode, which can change while the app is open.
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', apply);
+}
+
+/** What's open, to tell whether an Escape closed anything. */
+function openState(store: NativeStoreApi): string {
+  return JSON.stringify([store.overlay, store.sidebarOpen, store.expandedId, store.isMulti, store.selecting, document.querySelectorAll('[role="menu"]').length]);
+}
+
+/** Android back button / gesture: step out one level (src/lib/native/back.ts). */
+async function goBack(store: NativeStoreApi) {
+  const step = backStep({
+    sidebarOpen: store.sidebarOpen,
+    overlay: store.overlay,
+    expandedId: store.expandedId,
+    isMulti: store.isMulti,
+    selecting: store.selecting,
+    menuOpen: !!document.querySelector('[role="menu"]'),
+    viewKind: store.view.kind,
+  });
+  if (step === 'drawer') store.sidebarOpen = false;
+  else if (step === 'today') store.go({ kind: 'today' });
+  else if (step === 'exit') await App.minimizeApp();
+  else {
+    // Send Escape to whatever has focus (a field in quick add, the open to-do's notes…) so it closes
+    // the way it does from a keyboard, saving what was typed. If nothing listened, close it here.
+    const before = openState(store);
+    const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+    await tick();
+    if (openState(store) !== before) return;
+    if (store.overlay === 'focus') store.closeFocus();
+    else if (store.overlay) store.overlay = null;
+    else if (store.expandedId) store.expandedId = null;
+    else store.clearMulti();
+  }
+}
 
 function mapPermission(p: string): NotifyPermission {
   if (p === 'granted') return 'granted';
@@ -80,6 +184,10 @@ let scheduling: Promise<void> = Promise.resolve();
 
 /** Cancel every reminder notification we scheduled and schedule the current list. Serialized. */
 function reschedule(list: UpcomingReminder[], day: string) {
+  // Reminders that were upcoming last time and aren't now: completed, deleted, moved, or just fired
+  // by the app's own timer (store.fireDueReminders). The ones whose time has passed were fired.
+  const dropped = latest.list.filter((r) => !list.some((l) => l.taskId === r.taskId));
+  latest = { list, day };
   scheduling = scheduling.then(async () => {
     try {
       const perm = await LocalNotifications.checkPermissions();
@@ -92,14 +200,31 @@ function reschedule(list: UpcomingReminder[], day: string) {
       const ours = pending.notifications.filter((n) => (n.extra as { kind?: string } | undefined)?.kind === 'reminder');
       if (ours.length) await LocalNotifications.cancel({ notifications: ours.map((n) => ({ id: n.id })) });
       const now = Date.now();
+      // Android delivers inexact alarms minutes late, and keeps the app running for a while after it
+      // leaves the screen, so the app's own timer can fire a reminder first. If the app isn't on
+      // screen nobody saw its chime and message: post it now instead of dropping it with the cancel
+      // above. Skip any that Android already shows: getPending() on Android also lists delivered
+      // notifications until they're tapped or dismissed, so `ours` alone would post them twice.
+      if (android && document.visibilityState === 'hidden') {
+        const fired = new Set(dropped.filter((r) => Date.parse(r.at) <= now).map((r) => notificationId(r.taskId)));
+        const shown = new Set((await LocalNotifications.getDeliveredNotifications()).notifications.map((n) => n.id));
+        const missed = ours.filter((n) => fired.has(n.id) && !shown.has(n.id));
+        if (missed.length) {
+          await LocalNotifications.schedule({
+            notifications: missed.map((n) => ({ id: n.id, title: n.title, body: n.body, extra: n.extra, isExactNotification: false })),
+          });
+        }
+      }
       const next = list.filter((r) => Date.parse(r.at) > now).slice(0, MAX_SCHEDULED);
       if (next.length) {
+        const exact = await exactAllowed();
         await LocalNotifications.schedule({
           notifications: next.map((r) => ({
             id: notificationId(r.taskId),
             title: r.title,
             body: `Reminder · ${reminderLabel(r.at, day)}`,
             schedule: { at: new Date(r.at), allowWhileIdle: true },
+            isExactNotification: exact,
             threadIdentifier: 'reminders',
             extra: { kind: 'reminder', taskId: r.taskId },
           })),
@@ -141,6 +266,8 @@ export async function startNative(store: NativeStoreApi) {
             id: (Date.now() % 1_000_000_000) + 1,
             title,
             body,
+            // Shown right away: no alarm, so never the exact-alarm settings screen on Android.
+            isExactNotification: false,
             extra: { kind: 'adhoc', taskId: taskId ?? null },
           },
         ],
@@ -151,6 +278,24 @@ export async function startNative(store: NativeStoreApi) {
   // ---- notifications ----
   window.addEventListener('openthings:reminders', (e) => reschedule(e.detail, store.day));
   reschedule(upcoming(), store.day);
+  if (android) {
+    // Settings shows whether exact timing is on, and it can change in Android's settings while
+    // OpenThings is in the background: check again on return, and reschedule if it changed.
+    await exactAllowed();
+    await App.addListener('resume', async () => {
+      const exactBefore = nativeStatus.exactAlarms;
+      const permissionBefore = notifier.permission;
+      const exactChanged = (await exactAllowed()) !== exactBefore;
+      const permission = mapPermission((await LocalNotifications.checkPermissions()).display);
+      notifier.permission = permission;
+      if (exactChanged || (permission === 'granted' && permissionBefore !== 'granted')) {
+        reschedule(upcoming(), store.day);
+      }
+    });
+    // Without a listener Capacitor closes the app on back, whatever is open.
+    await App.addListener('backButton', () => void goBack(store));
+    followTheme();
+  }
 
   await LocalNotifications.addListener('localNotificationActionPerformed', (a) => {
     const taskId = (a.notification.extra as { taskId?: string } | undefined)?.taskId;
@@ -165,6 +310,14 @@ export async function startNative(store: NativeStoreApi) {
   // ---- deep links from widgets and Shortcuts ----
   await App.addListener('appUrlOpen', (e) => openRoute(e.url));
 
+  await startShared(store, upcoming);
+}
+
+/**
+ * Import to-dos queued by Share (and Shortcuts on iOS), and keep the widget snapshot current. iOS
+ * keeps both in the App Group; Android in the app's files (android/…/SharedQueue.java).
+ */
+async function startShared(store: NativeStoreApi, upcoming: () => UpcomingReminder[]) {
   // ---- extension → app import ----
   let importing = false;
   const importPending = async () => {
@@ -174,7 +327,8 @@ export async function startNative(store: NativeStoreApi) {
       const { items, route } = await Shared.takePending();
       let added = 0;
       for (const item of items ?? []) {
-        const p = pendingToParsed(item, store.day);
+        // With Brain Dump turned off its list is hidden and items in it expire unseen: use the Inbox.
+        const p = pendingToParsed(viewEnabled('dump') ? item : { ...item, target: 'inbox' }, store.day);
         if (p && store.addParsed(p, { useContext: false })) added++;
       }
       if (added) store.notify(added === 1 ? 'Added 1 shared to-do' : `Added ${added} shared to-dos`);

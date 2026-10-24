@@ -52,7 +52,7 @@ When in doubt, write it from scratch and say so in the PR description.
 - Server: Bun + `bun:sqlite` (`server/`), one process in the Docker image serving the app, sync, REST API and MCP; see `docs/sync.md` and `docs/api.md`. Tested with `bun test`.
 
 Desktop: Tauri v2 shell in `src-tauri/` (Rust), see `docs/desktop.md`.
-Planned: Capacitor Android.
+Capacitor 8 for the Android app too (`android/`, Java, no Kotlin); see `docs/android.md`.
 
 ## Commands
 
@@ -66,6 +66,7 @@ npm run check      # svelte-check + tsc
 npm run build
 npm run tauri dev  # desktop app (needs Rust; see docs/desktop.md)
 npx cap sync ios   # copy the build into the iOS project (open it in Xcode on a Mac)
+npx cap sync android  # same for the Android project (open it in Android Studio, or ./gradlew assembleDebug)
 ```
 
 ## Releasing
@@ -99,6 +100,8 @@ Releases are automatic once a version bump merges to `main`; never push a `v*` t
 | `ios/App/Shared/` | Swift shared by app and extensions: App Group paths, snapshot and pending-item formats |
 | `ios/App/OpenThingsWidgets/`, `ios/App/OpenThingsShare/` | Widget and Share Sheet extensions |
 | `ios/App/Config/OpenThings.xcconfig` | Bundle id, App Group, URL scheme, team: the one place to change them |
+| `android/app/src/main/java/io/github/spuder/openthings/` | Android app: `OpenThingsPlugin.java` (same JS `OpenThingsNative` plugin as iOS), `SharedQueue.java` (queued to-dos and widget snapshot, the App Group's counterpart), `ShareActivity.java`, `TodayWidget.java` / `SyncWidget.java` / `Widgets.java` |
+| `.github/workflows/android.yml`, `scripts/android-keystore.sh` | Signed APKs for testers, the `android-preview` pre-release, APKs on releases; see `docs/android.md#signing` |
 | `src/lib/ui/*` | Svelte components |
 | `src/lib/native/` | Desktop (Tauri) bridge: `desktop.ts` (guarded by `isDesktop`), main-window wiring, quick-add window, Settings → Desktop — see `docs/desktop.md` |
 | `src-tauri/` | Tauri desktop shell (Rust): windows, tray, menu bar, global hotkey, deep links / CLI, native notifications. `npm run tauri dev` |
@@ -118,6 +121,6 @@ Releases are automatic once a version bump merges to `main`; never push a `v*` t
 - The UI must work at phone width (≤ 760px) and with touch: no hover-only controls, 44px touch targets, no reliance on double click.
 - Brain Dump items are tasks with `dump = 1`. Unchecked ones are deleted for good 48 hours after `created_at`. Moving one to any list clears `dump`.
 - Native shells only add capabilities: guard Tauri code with `isDesktop` and Capacitor code with `isNativeShell()` so web, PWA and Docker builds are unaffected, and keep data writes in the main window's store.
-- **Native code stays in `ios/` and `src/lib/native/`.** Web code that touches it is guarded by `isNativeShell()` and loads the Capacitor module lazily, so web, PWA and Docker builds are unaffected. Native shells use the `window.OpenThings` bridge; they don't reimplement sync or reminders. Extensions never write the database: they queue items in the App Group and the app imports them through the store (op log).
+- **Native code stays in `ios/`, `android/` and `src/lib/native/`.** Web code that touches it is guarded by `isNativeShell()` and loads the Capacitor module lazily, so web, PWA and Docker builds are unaffected. Native shells use the `window.OpenThings` bridge; they don't reimplement sync or reminders. Extensions, Share and widgets never write the database: they queue items (iOS: the App Group; Android: `SharedQueue`) and the app imports them through the store (op log).
 - Optional features are listed in `FEATURES` in `features.svelte.ts`. A new optional view must be gated through `viewEnabled()`.
 - Keep the UI calm: few elements per row, short animations (`transform`/`opacity`), no new colors without a token in `app.css`.

@@ -1,7 +1,7 @@
 # URL scheme
 
-The desktop app (macOS, Linux) and the iOS app open `openthings://` links, so Automator, Shortcuts,
-Raycast, Alfred, scripts and other apps can add to-dos and open lists. Both apps handle the same
+The desktop app (macOS, Linux), the iOS app and the Android app open `openthings://` links, so Automator,
+Shortcuts, Tasker, Raycast, Alfred, scripts and other apps can add to-dos and open lists. They handle the same
 links with the same code (`parseRoute` in `src/lib/native/snapshot.ts`, `openRoute` in
 `src/lib/native/links.ts`). The web app in a browser doesn't: browsers don't let a web page claim a
 URL scheme.

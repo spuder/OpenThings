@@ -7,5 +7,7 @@ export const nativeStatus = $state({
   scheduled: 0,
   appGroup: '',
   containerAvailable: false,
+  /** Android 12+: whether reminders may use exact alarms ("Alarms & reminders"). Null elsewhere. */
+  exactAlarms: null as boolean | null,
   lastError: null as string | null,
 });

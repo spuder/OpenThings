@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app's dark background colour (bg token in src/app.css). -->
+    <color name="app_background">#1D1E21</color>
+    <!-- The accent token (src/app.css). -->
+    <color name="accent">#5B8FF9</color>
+    <!-- Widgets: the text, text-2 and text-3 tokens in src/app.css. -->
+    <color name="widget_text">#ECECEF</color>
+    <color name="widget_text_secondary">#9B9BA3</color>
+    <color name="widget_text_tertiary">#67676F</color>
+</resources>

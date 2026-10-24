@@ -153,6 +153,8 @@ export interface AddLink {
   deadline: string;
   tags: string[];
   list: string;
+  /** Brain Dump (`dump=1`), unless `when` or `list` places the to-do elsewhere. */
+  dump: boolean;
   save: boolean;
 }
 
@@ -193,6 +195,7 @@ export function parseRoute(url: string): Route | null {
         .map((t) => t.trim())
         .filter(Boolean),
       list: get('list'),
+      dump: TRUE.has(get('dump').toLowerCase()),
       save: TRUE.has(get('save').toLowerCase()),
     };
   }
@@ -224,6 +227,7 @@ export function addLinkParsed(r: AddLink, day: string): Parsed {
   }
   for (const t of r.tags) if (!p.tags.some((x) => x.toLowerCase() === t.toLowerCase())) p.tags.push(t);
   if (r.list) p.project = r.list;
+  if (r.dump && !p.when && !p.project) p.dump = true;
   return p;
 }
 
@@ -237,7 +241,10 @@ export function addLinkPrefill(r: AddLink): string {
     r.list && `+${dash(r.list)}`,
     r.when && `@${word(r.when)}`,
     r.deadline && `!${word(r.deadline)}`,
+    r.dump && '@dump',
   ].filter(Boolean);
   const text = parts.join(' ');
-  return r.notes ? `${text} // ${r.notes}` : text;
+  if (r.notes) return `${text} // ${r.notes}`;
+  // Only tokens (`@inbox`, from a widget): end in a space so what you type starts a new word.
+  return text && !r.title && !r.text.trim() ? `${text} ` : text;
 }

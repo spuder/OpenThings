@@ -7,7 +7,7 @@ Status: **builds in CI (Simulator, unsigned); not yet tested on a device.** The 
 | App shell (WKWebView, `capacitor://localhost`) | `ios/App/App`, `capacitor.config.ts` | Implemented |
 | Reminder notifications scheduled with iOS | `src/lib/native/capacitor.svelte.ts` | Implemented |
 | Tap a notification → open the task | same | Implemented |
-| Widgets: Today (Home + Lock Screen), Sync status | `ios/App/OpenThingsWidgets` | Implemented |
+| Widgets: Today (Home + Lock Screen), Sync status, Add to Inbox / Brain Dump (open quick add) | `ios/App/OpenThingsWidgets` | Implemented; quick-add widgets not yet tested on a device |
 | Share Sheet → Inbox or Brain Dump | `ios/App/OpenThingsShare` | Implemented |
 | Shortcuts / Siri: Add To-Do (quick-add syntax), Open Today | `ios/App/App/OpenThingsIntents.swift` | Implemented |
 | Interactive widgets (check off from the Home Screen) | — | Not started (needs a write path from the widget; see "Next") |
@@ -28,6 +28,17 @@ The app gives iOS two actions (App Intents, `ios/App/App/OpenThingsIntents.swift
 - **Your own shortcuts:** in the Shortcuts app, search for OpenThings to use **Add To-Do** and **Open Today** as steps, for example from a Back Tap, an automation or a Home Screen icon. The *Open URLs* action with an [`openthings://` link](url-scheme.md) can open any list, or add a to-do with a title, list, date and tags.
 - **Needs** the App Group, so a paid Apple Developer account when you build the app yourself (see [Running on your iPhone](#running-on-your-iphone)).
 - **Not yet:** Siri can't read your list aloud or complete a to-do, and the phrase can't include the to-do itself ("Add buy milk to OpenThings"): Apple only allows fixed phrases, so Siri always asks.
+
+## Quick-add widgets
+
+Two small widgets (Home Screen, and circular on the Lock Screen) open the app straight into quick add:
+
+- **Add to Inbox** opens `openthings://add?when=inbox`: quick add with `@inbox`, so the to-do goes to the Inbox whatever list the app was on.
+- **Brain Dump** opens `openthings://add?dump=1`: the plain Brain Dump box. With Brain Dump turned off it opens quick add for the Inbox.
+
+They open the app rather than adding in place because widgets can't take text input, and an App Intent run from a widget button runs in the background with no prompt to answer. WKWebView may not raise the keyboard for a focus that didn't come from a tap in the page; if so, tap the field once (to verify on a device).
+
+**By voice:** a widget can't start dictation or Siri. Use the **Add To-Do** intent instead, which does prompt: say "Add to OpenThings" to Siri, assign it to the Action Button (Settings → Action Button → Shortcut), or on iOS 18 add it as a Control Center control through a Shortcut.
 
 ## Architecture
 
@@ -158,6 +169,8 @@ CI (`.github/workflows/ios.yml`) builds the App scheme (which builds and embeds 
 - [ ] Change the reminder time, then delete the to-do: Settings' "Scheduled with the system" count follows; no stale notification arrives.
 - [ ] Complete a to-do with a reminder before it fires: no notification.
 - [ ] Add the **Today** widget (small, medium, large) and a Lock Screen widget: it shows Today; completing a to-do in the app updates it within a few seconds.
+- [ ] Add the **Add to Inbox** and **Brain Dump** widgets (Home Screen and Lock Screen). With the app on a project, tap Add to Inbox: quick add opens with `@inbox`, the keyboard comes up (or note that it needs a tap) and the to-do lands in the Inbox. Tap Brain Dump: the plain box opens and the to-do lands in Brain Dump. With Brain Dump off in Settings, it lands in the Inbox.
+- [ ] Say "Add to OpenThings" to Siri (and from the Action Button, if you have one): it asks what to add and the to-do appears.
 - [ ] Tap a row in the medium widget: opens that to-do. Tap the small widget: opens Today.
 - [ ] Add the **Sync status** widget: shows "Local only" (or the real status with a server).
 - [ ] Next morning without opening the app: the Today widget asks you to open the app instead of showing yesterday.

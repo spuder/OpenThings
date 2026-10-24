@@ -9,6 +9,7 @@
   import Checkbox from './Checkbox.svelte';
   import { isTouch } from '../env';
   import { drag, draggable } from './drag.svelte';
+  import { swipeable } from './swipe.svelte';
   import { isMac } from '../commands';
 
   let { task, showWhen = false, showContainer = false }: { task: Task; showWhen?: boolean; showContainer?: boolean } = $props();
@@ -119,6 +120,7 @@
   oncontextmenu={contextMenu}
   onkeydown={() => {}}
   {@attach draggable(task.id)}
+  {@attach swipeable(task.id)}
 >
   <div class="row">
     <Checkbox checked={done} onToggle={() => store.toggleComplete(task.id)} urgent={!!task.urgent && !!task.important} />
@@ -238,6 +240,34 @@
   }
   .task.cursor:not(.expanded) {
     box-shadow: inset 2px 0 0 var(--accent);
+  }
+  /* Touch swipe: green behind a right swipe (complete), red behind a left swipe (Trash). */
+  .task:global([data-swipe='hint-complete']) {
+    background: color-mix(in srgb, var(--logbook) 14%, transparent);
+  }
+  .task:global([data-swipe='complete']) {
+    background: color-mix(in srgb, var(--logbook) 32%, transparent);
+  }
+  .task:global([data-swipe='hint-delete']) {
+    background: color-mix(in srgb, var(--deadline) 14%, transparent);
+  }
+  .task:global([data-swipe='delete']) {
+    background: color-mix(in srgb, var(--deadline) 32%, transparent);
+  }
+  /* A right swipe on a done row unchecks it, so a neutral tint rather than the "complete" green. */
+  .task:global([data-swipe='hint-uncheck']) {
+    background: color-mix(in srgb, var(--text-2) 10%, transparent);
+  }
+  .task:global([data-swipe='uncheck']) {
+    background: color-mix(in srgb, var(--text-2) 24%, transparent);
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .task {
+      /* The browser keeps vertical scrolling and pinch-zoom; sideways motion is left to the row swipe. */
+      touch-action: pan-y pinch-zoom;
+      /* A swiped row slides under its tint instead of widening the list. */
+      overflow-x: clip;
+    }
   }
   .task.dragging {
     opacity: 0.45;

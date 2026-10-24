@@ -2,7 +2,7 @@
 // The App Group container is the only channel between them:
 //
 //   snapshot.json      written by the app (from the web code) on every change; widgets read it
-//   pending/*.json     one file per to-do created by the Share extension or a Shortcut;
+//   pending/*.json     one file per to-do created by the Share extension, a Shortcut or a widget;
 //                      the app imports them through the normal store (op log) and deletes them
 //   route.txt          a link such as openthings://today queued by an App Intent
 //

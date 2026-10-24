@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifySwipe } from './gesture';
+import { classifyRowSwipe, classifySwipe, ROW_SWIPE_COMMIT } from './gesture';
 
 describe('classifySwipe', () => {
   it('detects a quick horizontal swipe in either direction', () => {
@@ -23,5 +23,14 @@ describe('classifySwipe', () => {
 
   it('ignores slow drags', () => {
     expect(classifySwipe(150, 0, 1200)).toBeNull();
+  });
+});
+
+describe('classifyRowSwipe', () => {
+  it('right completes, left deletes, short drags do nothing', () => {
+    expect(classifyRowSwipe(ROW_SWIPE_COMMIT)).toBe('complete');
+    expect(classifyRowSwipe(-ROW_SWIPE_COMMIT - 10)).toBe('delete');
+    expect(classifyRowSwipe(ROW_SWIPE_COMMIT - 1)).toBeNull();
+    expect(classifyRowSwipe(-20)).toBeNull();
   });
 });

@@ -2,7 +2,6 @@
 // writes into the App Group (see ios/App/Shared/OTShared.swift and docs/ios.md).
 // Tapping opens the app through the openthings:// URL scheme.
 
-import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -294,165 +293,99 @@ struct SyncWidget: Widget {
 }
 
 // MARK: - Quick-add widgets
+//
+// A widget can't take text input, and an App Intent run from a widget button runs in the
+// background with no prompt, so these open the app straight into quick add instead.
+// Voice capture goes through Siri / the Action Button with the Add To-Do intent (docs/ios.md).
 
-@available(iOSApplicationExtension 17.0, *)
-private enum QuickAddWidgetIntent {
-    static func enqueue(_ text: String, target: OTShared.Target) throws -> some IntentResult & ProvidesDialog {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return .result(dialog: "Nothing to add.")
-        }
-        try OTShared.enqueue(text: trimmed, notes: nil, parse: true, target: target, source: "widget")
-        return .result(dialog: "Added to OpenThings. It appears when you next open the app.")
+private struct QuickAddEntry: TimelineEntry { let date: Date }
+
+/// Static content: one entry, never refreshed, and no snapshot read.
+private struct QuickAddProvider: TimelineProvider {
+    func placeholder(in context: Context) -> QuickAddEntry { QuickAddEntry(date: Date()) }
+    func getSnapshot(in context: Context, completion: @escaping (QuickAddEntry) -> Void) {
+        completion(QuickAddEntry(date: Date()))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<QuickAddEntry>) -> Void) {
+        completion(Timeline(entries: [QuickAddEntry(date: Date())], policy: .never))
     }
 }
 
-@available(iOSApplicationExtension 17.0, *)
-struct VoiceAddTodoWidgetIntent: AppIntent {
-    static var title: LocalizedStringResource = "Add by voice"
-    static var openAppWhenRun = false
-
-    @Parameter(title: "To-do", requestValueDialog: "Tell OpenThings what to add to your Inbox.")
-    var text: String
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        try QuickAddWidgetIntent.enqueue(text, target: .inbox)
-    }
-}
-
-@available(iOSApplicationExtension 17.0, *)
-struct AddInboxTodoWidgetIntent: AppIntent {
-    static var title: LocalizedStringResource = "Add to Inbox"
-    static var openAppWhenRun = false
-
-    @Parameter(title: "To-do", requestValueDialog: "What do you want to add to your Inbox?")
-    var text: String
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        try QuickAddWidgetIntent.enqueue(text, target: .inbox)
-    }
-}
-
-@available(iOSApplicationExtension 17.0, *)
-struct AddBrainDumpTodoWidgetIntent: AppIntent {
-    static var title: LocalizedStringResource = "Add to Brain Dump"
-    static var openAppWhenRun = false
-
-    @Parameter(title: "To-do", requestValueDialog: "What do you want to put in your Brain Dump?")
-    var text: String
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        try QuickAddWidgetIntent.enqueue(text, target: .dump)
-    }
-}
-
-@available(iOSApplicationExtension 17.0, *)
-private struct QuickAddWidgetView: View {
+private struct QuickAddView: View {
+    @Environment(\.widgetFamily) private var family
     let title: String
     let symbol: String
-    let action: Action
+    let url: URL?
 
-    enum Action {
-        case voice
-        case inbox
-        case dump
-    }
-
-    @ViewBuilder
     var body: some View {
-        switch action {
-        case .voice:
-            Button(intent: VoiceAddTodoWidgetIntent()) { label }
-        case .inbox:
-            Button(intent: AddInboxTodoWidgetIntent()) { label }
-        case .dump:
-            Button(intent: AddBrainDumpTodoWidgetIntent()) { label }
-        }
+        content
+            .widgetURL(url)
+            .otWidgetBackground()
     }
 
-    private var label: some View {
-        VStack(spacing: 8) {
-            Image(systemName: symbol)
-                .font(.system(size: 30, weight: .medium))
-                .foregroundStyle(OTColors.accent)
-            Text(title)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
+    @ViewBuilder private var content: some View {
+        switch family {
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: symbol).font(.title2.weight(.semibold))
+            }
+        default:
+            VStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundStyle(OTColors.accent)
+                Text(title)
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .otWidgetBackground()
     }
 }
 
-@available(iOSApplicationExtension 17.0, *)
-private struct QuickAddActionWidget: Widget {
-    let kind: String
-    let title: String
-    let symbol: String
-    let action: QuickAddWidgetView.Action
-    let description: String
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: OTProvider()) { _ in
-            QuickAddWidgetView(title: title, symbol: symbol, action: action)
-        }
-        .configurationDisplayName(LocalizedStringKey(title))
-        .description(Text(description))
-        .supportedFamilies([.systemSmall])
+private func quickAddConfiguration(kind: String, title: String, symbol: String, url: String, description: String) -> some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: QuickAddProvider()) { _ in
+        QuickAddView(title: title, symbol: symbol, url: URL(string: url))
     }
+    .configurationDisplayName(title)
+    .description(description)
+    .supportedFamilies([.systemSmall, .accessoryCircular])
 }
 
-@available(iOSApplicationExtension 17.0, *)
-private struct VoiceAddWidget: Widget {
+/// Opens quick add with the to-do bound for the Inbox (`@inbox`), whatever list the app was on.
+struct AddInboxWidget: Widget {
     var body: some WidgetConfiguration {
-        QuickAddActionWidget(
-            kind: "OpenThingsVoiceAdd",
-            title: "Add by voice",
-            symbol: "waveform",
-            action: .voice,
-            description: "Dictate a to-do into your Inbox."
-        )
-    }
-}
-
-@available(iOSApplicationExtension 17.0, *)
-private struct AddInboxWidget: Widget {
-    var body: some WidgetConfiguration {
-        QuickAddActionWidget(
+        quickAddConfiguration(
             kind: "OpenThingsAddInbox",
             title: "Add to Inbox",
             symbol: "plus",
-            action: .inbox,
-            description: "Quickly add a to-do to your Inbox."
+            url: "openthings://add?when=inbox",
+            description: "Opens quick add for a new Inbox to-do."
         )
     }
 }
 
-@available(iOSApplicationExtension 17.0, *)
-private struct AddBrainDumpWidget: Widget {
+/// Opens the plain Brain Dump box. With Brain Dump turned off, the app opens quick add for the Inbox.
+struct AddBrainDumpWidget: Widget {
     var body: some WidgetConfiguration {
-        QuickAddActionWidget(
+        quickAddConfiguration(
             kind: "OpenThingsAddBrainDump",
             title: "Brain Dump",
             symbol: "bolt",
-            action: .dump,
-            description: "Quickly add a to-do to your Brain Dump."
+            url: "openthings://add?dump=1",
+            description: "Opens the Brain Dump box to get something out of your head."
         )
     }
 }
 
 @main
 struct OpenThingsWidgets: WidgetBundle {
-    @WidgetBundleBuilder
     var body: some Widget {
         TodayWidget()
         SyncWidget()
-        if #available(iOSApplicationExtension 17.0, *) {
-            VoiceAddWidget()
-            AddInboxWidget()
-            AddBrainDumpWidget()
-        }
+        AddInboxWidget()
+        AddBrainDumpWidget()
     }
 }

@@ -3,14 +3,17 @@
  * app's main window (deep links forwarded by the Rust shell as `ot://open-url`). The parsing is in
  * `snapshot.ts` (`parseRoute`), which has the tests. See docs/url-scheme.md.
  */
+import { viewEnabled } from '../features.svelte';
 import { store } from '../store.svelte';
 import { pairing } from '../sync/pairing.svelte';
 import { addLinkParsed, addLinkPrefill, parseRoute } from './snapshot';
 
 /** Returns false when the link isn't one OpenThings knows. */
 export function openRoute(url: string): boolean {
-  const r = parseRoute(url);
+  let r = parseRoute(url);
   if (!r) return false;
+  // With Brain Dump turned off its list is hidden and items in it expire unseen: use the Inbox.
+  if (r.kind === 'add' && r.dump && !viewEnabled('dump')) r = { ...r, dump: false };
   if (r.kind === 'task') store.reveal(r.id);
   else if (r.kind === 'view') store.go({ kind: r.view });
   else if (r.kind === 'pair') {

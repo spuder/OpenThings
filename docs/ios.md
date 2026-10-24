@@ -7,7 +7,7 @@ Status: **builds in CI (Simulator, unsigned); not yet tested on a device.** The 
 | App shell (WKWebView, `capacitor://localhost`) | `ios/App/App`, `capacitor.config.ts` | Implemented |
 | Reminder notifications scheduled with iOS | `src/lib/native/capacitor.svelte.ts` | Implemented |
 | Tap a notification → open the task | same | Implemented |
-| Widgets: Today (Home + Lock Screen), Sync status, voice/Inbox/Brain Dump quick add | `ios/App/OpenThingsWidgets` | Implemented (quick-add actions require iOS 17+) |
+| Widgets: Today (Home + Lock Screen), Sync status, Add to Inbox / Brain Dump (open quick add) | `ios/App/OpenThingsWidgets` | Implemented; quick-add widgets not yet tested on a device |
 | Share Sheet → Inbox or Brain Dump | `ios/App/OpenThingsShare` | Implemented |
 | Shortcuts / Siri: Add To-Do (quick-add syntax), Open Today | `ios/App/App/OpenThingsIntents.swift` | Implemented |
 | Interactive widgets (check off from the Home Screen) | — | Not started (needs a write path from the widget; see "Next") |
@@ -31,13 +31,14 @@ The app gives iOS two actions (App Intents, `ios/App/App/OpenThingsIntents.swift
 
 ## Quick-add widgets
 
-On iOS 17 and later, the OpenThings widget gallery includes three small action widgets:
+Two small widgets (Home Screen, and circular on the Lock Screen) open the app straight into quick add:
 
-- **Add by voice** asks what to add to the Inbox; dictate a response in the system's App Intent input prompt.
-- **Add to Inbox** asks for a to-do and queues it for the Inbox.
-- **Brain Dump** asks for a to-do and queues it for the Brain Dump.
+- **Add to Inbox** opens `openthings://add?when=inbox`: quick add with `@inbox`, so the to-do goes to the Inbox whatever list the app was on.
+- **Brain Dump** opens `openthings://add?dump=1`: the plain Brain Dump box. With Brain Dump turned off it opens quick add for the Inbox.
 
-The widgets write to the same App Group pending-item queue as Shortcuts. The app imports each item through the normal store and sync path the next time it is opened (or immediately if already running). The Brain Dump action follows the existing behavior when the Brain Dump feature is disabled: the item is added to the Inbox instead.
+They open the app rather than adding in place because widgets can't take text input, and an App Intent run from a widget button runs in the background with no prompt to answer. WKWebView may not raise the keyboard for a focus that didn't come from a tap in the page; if so, tap the field once (to verify on a device).
+
+**By voice:** a widget can't start dictation or Siri. Use the **Add To-Do** intent instead, which does prompt: say "Add to OpenThings" to Siri, assign it to the Action Button (Settings → Action Button → Shortcut), or on iOS 18 add it as a Control Center control through a Shortcut.
 
 ## Architecture
 
@@ -55,7 +56,7 @@ The widgets write to the same App Group pending-item queue as Shortcuts. The app
                        snapshot.json   pending/*.json   route.txt  │
                             │                ▲              ▲      │
                   ┌─────────┘                │              │      │
-     Widgets (read/quick-add)       Share extension     App Intents (write) ─ Darwin notify
+           Widgets (read)          Share extension     App Intents (write) ─ Darwin notify
 ```
 
 ### Origin and storage
@@ -98,9 +99,9 @@ Written to `<App Group>/snapshot.json` 400 ms after the task list, the day or th
 
 ### Pending to-dos (extensions → app)
 
-Extensions and widgets can't run the web code or touch IndexedDB, so they queue work as files and the app does the write through the normal store, which records it in the op log (and therefore syncs).
+Extensions can't run the web code or touch IndexedDB, so they queue work as files and the app does the write through the normal store, which records it in the op log (and therefore syncs).
 
-- Share, Shortcuts and quick-add widgets each write one file per item at `<App Group>/pending/<epoch-ms>-<uuid>.json` (so there is no cross-process read-modify-write):
+- Each item is one file `<App Group>/pending/<epoch-ms>-<uuid>.json` (one file per item, so no cross-process read-modify-write):
 
   ```json
   { "id": "…", "text": "Call dentist @fri %9am", "notes": null, "parse": true, "target": "inbox", "source": "shortcut", "createdAt": "…" }
@@ -157,15 +158,6 @@ After changing web code: `npm run build && npx cap sync ios`, then Run again. Fo
 
 CI (`.github/workflows/ios.yml`) builds the App scheme (which builds and embeds both extensions) for the Simulator with `CODE_SIGNING_ALLOWED=NO`.
 
-### Simulator test for quick-add widgets
-
-Use an iOS 17 or later simulator and run the **App** scheme from Xcode. The app and widget extension need a working App Group entitlement for queued items to be shared. On the Home Screen, long-press, add each OpenThings quick-add widget, then invoke it:
-
-1. **Add by voice:** dictate a title in the App Intent prompt (or enter one if simulator dictation is unavailable); verify it appears in the Inbox.
-2. **Add to Inbox:** enter a different title; verify it appears in the Inbox.
-3. **Brain Dump:** enter a third title; verify it appears in Brain Dump.
-4. Repeat while the app is already open and verify the task imports without relaunching. If Brain Dump is disabled in Settings, verify its action falls back to Inbox.
-
 ## Device test checklist
 
 - [ ] App launches to an empty database (no demo data), no white flash in dark mode.
@@ -177,7 +169,8 @@ Use an iOS 17 or later simulator and run the **App** scheme from Xcode. The app 
 - [ ] Change the reminder time, then delete the to-do: Settings' "Scheduled with the system" count follows; no stale notification arrives.
 - [ ] Complete a to-do with a reminder before it fires: no notification.
 - [ ] Add the **Today** widget (small, medium, large) and a Lock Screen widget: it shows Today; completing a to-do in the app updates it within a few seconds.
-- [ ] On iOS 17+, add each OpenThings quick-add widget (Add by voice, Add to Inbox, Brain Dump) to the Home Screen. Invoke each; dictate a title for Add by voice and enter titles for the other two. Open or foreground the app and confirm the tasks land in Inbox, Inbox, and Brain Dump respectively. Repeat with the app already open to verify queued tasks import immediately.
+- [ ] Add the **Add to Inbox** and **Brain Dump** widgets (Home Screen and Lock Screen). With the app on a project, tap Add to Inbox: quick add opens with `@inbox`, the keyboard comes up (or note that it needs a tap) and the to-do lands in the Inbox. Tap Brain Dump: the plain box opens and the to-do lands in Brain Dump. With Brain Dump off in Settings, it lands in the Inbox.
+- [ ] Say "Add to OpenThings" to Siri (and from the Action Button, if you have one): it asks what to add and the to-do appears.
 - [ ] Tap a row in the medium widget: opens that to-do. Tap the small widget: opens Today.
 - [ ] Add the **Sync status** widget: shows "Local only" (or the real status with a server).
 - [ ] Next morning without opening the app: the Today widget asks you to open the app instead of showing yesterday.

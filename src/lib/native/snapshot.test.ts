@@ -130,6 +130,7 @@ describe('parseRoute', () => {
       deadline: 'fri',
       tags: ['errand', 'work', 'home'],
       list: 'Garage',
+      dump: false,
       save: true,
     });
     expect(parseRoute('openthings://add?title=x&save=true')).toMatchObject({ save: true });
@@ -174,6 +175,20 @@ describe('add links', () => {
     expect(p.title).toBe('Milk');
     expect(p.tags).toEqual(['shop', 'dairy']);
     expect(p.when?.date).toBe(day);
+  });
+
+  it('sends dump=1 links to the brain dump, unless when or list places them elsewhere', () => {
+    expect(parseRoute('openthings://add?dump=1')).toMatchObject({ dump: true });
+    expect(addLinkParsed(link('title=idea&dump=1'), day).dump).toBe(true);
+    expect(addLinkParsed(link('title=idea&dump=1&when=today'), day).dump).toBe(false);
+    expect(addLinkParsed(link('title=idea&dump=1&list=Garage'), day).dump).toBe(false);
+  });
+
+  it('prefills quick add for the widgets, with room to type after the token', () => {
+    expect(addLinkPrefill(link('when=inbox'))).toBe('@inbox ');
+    expect(addLinkPrefill(link('dump=1'))).toBe('@dump ');
+    expect(addLinkPrefill(link(''))).toBe('');
+    expect(addLinkPrefill(link('title=Milk&notes=2%25'))).toBe('Milk // 2%');
   });
 
   it('warns about dates it does not understand', () => {

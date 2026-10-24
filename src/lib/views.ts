@@ -20,6 +20,13 @@ export function isDumpExpired(t: Task, now: number): boolean {
   return t.dump === 1 && t.completed_at === null && now - Date.parse(t.created_at) >= DUMP_TTL_MS;
 }
 
+export function dumpSectionsEmptiedBy(expired: Task[], remaining: Task[]): string[] {
+  const expiredSections = new Set(
+    expired.map((t) => t.dump_section_id).filter((id): id is string => id !== null),
+  );
+  return [...expiredSections].filter((id) => !remaining.some((t) => t.dump_section_id === id));
+}
+
 export function inbox(tasks: Task[], keep: Set<string>): Task[] {
   return tasks
     .filter(

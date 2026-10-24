@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeWhen, thisWeek } from './views';
+import { describeWhen, dumpSectionsEmptiedBy, thisWeek } from './views';
 import type { Task } from './types';
 
 const base = {
@@ -7,6 +7,19 @@ const base = {
   deadline: null, when_date: null, completed_at: null, deleted_at: null, sort: 0, created_at: '2026-10-01T00:00:00Z',
 } as unknown as Task;
 const t = (id: string, p: Partial<Task>): Task => ({ ...base, id, title: id, ...p }) as Task;
+
+describe('dumpSectionsEmptiedBy', () => {
+  it('removes a section only when its last task expires', () => {
+    const expired = [
+      t('expired-a', { dump: 1, dump_section_id: 'a' }),
+      t('expired-loose', { dump: 1 }),
+      t('expired-b', { dump: 1, dump_section_id: 'b' }),
+    ];
+    const remaining = [t('still-in-b', { dump: 1, dump_section_id: 'b' })];
+
+    expect(dumpSectionsEmptiedBy(expired, remaining)).toEqual(['a']);
+  });
+});
 
 describe('thisWeek', () => {
   // 2026-10-14 is a Wednesday; the week runs Mon 10-12 .. Sun 10-18.

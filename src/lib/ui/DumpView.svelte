@@ -56,7 +56,19 @@
 
     {#each store.groups as g (g.key)}
       <section>
-        {#if g.title}<h3>{g.title}</h3>{/if}
+        {#if g.title}
+          <h3>
+            {g.title}
+            {#if g.sectionId}
+              <button
+                class="delete-section"
+                onclick={() => store.deleteDumpSection(g.sectionId!)}
+                aria-label={`Remove ${g.title} section`}
+                title="Remove section"
+              >×</button>
+            {/if}
+          </h3>
+        {/if}
         <ul>
           {#each g.items as t (t.id)}
             <li
@@ -168,6 +180,20 @@
     text-decoration: underline wavy color-mix(in srgb, var(--paper-ink) 35%, transparent);
     text-underline-offset: 5px;
     text-decoration-thickness: 1px;
+  }
+  .delete-section {
+    margin-left: auto;
+    width: 44px;
+    height: 44px;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 22px;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.35;
+  }
+  .delete-section:hover,
+  .delete-section:focus-visible {
+    opacity: 0.85;
   }
   section {
     margin-bottom: var(--line-h);

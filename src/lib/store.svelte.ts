@@ -247,6 +247,10 @@ class Store {
     const now = Date.now();
     const expired = db.all<Task>('SELECT * FROM tasks WHERE dump = 1 AND completed_at IS NULL').filter((t) => V.isDumpExpired(t, now));
     for (const t of expired) this.hardDelete(t.id);
+    if (expired.length) {
+      const remaining = db.all<Task>('SELECT * FROM tasks WHERE dump = 1 AND dump_section_id IS NOT NULL');
+      for (const id of V.dumpSectionsEmptiedBy(expired, remaining)) db.remove('dump_sections', id);
+    }
     return expired.length > 0;
   }
 
@@ -1190,6 +1194,14 @@ class Store {
   addDumpSection(name: string) {
     this.dumpSectionId(name);
     this.load();
+  }
+  deleteDumpSection(id: ID) {
+    for (const t of db.all<Task>('SELECT * FROM tasks WHERE dump_section_id = ?', [id])) {
+      db.update('tasks', t.id, { dump_section_id: null });
+    }
+    db.remove('dump_sections', id);
+    this.load();
+    this.notify('Section removed; its tasks are unsectioned');
   }
   renameArea(id: ID, name: string) {
     db.update('areas', id, { name });

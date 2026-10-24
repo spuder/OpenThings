@@ -122,6 +122,22 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
           },
         },
         { label: 'New heading…', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
+        ...(store.headings.some((h) => h.project_id === p.id)
+          ? [
+              {
+                label: 'Remove heading…',
+                hint: 'its to-dos stay in the project',
+                run: () => {
+                  store.paletteMode = {
+                    kind: 'choose',
+                    label: 'Remove heading',
+                    options: store.headings.filter((h) => h.project_id === p.id).map((h) => ({ label: h.name, run: () => store.deleteHeading(h.id) })),
+                  };
+                  store.overlay = 'palette';
+                },
+              },
+            ]
+          : []),
         { label: 'Complete project', run: () => store.completeProject(p.id) },
         {
           label: 'Delete project',
@@ -176,7 +192,7 @@ export const commands: Command[] = [
     id: 'create.quickadd',
     title: 'Quick add',
     group: 'Create',
-    keys: ['q', 'n', 'mod+n', 'ctrl+space'],
+    keys: ['n', 'mod+n', 'ctrl+space'],
     run: () => {
       store.quickAddPrefill = store.contextToken();
       store.overlay = 'quickadd';
@@ -197,7 +213,7 @@ export const commands: Command[] = [
     id: 'create.project',
     title: 'New project',
     group: 'Create',
-    keys: ['shift+n'],
+    keys: ['mod+shift+n'],
     when: () => !inHabits(),
     run: () =>
       prompt('New project', (name) => {
@@ -227,15 +243,32 @@ export const commands: Command[] = [
     id: 'create.section',
     title: 'New brain dump section',
     group: 'Brain dump',
-    keys: ['shift+s'],
+    // Shift+H, like a new heading in a project.
+    keys: ['shift+h', 'shift+s'],
     when: () => store.view.kind === 'dump',
     run: () => prompt('New section', (name) => store.addDumpSection(name)),
+  },
+  {
+    id: 'dump.removeSection',
+    title: 'Remove brain dump section…',
+    group: 'Brain dump',
+    keys: ['shift+backspace'],
+    when: () => store.view.kind === 'dump' && store.dumpSections.length > 0,
+    run: () => {
+      const current = sel()?.dump_section_id;
+      store.paletteMode = {
+        kind: 'choose',
+        label: 'Remove section (its to-dos are kept)',
+        options: store.dumpSections.map((s) => ({ label: s.name, hint: s.id === current ? 'current' : undefined, run: () => store.deleteDumpSection(s.id) })),
+      };
+      store.overlay = 'palette';
+    },
   },
   {
     id: 'create.habit',
     title: 'New habit',
     group: 'Habits',
-    keys: ['shift+n'],
+    keys: ['shift+h'],
     when: inHabits,
     run: () => prompt('New habit', (name) => store.addHabit(name)),
   },

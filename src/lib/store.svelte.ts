@@ -37,6 +37,8 @@ export interface Group {
   subtitle?: string;
   /** For dump sections: the section id (null = unsectioned). */
   sectionId?: ID | null;
+  /** For project headings: the heading id. */
+  headingId?: ID;
   items: Task[];
 }
 
@@ -242,12 +244,19 @@ class Store {
     window.dispatchEvent(new CustomEvent('openthings:reminders', { detail: list }));
   }
 
-  /** Unchecked brain-dump items older than 48h are deleted for good. Returns true if any were removed. */
+  /**
+   * Unchecked brain-dump items older than 48h are deleted for good, and sections whose last to-do
+   * has expired with them. Returns true if anything was removed.
+   */
   purgeDump(): boolean {
     const now = Date.now();
     const expired = db.all<Task>('SELECT * FROM tasks WHERE dump = 1 AND completed_at IS NULL').filter((t) => V.isDumpExpired(t, now));
     for (const t of expired) this.hardDelete(t.id);
-    return expired.length > 0;
+    const justExpired = new Set(expired.map((t) => t.dump_section_id).filter((id): id is ID => !!id));
+    const named = db.all<Task>('SELECT * FROM tasks WHERE dump_section_id IS NOT NULL');
+    const gone = V.expiredDumpSections(db.all<DumpSection>('SELECT * FROM dump_sections'), named, justExpired, now);
+    for (const s of gone) db.remove('dump_sections', s.id);
+    return expired.length > 0 || gone.length > 0;
   }
 
   /** Trashed tasks older than 30 days are deleted for good. */
@@ -508,11 +517,11 @@ class Store {
       }
       case 'dump': {
         const items = V.dump(ts, keep, this.now);
-        const out: Group[] = [{ key: 'dump-loose', sectionId: null, items: items.filter((t) => !t.dump_section_id) }];
-        for (const s of this.dumpSections) {
-          out.push({ key: s.id, title: s.name, sectionId: s.id, items: items.filter((t) => t.dump_section_id === s.id) });
-        }
-        return out;
+        const g = V.dumpGroups(this.dumpSections, items);
+        return [
+          { key: 'dump-loose', sectionId: null, items: g.loose },
+          ...g.sections.map(({ section: s, items }) => ({ key: s.id, title: s.name, sectionId: s.id, items })),
+        ];
       }
       case 'matrix': {
         const m = V.matrix(ts, keep);
@@ -525,9 +534,11 @@ class Store {
       }
       case 'project': {
         const items = ts.filter((t) => t.project_id === v.id && !t.dump && (t.completed_at === null || keep.has(t.id))).sort((a, b) => a.sort - b.sort);
-        const out: Group[] = [{ key: 'p-loose', items: items.filter((t) => !t.heading_id) }];
-        for (const h of this.headings.filter((h) => h.project_id === v.id)) {
-          out.push({ key: h.id, title: h.name, items: items.filter((t) => t.heading_id === h.id) });
+        const hs = this.headings.filter((h) => h.project_id === v.id);
+        // A to-do whose heading no longer exists (removed, or on another device) shows without one.
+        const out: Group[] = [{ key: 'p-loose', items: items.filter((t) => !t.heading_id || !hs.some((h) => h.id === t.heading_id)) }];
+        for (const h of hs) {
+          out.push({ key: h.id, title: h.name, headingId: h.id, items: items.filter((t) => t.heading_id === h.id) });
         }
         return out;
       }
@@ -1187,9 +1198,49 @@ class Store {
     db.insert('headings', { id: db.uuid7(), project_id: projectId, name, sort: this.nextSort() });
     this.load();
   }
+  /**
+   * Remove a project heading; its to-dos stay in the project without a heading. Undo recreates
+   * it under a new id, because a synced delete is final, and moves back the to-dos still without one.
+   */
+  deleteHeading(id: ID) {
+    const h = this.headings.find((x) => x.id === id);
+    if (!h) return;
+    const taskIds = db.all<{ id: ID }>('SELECT id FROM tasks WHERE heading_id = ?', [id]).map((t) => t.id);
+    for (const tid of taskIds) db.update('tasks', tid, { heading_id: null });
+    db.remove('headings', id);
+    this.undoStack.push('remove heading', () => {
+      const nid = db.uuid7();
+      db.insert('headings', { id: nid, project_id: h.project_id, name: h.name, sort: h.sort });
+      for (const tid of taskIds) {
+        if (db.one('SELECT id FROM tasks WHERE id = ? AND project_id = ? AND heading_id IS NULL', [tid, h.project_id])) db.update('tasks', tid, { heading_id: nid });
+      }
+    });
+    this.load();
+    this.notify(`Removed “${h.name}”; its to-dos stay in the project`);
+  }
   addDumpSection(name: string) {
     this.dumpSectionId(name);
     this.load();
+  }
+  /**
+   * Remove a dump section; its to-dos become unsectioned. Undo recreates it under a new id,
+   * because a synced delete is final, and moves back the to-dos that are still unsectioned.
+   */
+  deleteDumpSection(id: ID) {
+    const s = this.dumpSections.find((x) => x.id === id);
+    if (!s) return;
+    const taskIds = db.all<{ id: ID }>('SELECT id FROM tasks WHERE dump_section_id = ?', [id]).map((t) => t.id);
+    for (const tid of taskIds) db.update('tasks', tid, { dump_section_id: null });
+    db.remove('dump_sections', id);
+    this.undoStack.push('remove section', () => {
+      const nid = db.uuid7();
+      db.insert('dump_sections', { id: nid, name: s.name, sort: s.sort });
+      for (const tid of taskIds) {
+        if (db.one('SELECT id FROM tasks WHERE id = ? AND dump = 1 AND dump_section_id IS NULL', [tid])) db.update('tasks', tid, { dump_section_id: nid });
+      }
+    });
+    this.load();
+    this.notify(`Removed “${s.name}”; its to-dos are unsectioned`);
   }
   renameArea(id: ID, name: string) {
     db.update('areas', id, { name });

@@ -30,6 +30,9 @@
         {#if g.key === 'evening'}<Icon name="evening" size={15} />{/if}
         <h2>{g.title}</h2>
         {#if g.subtitle}<span class="sub">{g.subtitle}</span>{/if}
+        {#if g.headingId}
+          <button class="remove" onclick={() => store.deleteHeading(g.headingId!)} aria-label={`Remove ${g.title} heading`} title="Remove heading">×</button>
+        {/if}
       </header>
     {/if}
     <div class="items" class:drop-end={dropLine(g.key, null)} role="listbox" aria-multiselectable={store.isMulti} aria-label={g.title ?? store.viewTitle}>
@@ -69,6 +72,23 @@
   .sub {
     font-size: 12.5px;
     color: var(--text-3);
+  }
+  .remove {
+    align-self: center;
+    margin-left: auto;
+    width: 44px;
+    height: 44px;
+    /* A 44px touch target without making the header taller. */
+    margin-block: -14px;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--text-3);
+    opacity: 0.6;
+  }
+  .remove:hover,
+  .remove:focus-visible {
+    opacity: 1;
+    color: var(--text);
   }
   .items {
     /* Something to drop on when a group (an empty heading) has no rows. */

@@ -3,7 +3,7 @@
   import type { ViewKey } from '../types';
   import Icon from './Icon.svelte';
   import ProgressPie from './ProgressPie.svelte';
-  import { openListMenu, prompt } from '../commands';
+  import { keyLabel, openListMenu, prompt } from '../commands';
   import { fly } from 'svelte/transition';
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
@@ -127,7 +127,7 @@
           <button role="menuitem" onclick={() => newList('project')}>
             <ProgressPie value={0} size={18} />
             <span><strong>New Project</strong><small>Something with a finish line, broken into to-dos</small></span>
-            <kbd>⇧N</kbd>
+            <kbd>{keyLabel('mod+shift+n')}</kbd>
           </button>
           <button role="menuitem" onclick={() => newList('area')}>
             <Icon name="area" size={18} />

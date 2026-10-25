@@ -241,25 +241,19 @@
   .task.cursor:not(.expanded) {
     box-shadow: inset 2px 0 0 var(--accent);
   }
-  /* Touch swipe: green behind a right swipe (complete), red behind a left swipe (Trash). */
-  .task:global([data-swipe='hint-complete']) {
+  /* Touch swipe: green behind a right swipe (Complete / Move), red behind a left swipe (Trash).
+     The stronger tint means letting go opens the actions. */
+  .task:global([data-swipe='hint-right']) {
     background: color-mix(in srgb, var(--logbook) 14%, transparent);
   }
-  .task:global([data-swipe='complete']) {
+  .task:global([data-swipe='right']) {
     background: color-mix(in srgb, var(--logbook) 32%, transparent);
   }
-  .task:global([data-swipe='hint-delete']) {
+  .task:global([data-swipe='hint-left']) {
     background: color-mix(in srgb, var(--deadline) 14%, transparent);
   }
-  .task:global([data-swipe='delete']) {
+  .task:global([data-swipe='left']) {
     background: color-mix(in srgb, var(--deadline) 32%, transparent);
-  }
-  /* A right swipe on a done row unchecks it, so a neutral tint rather than the "complete" green. */
-  .task:global([data-swipe='hint-uncheck']) {
-    background: color-mix(in srgb, var(--text-2) 10%, transparent);
-  }
-  .task:global([data-swipe='uncheck']) {
-    background: color-mix(in srgb, var(--text-2) 24%, transparent);
   }
   @media (hover: none) and (pointer: coarse) {
     .task {

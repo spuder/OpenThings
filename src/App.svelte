@@ -26,6 +26,7 @@
   import SelectionBar from './lib/ui/SelectionBar.svelte';
   import { drag } from './lib/ui/drag.svelte';
   import RepeatEditor from './lib/ui/RepeatEditor.svelte';
+  import SwipeSheet from './lib/ui/SwipeSheet.svelte';
 
   store.init().then(() => store.start());
   installKeyboardInset();
@@ -197,6 +198,7 @@
   {#if store.overlay === 'find'}<QuickFind />{/if}
   {#if store.overlay === 'themes'}<ThemePicker />{/if}
   {#if store.overlay === 'repeat'}<RepeatEditor />{/if}
+  {#if store.overlay === 'swipe'}<SwipeSheet />{/if}
 
   {#if drag.active}
     {@const first = store.task(drag.ids[0] ?? null)}

@@ -42,7 +42,7 @@ export interface Group {
   items: Task[];
 }
 
-export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes' | 'repeat';
+export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes' | 'repeat' | 'swipe';
 
 export interface FocusSession {
   taskId: ID;
@@ -140,6 +140,8 @@ class Store {
   }
   paletteMode = $state<PaletteMode>({ kind: 'commands' });
   quickAddPrefill = $state('');
+  /** The to-do a touch swipe opened actions for (overlay 'swipe'), and which way it was swiped. */
+  swipeSheet = $state<{ id: ID; side: 'right' | 'left' } | null>(null);
   toast = $state<{ text: string; id: number; undo?: boolean } | null>(null);
   muted = $state(sound.isMuted());
 

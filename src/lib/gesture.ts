@@ -27,15 +27,15 @@ export function swipeIgnored(target: EventTarget | null): boolean {
   return !!target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [data-no-swipe]');
 }
 
-/** How far a to-do row must be dragged sideways (px) before letting go triggers its action. */
+/** How far a to-do row must be dragged sideways (px) before letting go opens its actions. */
 export const ROW_SWIPE_COMMIT = 90;
 
-export type RowSwipe = 'complete' | 'delete' | null;
+export type RowSwipe = 'right' | 'left' | null;
 
-/** Swipe a to-do row right to complete it, left to move it to the Trash. */
+/** A to-do row swiped far enough: right offers Complete / Move, left offers Move to Trash. */
 export function classifyRowSwipe(dx: number): RowSwipe {
-  if (dx >= ROW_SWIPE_COMMIT) return 'complete';
-  if (dx <= -ROW_SWIPE_COMMIT) return 'delete';
+  if (dx >= ROW_SWIPE_COMMIT) return 'right';
+  if (dx <= -ROW_SWIPE_COMMIT) return 'left';
   return null;
 }
 

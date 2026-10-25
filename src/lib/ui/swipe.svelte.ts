@@ -1,8 +1,9 @@
 /**
- * Touch swipe on a to-do row: right completes it (or unchecks a done one), left moves it to the
- * Trash (the toast offers Undo). Only on touch screens; it never starts in selection mode, on an
- * open row, from a text field, or at a screen edge. A long-press still picks the row up for
- * dragging (drag.svelte.ts).
+ * Touch swipe on a to-do row. Letting go past the commit point opens a small sheet (SwipeSheet):
+ * right offers Complete (or Mark as not done) and Move, left offers Move to Trash. Nothing happens
+ * without a tap there. Only on touch screens; it never starts in selection mode, on an open row,
+ * from a text field, or at a screen edge. A long-press still picks the row up for dragging
+ * (drag.svelte.ts).
  */
 import type { Attachment } from 'svelte/attachments';
 import { store } from '../store.svelte';
@@ -22,7 +23,7 @@ function findTouch(list: TouchList, identifier: number): Touch | null {
 export function swipeable(id: ID): Attachment<HTMLElement> {
   return (node) => {
     if (!isTouch) return;
-    let s: { x: number; y: number; touch: number; locked: boolean; act: RowSwipe; done: boolean } | null = null;
+    let s: { x: number; y: number; touch: number; locked: boolean; act: RowSwipe } | null = null;
     const row = () => node.querySelector<HTMLElement>(':scope > .row');
 
     function reset() {
@@ -49,7 +50,7 @@ export function swipeable(id: ID): Attachment<HTMLElement> {
       if (e.touches.length !== 1 || !store.canMulti || store.selecting || store.expandedId === id || swipeIgnored(e.target)) return;
       const t = e.touches[0];
       if (swipeFromEdge(t.clientX, window.innerWidth)) return;
-      s = { x: t.clientX, y: t.clientY, touch: t.identifier, locked: false, act: null, done: !!store.task(id)?.completed_at };
+      s = { x: t.clientX, y: t.clientY, touch: t.identifier, locked: false, act: null };
     }
 
     function move(e: TouchEvent) {
@@ -74,10 +75,10 @@ export function swipeable(id: ID): Attachment<HTMLElement> {
         r.style.transform = `translateX(${rowSwipeOffset(dx, node.clientWidth * 0.5)}px)`;
       }
       const act = classifyRowSwipe(dx);
-      if (act && act !== s.act) navigator.vibrate?.(8); // crossed the point where letting go acts
+      if (act && act !== s.act) navigator.vibrate?.(8); // crossed the point where letting go opens the sheet
       s.act = act;
-      const kind = dx > 0 ? (s.done ? 'uncheck' : 'complete') : 'delete';
-      node.setAttribute('data-swipe', act ? kind : `hint-${kind}`);
+      const side = dx > 0 ? 'right' : 'left';
+      node.setAttribute('data-swipe', act ? side : `hint-${side}`);
     }
 
     function end(e: TouchEvent) {
@@ -88,8 +89,10 @@ export function swipeable(id: ID): Attachment<HTMLElement> {
       const swiped = s.locked;
       reset();
       if (swiped) drag.endedAt = Date.now(); // the click after a swipe is not a tap
-      if (act === 'complete') store.toggleComplete(id);
-      else if (act === 'delete') store.deleteTask(id);
+      if (act) {
+        store.swipeSheet = { id, side: act };
+        store.overlay = 'swipe';
+      }
     }
 
     node.addEventListener('touchstart', start, { passive: true });

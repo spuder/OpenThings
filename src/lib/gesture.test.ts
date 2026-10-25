@@ -27,9 +27,9 @@ describe('classifySwipe', () => {
 });
 
 describe('classifyRowSwipe', () => {
-  it('right completes, left deletes, short drags do nothing', () => {
-    expect(classifyRowSwipe(ROW_SWIPE_COMMIT)).toBe('complete');
-    expect(classifyRowSwipe(-ROW_SWIPE_COMMIT - 10)).toBe('delete');
+  it('reports the side once past the commit point, nothing for short drags', () => {
+    expect(classifyRowSwipe(ROW_SWIPE_COMMIT)).toBe('right');
+    expect(classifyRowSwipe(-ROW_SWIPE_COMMIT - 10)).toBe('left');
     expect(classifyRowSwipe(ROW_SWIPE_COMMIT - 1)).toBeNull();
     expect(classifyRowSwipe(-20)).toBeNull();
   });

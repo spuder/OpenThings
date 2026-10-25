@@ -9,6 +9,7 @@
   import Checkbox from './Checkbox.svelte';
   import { isTouch } from '../env';
   import { drag, draggable } from './drag.svelte';
+  import { swipeable } from './swipe.svelte';
   import { isMac } from '../commands';
 
   let { task, showWhen = false, showContainer = false }: { task: Task; showWhen?: boolean; showContainer?: boolean } = $props();
@@ -109,6 +110,8 @@
   class:dragging
   class:expanded
   class:done
+  class:swiped-right={store.swipeSheet?.id === task.id && store.swipeSheet.side === 'right'}
+  class:swiped-left={store.swipeSheet?.id === task.id && store.swipeSheet.side === 'left'}
   bind:this={el}
   data-id={task.id}
   role="option"
@@ -119,6 +122,7 @@
   oncontextmenu={contextMenu}
   onkeydown={() => {}}
   {@attach draggable(task.id)}
+  {@attach swipeable(task.id)}
 >
   <div class="row">
     <Checkbox checked={done} onToggle={() => store.toggleComplete(task.id)} urgent={!!task.urgent && !!task.important} />
@@ -238,6 +242,43 @@
   }
   .task.cursor:not(.expanded) {
     box-shadow: inset 2px 0 0 var(--accent);
+  }
+  /* Touch swipe: green behind a right swipe (Complete / Move), red behind a left swipe (Trash).
+     The stronger tint means letting go opens the actions. */
+  .task:global([data-swipe='hint-right']) {
+    background: color-mix(in srgb, var(--logbook) 14%, transparent);
+  }
+  .task:global([data-swipe='right']) {
+    background: color-mix(in srgb, var(--logbook) 32%, transparent);
+  }
+  .task:global([data-swipe='hint-left']) {
+    background: color-mix(in srgb, var(--deadline) 14%, transparent);
+  }
+  .task:global([data-swipe='left']) {
+    background: color-mix(in srgb, var(--deadline) 32%, transparent);
+  }
+  /* While its swipe sheet is open, the to-do keeps a border in the swipe's color, so it's clear
+     which one the sheet acts on. (:not(.expanded) outranks the cursor's border.) */
+  .task.swiped-right:not(.expanded) {
+    background: color-mix(in srgb, var(--logbook) 18%, transparent);
+    box-shadow: inset 0 0 0 2px var(--logbook);
+  }
+  .task.swiped-left:not(.expanded) {
+    background: color-mix(in srgb, var(--deadline) 18%, transparent);
+    box-shadow: inset 0 0 0 2px var(--deadline);
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .task {
+      /* The browser keeps vertical scrolling and pinch-zoom; sideways motion is left to the row swipe. */
+      touch-action: pan-y pinch-zoom;
+      /* A swipe's tint fades out with the row gliding back, rather than vanishing. */
+      transition:
+        background 0.45s,
+        box-shadow 0.2s var(--ease),
+        margin 0.2s var(--ease);
+      /* A swiped row slides under its tint instead of widening the list. */
+      overflow-x: clip;
+    }
   }
   .task.dragging {
     opacity: 0.45;

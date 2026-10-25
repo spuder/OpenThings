@@ -42,7 +42,7 @@ export interface Group {
   items: Task[];
 }
 
-export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes' | 'repeat';
+export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes' | 'repeat' | 'swipe';
 
 export interface FocusSession {
   taskId: ID;
@@ -140,7 +140,9 @@ class Store {
   }
   paletteMode = $state<PaletteMode>({ kind: 'commands' });
   quickAddPrefill = $state('');
-  toast = $state<{ text: string; id: number } | null>(null);
+  /** The to-do a touch swipe opened actions for (overlay 'swipe'), and which way it was swiped. */
+  swipeSheet = $state<{ id: ID; side: 'right' | 'left' } | null>(null);
+  toast = $state<{ text: string; id: number; undo?: boolean } | null>(null);
   muted = $state(sound.isMuted());
 
   /** Running time tracking. */
@@ -267,12 +269,16 @@ class Store {
     return old.length > 0;
   }
 
-  notify(text: string) {
+  /** Show a short message. With `undo`, it carries an Undo button and stays up longer (no ⌘Z on a phone). */
+  notify(text: string, opts: { undo?: boolean } = {}) {
     const id = Date.now();
-    this.toast = { text, id };
-    setTimeout(() => {
-      if (this.toast?.id === id) this.toast = null;
-    }, 2600);
+    this.toast = { text, id, undo: opts.undo };
+    setTimeout(
+      () => {
+        if (this.toast?.id === id) this.toast = null;
+      },
+      opts.undo ? 5000 : 2600,
+    );
   }
 
   // ---------- undo ----------
@@ -985,7 +991,7 @@ class Store {
     if (!this.isMulti) this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
     if (this.expandedId && ids.includes(this.expandedId)) this.expandedId = null;
     sound.playCrumple();
-    this.notify(ids.length === 1 ? 'Moved to Trash' : `Moved ${ids.length} to-dos to Trash`);
+    this.notify(ids.length === 1 ? 'Moved to Trash' : `Moved ${ids.length} to-dos to Trash`, { undo: true });
   }
 
   /** Toast for a When change on several to-dos ("Moved 3 to-dos to Today"). */

@@ -26,6 +26,7 @@
   import SelectionBar from './lib/ui/SelectionBar.svelte';
   import { drag } from './lib/ui/drag.svelte';
   import RepeatEditor from './lib/ui/RepeatEditor.svelte';
+  import SwipeSheet from './lib/ui/SwipeSheet.svelte';
 
   store.init().then(() => store.start());
   installKeyboardInset();
@@ -197,6 +198,7 @@
   {#if store.overlay === 'find'}<QuickFind />{/if}
   {#if store.overlay === 'themes'}<ThemePicker />{/if}
   {#if store.overlay === 'repeat'}<RepeatEditor />{/if}
+  {#if store.overlay === 'swipe'}<SwipeSheet />{/if}
 
   {#if drag.active}
     {@const first = store.task(drag.ids[0] ?? null)}
@@ -207,7 +209,12 @@
 
   {#if store.toast}
     {#key store.toast.id}
-      <div class="toast" class:above-bar={store.isMulti && store.canMulti} in:fly={{ y: 10, duration: 160 }} out:fade={{ duration: 200 }}>{store.toast.text}</div>
+      <div class="toast" class:above-bar={store.isMulti && store.canMulti} in:fly={{ y: 10, duration: 160 }} out:fade={{ duration: 200 }}>
+        {store.toast.text}
+        {#if store.toast.undo}
+          <button class="toast-undo" onclick={() => store.undo()}>Undo</button>
+        {/if}
+      </div>
     {/key}
   {/if}
 {:else}
@@ -351,6 +358,27 @@
     font-weight: 500;
     z-index: 30;
     box-shadow: var(--card-shadow);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .toast-undo {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    padding: 0 2px;
+    cursor: pointer;
+  }
+  @media (pointer: coarse) {
+    /* 44px touch target without making the toast itself taller. */
+    .toast-undo {
+      min-height: 44px;
+      margin: -14px -8px;
+      padding: 0 8px;
+    }
   }
   /* Phones: the selection bar sits across the bottom, so messages go above it. */
   @media (max-width: 760px) {

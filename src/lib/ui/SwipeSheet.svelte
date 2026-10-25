@@ -57,8 +57,8 @@
   >
     <div class="title">{task.title}</div>
     {#if sheet.side === 'right'}
-      <button onclick={() => run((id) => store.toggleComplete(id))}>{task.completed_at ? 'Mark as not done' : 'Complete'}</button>
-      <button onclick={() => run(move)}>Move to…</button>
+      <button class:complete={!task.completed_at} onclick={() => run((id) => store.toggleComplete(id))}>{task.completed_at ? 'Mark as not done' : 'Complete'}</button>
+      <button class="move" onclick={() => run(move)}>Move to…</button>
     {:else}
       <button class="danger" onclick={() => run((id) => store.deleteTask(id))}>Move to Trash</button>
     {/if}
@@ -71,7 +71,8 @@
     position: fixed;
     inset: 0;
     z-index: 40;
-    background: rgba(0, 0, 0, 0.3);
+    /* Light, so the outlined to-do stays easy to see behind it. */
+    background: rgba(0, 0, 0, 0.15);
   }
   .sheet {
     position: fixed;
@@ -105,6 +106,14 @@
     font-weight: 500;
     color: var(--text);
     background: var(--chip);
+  }
+  button.complete {
+    color: #fff;
+    background: var(--logbook);
+  }
+  button.move {
+    color: #fff;
+    background: var(--accent);
   }
   button.danger {
     color: #fff;

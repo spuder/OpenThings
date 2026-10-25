@@ -110,6 +110,8 @@
   class:dragging
   class:expanded
   class:done
+  class:swiped-right={store.swipeSheet?.id === task.id && store.swipeSheet.side === 'right'}
+  class:swiped-left={store.swipeSheet?.id === task.id && store.swipeSheet.side === 'left'}
   bind:this={el}
   data-id={task.id}
   role="option"
@@ -254,6 +256,16 @@
   }
   .task:global([data-swipe='left']) {
     background: color-mix(in srgb, var(--deadline) 32%, transparent);
+  }
+  /* While its swipe sheet is open, the to-do keeps a border in the swipe's color, so it's clear
+     which one the sheet acts on. (:not(.expanded) outranks the cursor's border.) */
+  .task.swiped-right:not(.expanded) {
+    background: color-mix(in srgb, var(--logbook) 18%, transparent);
+    box-shadow: inset 0 0 0 2px var(--logbook);
+  }
+  .task.swiped-left:not(.expanded) {
+    background: color-mix(in srgb, var(--deadline) 18%, transparent);
+    box-shadow: inset 0 0 0 2px var(--deadline);
   }
   @media (hover: none) and (pointer: coarse) {
     .task {

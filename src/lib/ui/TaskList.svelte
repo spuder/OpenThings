@@ -14,6 +14,9 @@
   } = $props();
 
   const total = $derived(groups.reduce((n, g) => n + g.items.length, 0));
+
+  /** In a multi-selection, a picked row whose neighbour is picked too joins it into one block. */
+  const joined = (items: Group['items'], i: number, dir: -1 | 1) => store.isMulti && store.isPicked(items[i].id) && !!items[i + dir] && store.isPicked(items[i + dir].id);
 </script>
 
 {#if total === 0 && !groups.some((g) => g.title)}
@@ -36,9 +39,9 @@
       </header>
     {/if}
     <div class="items" class:drop-end={dropLine(g.key, null)} role="listbox" aria-multiselectable={store.isMulti} aria-label={g.title ?? store.viewTitle}>
-      {#each g.items as t (t.id)}
+      {#each g.items as t, i (t.id)}
         <div class="slot" class:drop-before={dropLine(g.key, t.id)} animate:flip={{ duration: 220 }} in:slide={{ duration: 180 }} out:slide={{ duration: 160 }}>
-          <TaskRow task={t} {showWhen} showContainer={showContainer && g.key !== t.project_id} />
+          <TaskRow task={t} {showWhen} showContainer={showContainer && g.key !== t.project_id} joinUp={joined(g.items, i, -1)} joinDown={joined(g.items, i, 1)} />
         </div>
       {/each}
     </div>

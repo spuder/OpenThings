@@ -12,7 +12,20 @@
   import { swipeable } from './swipe.svelte';
   import { isMac } from '../commands';
 
-  let { task, showWhen = false, showContainer = false }: { task: Task; showWhen?: boolean; showContainer?: boolean } = $props();
+  let {
+    task,
+    showWhen = false,
+    showContainer = false,
+    joinUp = false,
+    joinDown = false,
+  }: {
+    task: Task;
+    showWhen?: boolean;
+    showContainer?: boolean;
+    /** The row above / below is in the same multi-selection: draw them as one block (TaskList). */
+    joinUp?: boolean;
+    joinDown?: boolean;
+  } = $props();
 
   const selected = $derived(store.isPicked(task.id));
   /** Keyboard cursor inside a multi-selection (Shift+arrows, selection mode). */
@@ -105,6 +118,9 @@
 <div
   class="task"
   class:selected
+  class:multi={store.isMulti}
+  class:join-up={joinUp}
+  class:join-down={joinDown}
   class:cursor
   class:picking={store.selecting}
   class:dragging
@@ -240,8 +256,23 @@
     /* Long-press picks the row; no iOS callout. */
     -webkit-touch-callout: none;
   }
-  .task.cursor:not(.expanded) {
+  /* Multi-selection: the blue bar runs along every selected row, and neighbouring rows join into
+     one block (join-up / join-down square off the corners between them). The keyboard cursor is a
+     shade stronger; on a row that isn't selected (selection mode) it keeps the bar on its own. */
+  .task.multi.selected:not(.expanded),
+  .task.cursor:not(.selected, .expanded) {
     box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .task.cursor.selected:not(.expanded) {
+    background-image: linear-gradient(color-mix(in srgb, var(--accent) 9%, transparent), color-mix(in srgb, var(--accent) 9%, transparent));
+  }
+  .task.join-up:not(.expanded) {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+  .task.join-down:not(.expanded) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
   }
   /* Touch swipe: green behind a right swipe (Complete / Move), red behind a left swipe (Trash).
      The stronger tint means letting go opens the actions. */

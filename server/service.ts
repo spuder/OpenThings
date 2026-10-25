@@ -396,6 +396,8 @@ export class Service {
     if (input.when !== undefined) {
       const { inbox, ...w } = this.when(input.when);
       Object.assign(fields, w, inbox ? { project_id: null, area_id: null, heading_id: null } : {});
+      // Scheduling a Brain Dump item moves it out, as in the app.
+      if (t.dump && (w.when_date || w.someday || inbox)) Object.assign(fields, { dump: 0, dump_section_id: null });
     }
     if (input.deadline !== undefined) fields.deadline = this.date(input.deadline, 'deadline');
     if (input.repeat !== undefined) {

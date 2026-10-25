@@ -2,6 +2,15 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.7.0](https://github.com/spuder/OpenThings/releases/tag/v0.7.0) - 2026-10-25
+
+### What's Changed
+
+* Swipe gestures on phones and tablets: swipe a to-do right for Complete or Move to…, or left for Move to Trash, from a small sheet that keeps the to-do outlined. Move to Trash shows Undo in the toast. By @Copilot and @spuder in https://github.com/spuder/OpenThings/pull/76 (https://github.com/spuder/OpenThings/issues/75)
+* Delete project, Delete area and Empty Trash now work in the macOS app: they confirm in the command palette instead of a browser dialog the app couldn't show. By @spuder in https://github.com/spuder/OpenThings/pull/83 (https://github.com/spuder/OpenThings/issues/78)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.6.0...v0.7.0
+
 ## [v0.6.0](https://github.com/spuder/OpenThings/releases/tag/v0.6.0) - 2026-10-24
 
 ### What's Changed

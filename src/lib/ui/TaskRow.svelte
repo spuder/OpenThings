@@ -259,6 +259,11 @@
     .task {
       /* The browser keeps vertical scrolling and pinch-zoom; sideways motion is left to the row swipe. */
       touch-action: pan-y pinch-zoom;
+      /* A swipe's tint fades out with the row gliding back, rather than vanishing. */
+      transition:
+        background 0.3s,
+        box-shadow 0.2s var(--ease),
+        margin 0.2s var(--ease);
       /* A swiped row slides under its tint instead of widening the list. */
       overflow-x: clip;
     }

@@ -14,6 +14,8 @@ import type { ID } from '../types';
 
 /** Horizontal travel before a touch counts as a swipe rather than a tap or scroll. */
 const LOCK_PX = 10;
+/** Letting go: the row glides back, fast at first and settling gently (an ease-out, no bounce). */
+const SETTLE = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
 
 function findTouch(list: TouchList, identifier: number): Touch | null {
   for (let i = 0; i < list.length; i++) if (list[i].identifier === identifier) return list[i];
@@ -31,7 +33,7 @@ export function swipeable(id: ID): Attachment<HTMLElement> {
       node.removeAttribute('data-swipe');
       const r = row();
       if (r?.style.transform) {
-        r.style.transition = 'transform 0.18s var(--ease)';
+        r.style.transition = SETTLE;
         r.style.transform = '';
       }
     }
@@ -72,7 +74,8 @@ export function swipeable(id: ID): Attachment<HTMLElement> {
       const r = row();
       if (r) {
         r.style.transition = 'none';
-        r.style.transform = `translateX(${rowSwipeOffset(dx, node.clientWidth * 0.5)}px)`;
+        // Start moving from where the swipe locked in, so the row doesn't jump LOCK_PX at once.
+        r.style.transform = `translateX(${rowSwipeOffset(dx - Math.sign(dx) * LOCK_PX, node.clientWidth * 0.5)}px)`;
       }
       const act = classifyRowSwipe(dx);
       if (act && act !== s.act) navigator.vibrate?.(8); // crossed the point where letting go opens the sheet

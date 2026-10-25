@@ -42,8 +42,14 @@ describe('rowSwipeOffset', () => {
     const past = rowSwipeOffset(ROW_SWIPE_COMMIT + 100, 1000);
     expect(past).toBeGreaterThan(ROW_SWIPE_COMMIT);
     expect(past).toBeLessThan(ROW_SWIPE_COMMIT + 100);
-    expect(rowSwipeOffset(5000, 200)).toBe(200);
-    expect(rowSwipeOffset(-5000, 200)).toBe(-200);
+    expect(rowSwipeOffset(5000, 200)).toBeLessThanOrEqual(200);
+    expect(rowSwipeOffset(5000, 200)).toBeGreaterThan(195);
+    expect(rowSwipeOffset(-5000, 200)).toBeGreaterThanOrEqual(-200);
+  });
+  it('has no kink at the commit point: the band starts at the speed of the finger', () => {
+    const before = rowSwipeOffset(ROW_SWIPE_COMMIT, 200) - rowSwipeOffset(ROW_SWIPE_COMMIT - 1, 200);
+    const after = rowSwipeOffset(ROW_SWIPE_COMMIT + 1, 200) - rowSwipeOffset(ROW_SWIPE_COMMIT, 200);
+    expect(after).toBeGreaterThan(0.98 * before);
   });
   it('never caps below the commit point', () => {
     expect(rowSwipeOffset(ROW_SWIPE_COMMIT, 10)).toBe(ROW_SWIPE_COMMIT);

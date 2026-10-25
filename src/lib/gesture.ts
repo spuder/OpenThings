@@ -46,9 +46,14 @@ export function swipeFromEdge(x: number, width: number): boolean {
   return x < ROW_SWIPE_EDGE || x > width - ROW_SWIPE_EDGE;
 }
 
-/** How far to draw the row for a finger offset `dx`: 1:1 up to the commit point, then resisting, never past `max`. */
+/**
+ * How far to draw the row for a finger offset `dx`: 1:1 up to the commit point, then a rubber band
+ * that starts at the same speed and eases off toward `max`, so there's no sudden change in feel.
+ */
 export function rowSwipeOffset(dx: number, max: number): number {
   const a = Math.abs(dx);
-  const shown = a <= ROW_SWIPE_COMMIT ? a : ROW_SWIPE_COMMIT + (a - ROW_SWIPE_COMMIT) * 0.35;
-  return Math.sign(dx) * Math.min(shown, Math.max(max, ROW_SWIPE_COMMIT));
+  const room = Math.max(max, ROW_SWIPE_COMMIT) - ROW_SWIPE_COMMIT;
+  if (a <= ROW_SWIPE_COMMIT || room === 0) return Math.sign(dx) * Math.min(a, ROW_SWIPE_COMMIT + room);
+  const over = a - ROW_SWIPE_COMMIT;
+  return Math.sign(dx) * (ROW_SWIPE_COMMIT + room * (1 - 1 / (over / room + 1)));
 }

@@ -1,0 +1,137 @@
+<!doctype html>
+<!--
+  Mockups for issue #93 (project menu: numbers or letter shortcuts, icons or row colors).
+  Static HTML that reuses the palette's styles and the color tokens from src/app.css.
+  Icons are original drawings in the style of src/lib/ui/Icon.svelte.
+  Open in a browser; add ?theme=light for the light theme.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Issue #93 menu mockups</title>
+<link rel="stylesheet" href="../../node_modules/@fontsource/inter/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/inter/500.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/inter/600.css" />
+<style>
+  :root {
+    --bg: #1d1e21; --text: #ececef; --text-2: #9b9ba3; --text-3: #67676f;
+    --line: #2a2b30; --line-strong: #3a3b42; --accent: #5b8ff9; --select: rgba(91, 143, 249, 0.14);
+    --card: #26272c; --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45); --chip: #2e2f35;
+    --inbox: #2f86ed; --anytime: #2aa198; --matrix: #8a63d2; --logbook: #3fa66b; --deadline: #e0453c;
+  }
+  :root.light {
+    --bg: #ffffff; --text: #1c1c1e; --text-2: #6e6e73; --text-3: #a1a1a6;
+    --line: #ececef; --line-strong: #d8d8dc; --accent: #2f6fed; --select: rgba(47, 111, 237, 0.09);
+    --card: #ffffff; --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 28px rgba(0, 0, 0, 0.1); --chip: #f1f1f4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px; width: max-content; background: var(--bg); color: var(--text);
+    font-family: Inter, -apple-system, system-ui, sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased;
+  }
+  .grid { display: grid; grid-template-columns: repeat(2, 460px); gap: 36px 32px; width: max-content; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 0 0 10px; }
+  h2 b { color: var(--text); }
+
+  /* Palette panel, as in src/lib/ui/Palette.svelte */
+  .panel { background: var(--card); border-radius: 12px; box-shadow: var(--card-shadow), 0 0 0 1px var(--line); overflow: hidden; }
+  .label { font-size: 12px; font-weight: 600; color: var(--text-3); padding: 12px 16px 0; text-transform: uppercase; letter-spacing: 0.04em; }
+  .input { font-size: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--text-3); }
+  ul { list-style: none; margin: 0; padding: 6px; }
+  li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; margin-bottom: 2px; }
+  li.active { background: var(--select); }
+  .l { flex: 1; font-weight: 500; }
+  .h { font-size: 12px; color: var(--text-3); }
+  kbd {
+    font-family: inherit; font-size: 11px; font-weight: 500; color: var(--text-2); background: var(--chip);
+    border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px;
+    min-width: 18px; text-align: center; display: inline-block; line-height: 16px;
+  }
+
+  /* Each action's color, from existing tokens */
+  .rename { --c: var(--inbox); }
+  .move { --c: var(--anytime); }
+  .heading { --c: var(--matrix); }
+  .remove { --c: var(--text-2); }
+  .complete { --c: var(--logbook); }
+  .delete { --c: var(--deadline); }
+
+  svg { flex: none; stroke: var(--c); }
+  .danger .l { color: var(--deadline); }
+
+  /* Letter shortcuts: the mnemonic letter is underlined in the action's color */
+  u { text-decoration: none; color: var(--c); box-shadow: inset 0 -1.5px 0 var(--c); }
+  .letters kbd { color: var(--c); }
+
+  /* Row colors: a color bar and a light tint per row */
+  .rows li { background: color-mix(in srgb, var(--c) 9%, transparent); box-shadow: inset 3px 0 0 var(--c); }
+  .rows li.active { background: color-mix(in srgb, var(--c) 20%, transparent); }
+  .rows kbd { color: var(--c); border-color: color-mix(in srgb, var(--c) 45%, var(--line-strong)); }
+</style>
+</head>
+<body>
+<script>
+  if (new URLSearchParams(location.search).get('theme') === 'light') document.documentElement.classList.add('light');
+</script>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="i-rename"><path d="M12.5 4.5l3 3L7.5 15.5H4.5v-3z" /><path d="M11 6l3 3" /></g>
+    <g id="i-move"><path d="M10 2.5l6.5 3.5v8L10 17.5 3.5 14V6z" /><path d="M7 10h6M10.5 7.5 13 10l-2.5 2.5" /></g>
+    <g id="i-heading"><path d="M4 5.5h12" stroke-width="2.4" /><path d="M4 10.5h8M4 14.5h8M15 11.5v5M12.5 14h5" /></g>
+    <g id="i-remove"><path d="M4 5.5h12" stroke-width="2.4" /><path d="M4 10.5h8M4 14.5h6M12.5 14h5" /></g>
+    <g id="i-complete"><circle cx="10" cy="10" r="7" /><path d="M7 10.2l2.2 2.2L13.4 8" /></g>
+    <g id="i-delete"><path d="M4 5.5h12M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5.5 5.5l.8 10.6a1.5 1.5 0 0 0 1.5 1.4h4.4a1.5 1.5 0 0 0 1.5-1.4l.8-10.6M8.5 9v5M11.5 9v5" /></g>
+  </defs>
+</svg>
+
+<div class="grid" id="grid"></div>
+
+<script>
+  const items = [
+    { k: 'rename', label: 'Rename…', letter: 'R', mark: [0, 1] },
+    { k: 'move', label: 'Move to area…', letter: 'M', mark: [0, 1] },
+    { k: 'heading', label: 'New heading…', letter: 'H', mark: [4, 5] },
+    { k: 'remove', label: 'Remove heading…', letter: 'E', mark: [1, 2], hint: 'its to-dos stay in the project' },
+    { k: 'complete', label: 'Complete project', letter: 'C', mark: [0, 1] },
+    { k: 'delete', label: 'Delete project', letter: 'D', mark: [0, 1], hint: 'its to-dos go to the Trash' },
+  ];
+  const variants = [
+    { title: 'A', name: 'Numbers + icons', keys: 'numbers', style: 'icons' },
+    { title: 'B', name: 'Letter shortcuts + icons', keys: 'letters', style: 'icons' },
+    { title: 'C', name: 'Numbers + row colors', keys: 'numbers', style: 'rows' },
+    { title: 'D', name: 'Letter shortcuts + row colors', keys: 'letters', style: 'rows' },
+  ];
+  const icon = (k) => `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-${k}"/></svg>`;
+  const label = (it, letters) => {
+    if (!letters) return it.label;
+    const [a, b] = it.mark;
+    return `${it.label.slice(0, a)}<u>${it.label.slice(a, b)}</u>${it.label.slice(b)}`;
+  };
+  document.getElementById('grid').innerHTML = variants
+    .map((v) => {
+      const letters = v.keys === 'letters';
+      const rows = items
+        .map((it, i) => {
+          const key = letters ? it.letter : String(i + 1);
+          return `<li class="${it.k}${i === 0 ? ' active' : ''}${it.k === 'delete' ? ' danger' : ''}">
+            ${v.style === 'icons' ? icon(it.k) : ''}
+            <span class="l">${label(it, letters)}</span>
+            ${it.hint ? `<span class="h">${it.hint}</span>` : ''}
+            <kbd>${key}</kbd>
+          </li>`;
+        })
+        .join('');
+      return `<section>
+        <h2><b>${v.title}.</b> ${v.name}</h2>
+        <div class="panel ${v.keys} ${v.style}">
+          <div class="label">Meshtastic</div>
+          <div class="input">Meshtastic</div>
+          <ul>${rows}</ul>
+        </div>
+      </section>`;
+    })
+    .join('');
+</script>
+</body>
+</html>

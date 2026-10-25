@@ -838,11 +838,14 @@ class Store {
   }
 
   setWhen(id: ID, w: When) {
+    // Scheduling a Brain Dump item (Today, Upcoming, Someday…) moves it out, so it becomes permanent.
+    const leavesDump = !!this.task(id)?.dump && (!!w.date || w.someday || w.inbox);
     this.update(id, {
       when_date: w.date,
       evening: w.evening ? 1 : 0,
       someday: w.someday ? 1 : 0,
       ...(w.inbox ? { project_id: null, area_id: null, heading_id: null } : {}),
+      ...(leavesDump ? { dump: 0, dump_section_id: null } : {}),
     }, 'date change');
   }
 

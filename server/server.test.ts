@@ -243,6 +243,15 @@ describe('REST API', () => {
     expect((await call('POST', `/api/v1/tasks/${t.id}/move`, { project: 'Nope' })).status).toBe(404);
   });
 
+  it('scheduling a brain dump item moves it out', async () => {
+    const { call } = setup();
+    const { body: t } = await call('POST', '/api/v1/tasks', { text: 'Idea @dump' });
+    const p = await call('PATCH', `/api/v1/tasks/${t.id}`, { when: 'today' });
+    expect(p.body).toMatchObject({ dump: 0 });
+    const { body: u } = await call('POST', '/api/v1/tasks', { text: 'Other idea @dump' });
+    expect((await call('PATCH', `/api/v1/tasks/${u.id}`, { notes: 'still here' })).body).toMatchObject({ dump: 1 });
+  });
+
   it('checks habits in and out', async () => {
     const { call } = setup();
     const { body: h } = await call('POST', '/api/v1/habits', { text: 'Gym 4x 60d' });

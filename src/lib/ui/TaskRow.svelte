@@ -261,7 +261,7 @@
       touch-action: pan-y pinch-zoom;
       /* A swipe's tint fades out with the row gliding back, rather than vanishing. */
       transition:
-        background 0.3s,
+        background 0.45s,
         box-shadow 0.2s var(--ease),
         margin 0.2s var(--ease);
       /* A swiped row slides under its tint instead of widening the list. */

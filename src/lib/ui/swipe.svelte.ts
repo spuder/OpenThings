@@ -14,8 +14,8 @@ import type { ID } from '../types';
 
 /** Horizontal travel before a touch counts as a swipe rather than a tap or scroll. */
 const LOCK_PX = 10;
-/** Letting go: the row glides back, fast at first and settling gently (an ease-out, no bounce). */
-const SETTLE = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
+/** Letting go: the row glides back with a gentle ease-out (no bounce), spread over half a second. */
+const SETTLE = 'transform 0.5s cubic-bezier(0.33, 1, 0.68, 1)';
 
 function findTouch(list: TouchList, identifier: number): Touch | null {
   for (let i = 0; i < list.length; i++) if (list[i].identifier === identifier) return list[i];

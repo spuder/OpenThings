@@ -20,6 +20,7 @@
   $effect(() => {
     const m = store.paletteMode;
     q = m.kind === 'prompt' ? (m.initial ?? '') : '';
+    index = 0;
     input?.focus();
     if (m.kind === 'prompt' && m.initial) queueMicrotask(() => input?.select());
   });

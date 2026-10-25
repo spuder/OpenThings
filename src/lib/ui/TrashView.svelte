@@ -2,6 +2,7 @@
   import { flip } from 'svelte/animate';
   import { fade, slide } from 'svelte/transition';
   import { store, TRASH_DAYS } from '../store.svelte';
+  import { confirmEmptyTrash } from '../commands';
   import Icon from './Icon.svelte';
 
   function daysLeft(iso: string): number {
@@ -18,7 +19,7 @@
   <div class="bar">
     <p>Deleted to-dos stay here for {TRASH_DAYS} days, then they're gone for good.</p>
     {#if store.trashed.length}
-      <button class="empty-btn" onclick={() => confirm(`Permanently delete ${store.trashed.length} to-dos?`) && store.emptyTrash()}>Empty Trash</button>
+      <button class="empty-btn" onclick={confirmEmptyTrash}>Empty Trash</button>
     {/if}
   </div>
 

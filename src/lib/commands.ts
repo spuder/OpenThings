@@ -65,6 +65,28 @@ export function prompt(label: string, onSubmit: (v: string) => void, placeholder
   store.overlay = 'palette';
 }
 
+/**
+ * Ask before a destructive action, in the palette. `window.confirm()` returns false at once in
+ * the macOS app (WKWebView shows no dialog), so it can't be used. Cancel comes first, so a
+ * second Enter doesn't delete anything.
+ */
+export function confirmAction(label: string, action: string, run: () => void, hint?: string) {
+  store.paletteMode = {
+    kind: 'choose',
+    label,
+    options: [
+      { label: 'Cancel', run: () => {} },
+      { label: action, hint, run },
+    ],
+  };
+  store.overlay = 'palette';
+}
+
+export function confirmEmptyTrash() {
+  const n = store.trashed.length;
+  confirmAction(`Permanently delete ${n} to-do${n === 1 ? '' : 's'}?`, 'Empty Trash', () => store.emptyTrash(), 'can’t be undone');
+}
+
 function moveSelection(delta: number) {
   const list = store.selectable;
   if (!list.length) return;
@@ -95,7 +117,7 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
         {
           label: 'Delete area',
           hint: 'projects are kept, its to-dos go to the Inbox',
-          run: () => confirm(`Delete the area “${a.name}”? Its projects are kept and its to-dos move to the Inbox.`) && store.deleteArea(a.id),
+          run: () => confirmAction(`Delete the area “${a.name}”?`, 'Delete area', () => store.deleteArea(a.id), 'projects are kept, its to-dos go to the Inbox'),
         },
       ],
     };
@@ -142,7 +164,7 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
         {
           label: 'Delete project',
           hint: 'its to-dos go to the Trash',
-          run: () => confirm(`Delete the project “${p.name}”? Its to-dos move to the Trash for 30 days.`) && store.deleteProject(p.id),
+          run: () => confirmAction(`Delete the project “${p.name}”?`, 'Delete project', () => store.deleteProject(p.id), 'its to-dos go to the Trash for 30 days'),
         },
       ],
     };
@@ -360,7 +382,7 @@ export const commands: Command[] = [
 
   { id: 'trash.restore', title: 'Restore from Trash', group: 'Trash', keys: ['shift+r', 'enter'], when: () => inTrash() && !!store.selectedId, run: () => store.selectedId && store.restoreTask(store.selectedId) },
   { id: 'trash.purge', title: 'Delete permanently', group: 'Trash', keys: ['backspace', 'delete'], when: () => inTrash() && !!store.selectedId, run: () => store.selectedId && store.purgeTask(store.selectedId) },
-  { id: 'trash.empty', title: 'Empty Trash', group: 'Trash', keys: [], when: () => store.trashed.length > 0, run: () => confirm(`Permanently delete ${store.trashed.length} to-dos?`) && store.emptyTrash() },
+  { id: 'trash.empty', title: 'Empty Trash', group: 'Trash', keys: [], when: () => store.trashed.length > 0, run: confirmEmptyTrash },
 
   { id: 'time.track', title: 'Start / stop timer', group: 'Time', keys: ['p'], when: hasTask, run: withTask((id) => store.toggleTracking(id)) },
   {

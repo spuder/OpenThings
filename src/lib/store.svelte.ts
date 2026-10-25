@@ -28,6 +28,7 @@ import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
 import * as Sel from './selection';
+import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
 import { mergeImportedTags, type ThingsImport } from './import/things';
 
@@ -60,7 +61,7 @@ export interface FocusSession {
 export type PaletteMode =
   | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder' | 'schedule' }
   | { kind: 'prompt'; label: string; placeholder?: string; initial?: string; onSubmit: (value: string) => void }
-  | { kind: 'choose'; label: string; options: { label: string; hint?: string; run: () => void }[] };
+  | { kind: 'choose'; label: string; options: MenuOption[] };
 
 export const TRASH_DAYS = 30;
 

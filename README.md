@@ -75,8 +75,8 @@
 - **Sync** between your devices through your own server, with status on every screen. Works offline; changes merge per field when you reconnect. See [docs/sync.md](docs/sync.md).
 - **REST API** for scripts, Home Assistant, n8n and Shortcuts, and an **MCP endpoint** so AI assistants (Claude and other MCP clients) can read and manage your to-dos. Quick-add syntax works in both. Settings has ready-to-copy config; reference in [docs/api.md](docs/api.md).
 - **Import from Things 3** (macOS desktop app): Settings → Data finds your Things database automatically and brings across areas, projects, headings, to-dos, tags and checklists. Repeat rules and reminders are left behind, and nothing is uploaded. The web version explains that importing is desktop-only. See [docs/import.md](docs/import.md).
-- **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe a to-do right** to complete it or **left** to move it to the Trash (undo in the toast), **swipe right** elsewhere for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
-- **Quick add** with short syntax (below), from anywhere with `Q`. It starts with the list you're in (`+Project` or `@today`) after the cursor, so you can change it. Once you type, the syntax keys appear as tappable chips, and `#important` / `#urgent` are one tap away. In Brain Dump it's a plain box: no syntax, just write.
+- **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe a to-do right** for Complete or Move, **left** for Move to Trash, **swipe right** elsewhere for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
+- **Quick add** with short syntax (below), from anywhere with `N`. It starts with the list you're in (`+Project` or `@today`) after the cursor, so you can change it. Once you type, the syntax keys appear as tappable chips, and `#important` / `#urgent` are one tap away. In Brain Dump it's a plain box: no syntax, just write.
 - **Quick Find** (`/` or `Ctrl/⌘ F`): recent lists with counts, then search lists, projects, areas, `#tags` and to-dos as you type.
 - **Bottom toolbar** on desktop with New to-do, When, Move and Quick Find; hide the sidebar with `Ctrl/⌘ /`.
 - **Command palette** (`Ctrl/⌘ K`) and a shortcut sheet (`?`).
@@ -109,8 +109,11 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 
 | Keys | Action |
 | --- | --- |
-| `Q` / `N` | Quick add |
+| `N` | Quick add |
 | `B` | Add to brain dump |
+| `Ctrl/⌘ ⇧N` | New project |
+| `⇧H` | New heading (project), section (Brain Dump) or habit (Habits) |
+| `⇧⌫` | Remove a Brain Dump section |
 | `Alt+1…9` or `G` then `I T U A S L D H M` | Inbox, Today, Upcoming, Anytime, Someday, Logbook, Dump, Habits, Matrix |
 | `G W` | This Week (when turned on in Settings → Features) |
 | `J` / `K` | Move selection |
@@ -124,7 +127,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `U` / `I` | Urgent / important |
 | `F` | Focus mode (Pomodoro on the selected to-do) |
 | `P` / `⇧P` | Timer / quick Pomodoro |
-| `⇧L` | Rename / move / delete the current area or project |
+| `⇧L` | Rename / move / delete the current area or project, or remove one of its headings |
 | `⇧D` | Toggle dark mode |
 | `⇧T` | Theme switcher (Omarchy themes, desktop) |
 | `Alt+↑` / `Alt+↓` | Reorder |

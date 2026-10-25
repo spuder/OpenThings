@@ -2,6 +2,7 @@
   import { store } from '../store.svelte';
   import { commands, keyLabel } from '../commands';
   import Icon from './Icon.svelte';
+  import { isNativeShell } from '../native/shell';
 
   const task = $derived(store.task(store.selectedId));
   const canAct = $derived(store.isMulti ? store.actionIds.length > 0 : !!task && store.view.kind !== 'habits' && store.view.kind !== 'trash');
@@ -31,6 +32,8 @@
   <button class="find" onclick={() => run('app.find')} title={`Quick Find${key('app.find')}`} aria-label="Quick Find">
     <Icon name="search" size={20} />
   </button>
+  <!-- Desktop and web only: the iOS and Android apps show their version in the system settings. -->
+  {#if !isNativeShell()}<span class="version">v{__APP_VERSION__}</span>{/if}
 </div>
 
 <style>
@@ -67,7 +70,20 @@
   .fab {
     display: none;
   }
+  .version {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: var(--text-3);
+    pointer-events: none;
+    user-select: none;
+  }
   @media (max-width: 760px) {
+    .version {
+      display: none;
+    }
     /* Phones: no toolbar. Floating round buttons above the home indicator: Find bottom left, add bottom right. */
     .bar {
       height: 0;

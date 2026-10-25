@@ -2,6 +2,15 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.8.0](https://github.com/spuder/OpenThings/releases/tag/v0.8.0) - 2026-10-25
+
+### What's Changed
+
+* Multi-selection reads as one selection: the blue bar runs along every selected to-do, and neighbouring selected rows join into one block. By @spuder in https://github.com/spuder/OpenThings/pull/89 (https://github.com/spuder/OpenThings/issues/88)
+* Giving a Brain Dump to-do a date, Someday or the Inbox (T, E, R, S or When…) moves it out of the Brain Dump, so it shows in Today and no longer expires after 48 hours. By @spuder in https://github.com/spuder/OpenThings/pull/90 (https://github.com/spuder/OpenThings/issues/87)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.7.0...v0.8.0
+
 ## [v0.7.0](https://github.com/spuder/OpenThings/releases/tag/v0.7.0) - 2026-10-25
 
 ### What's Changed

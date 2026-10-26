@@ -2,6 +2,17 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.9.0](https://github.com/spuder/OpenThings/releases/tag/v0.9.0) - 2026-10-25
+
+### What's Changed
+
+* Quick add keeps one project per to-do, and typing `+` opens a list of projects and areas to pick from with ↑/↓ and ↵. By @spuder in https://github.com/spuder/OpenThings/pull/92 (https://github.com/spuder/OpenThings/issues/79)
+* Area and project menus have icons and letter shortcuts, such as R for Rename and H for New heading, while the filter box is empty. By @spuder in https://github.com/spuder/OpenThings/pull/95 (https://github.com/spuder/OpenThings/issues/93)
+* The MCP server has an `add_area` tool, so assistants can create an area and file projects and to-dos in it. A name that already exists returns that area instead of a duplicate. By @spuder in https://github.com/spuder/OpenThings/pull/97 (https://github.com/spuder/OpenThings/issues/96)
+* The global quick-add shortcut is ⌃Space on macOS, and on Omarchy and Hyprland, Settings → Desktop can write the binding for you. Quick add no longer jumps when it opens on macOS. By @spuder in https://github.com/spuder/OpenThings/pull/101 (https://github.com/spuder/OpenThings/issues/98)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.8.0...v0.9.0
+
 ## [v0.8.0](https://github.com/spuder/OpenThings/releases/tag/v0.8.0) - 2026-10-25
 
 ### What's Changed

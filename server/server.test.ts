@@ -306,6 +306,7 @@ describe('MCP', () => {
     const names = (await rpc(call, 'tools/list')).body.result.tools.map((t: { name: string }) => t.name);
     expect(names).toContain('add_task');
     expect(names).toContain('check_habit');
+    expect(names).toContain('add_area');
     expect((await rpc(call, 'nope')).body.error.code).toBe(-32601);
   });
 
@@ -319,6 +320,35 @@ describe('MCP', () => {
     expect(done.completed.completed_at).toBeTruthy();
     const dump = JSON.parse((await tool(call, 'brain_dump', { text: 'Random idea' })).text);
     expect(dump.brain_dump).toBe(true);
+  });
+
+  it('creates an area, then files a project and a to-do in it', async () => {
+    const { call } = setup();
+    const area = JSON.parse((await tool(call, 'add_area', { name: 'Health' })).text);
+    expect(area).toEqual({ id: expect.any(String), name: 'Health' });
+    const project = JSON.parse((await tool(call, 'add_project', { name: 'Checkups', area: area.id })).text);
+    expect(project).toMatchObject({ name: 'Checkups', area_id: area.id });
+    const task = JSON.parse((await tool(call, 'add_task', { text: 'Book dentist', area: 'Health' })).text);
+    expect(task).toMatchObject({ title: 'Book dentist', area: 'Health' });
+    const listed = JSON.parse((await tool(call, 'list_projects', {})).text);
+    expect(listed.areas).toEqual([{ id: area.id, name: 'Health' }]);
+  });
+
+  it('reuses an area with the same name instead of adding a duplicate', async () => {
+    const { call } = setup();
+    const area = JSON.parse((await tool(call, 'add_area', { name: 'Health' })).text);
+    expect(JSON.parse((await tool(call, 'add_area', { name: ' health ' })).text)).toEqual({ id: area.id, name: 'Health', existed: true });
+    const wider = JSON.parse((await tool(call, 'add_area', { name: 'Health and Fitness' })).text);
+    expect(wider.id).not.toBe(area.id);
+    expect(JSON.parse((await tool(call, 'list_projects', {})).text).areas).toHaveLength(2);
+    expect(JSON.parse((await tool(call, 'add_area', { name: 'Fitness' })).text).existed).toBeUndefined();
+  });
+
+  it('rejects a blank or non-string area name', async () => {
+    const { call } = setup();
+    expect(await tool(call, 'add_area', { name: '  ' })).toEqual({ isError: true, text: 'An area needs a name' });
+    expect(await tool(call, 'add_area', { name: 42 })).toEqual({ isError: true, text: '"name" must be a string' });
+    expect(await tool(call, 'add_area', {})).toEqual({ isError: true, text: '"name" must be a string' });
   });
 
   it('reports bad input as a tool error', async () => {

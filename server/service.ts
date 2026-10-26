@@ -548,6 +548,12 @@ export class Service {
     return this.db.one<Project>('SELECT * FROM projects WHERE id = ?', [id])!;
   }
 
+  /** The area with exactly this name (ignoring case and spacing); no id or prefix matches. */
+  areaNamed(name: string): Area | undefined {
+    const n = norm(name);
+    return this.areas().find((a) => norm(a.name) === n);
+  }
+
   addArea(name: string): Area {
     if (!name.trim()) throw new UserError('An area needs a name');
     const id = uuid7();

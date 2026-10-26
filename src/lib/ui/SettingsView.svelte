@@ -194,7 +194,7 @@ curl '${base}/api/v1/tasks?view=today'`);
     ['delete_task', 'Move to the Trash (or restore)'],
     ['brain_dump', 'Capture something into the Brain Dump'],
     ['add_checklist_item / check_checklist_item', 'Checklists'],
-    ['list_projects / add_project', 'Areas, projects and tags'],
+    ['list_projects / add_project / add_area', 'Areas, projects and tags'],
     ['list_habits / check_habit', 'Habits and check-ins'],
     ['start_timer / stop_timer / current_timer', 'Time tracking'],
   ];

@@ -103,7 +103,7 @@ function setCursor(id: string | null) {
   if (store.expandedId && store.expandedId !== id) store.expandedId = null;
 }
 
-/** Rename / move / delete menu for an area or project, shown in the palette. */
+/** Rename / move / delete menu for an area or project, shown in the palette. Each option has a letter (see menu.ts). */
 export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
   if (target.kind === 'area') {
     const a = store.areas.find((x) => x.id === target.id);
@@ -112,10 +112,13 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
       kind: 'choose',
       label: a.name,
       options: [
-        { label: 'Rename…', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
-        { label: 'New project in this area…', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
+        { label: 'Rename…', key: 'r', icon: 'rename', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
+        { label: 'New project in this area…', key: 'n', icon: 'add', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
         {
           label: 'Delete area',
+          key: 'd',
+          icon: 'delete',
+          danger: true,
           hint: 'projects are kept, its to-dos go to the Inbox',
           run: () => confirmAction(`Delete the area “${a.name}”?`, 'Delete area', () => store.deleteArea(a.id), 'projects are kept, its to-dos go to the Inbox'),
         },
@@ -128,9 +131,11 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
       kind: 'choose',
       label: p.name,
       options: [
-        { label: 'Rename…', run: () => prompt('Rename project', (n) => store.renameProject(p.id, n), p.name, p.name) },
+        { label: 'Rename…', key: 'r', icon: 'rename', run: () => prompt('Rename project', (n) => store.renameProject(p.id, n), p.name, p.name) },
         {
           label: 'Move to area…',
+          key: 'm',
+          icon: 'move',
           run: () => {
             store.paletteMode = {
               kind: 'choose',
@@ -143,11 +148,13 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
             store.overlay = 'palette';
           },
         },
-        { label: 'New heading…', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
+        { label: 'New heading…', key: 'h', icon: 'heading', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
         ...(store.headings.some((h) => h.project_id === p.id)
           ? [
               {
                 label: 'Remove heading…',
+                key: 'e',
+                icon: 'unheading',
                 hint: 'its to-dos stay in the project',
                 run: () => {
                   store.paletteMode = {
@@ -160,9 +167,12 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
               },
             ]
           : []),
-        { label: 'Complete project', run: () => store.completeProject(p.id) },
+        { label: 'Complete project', key: 'c', icon: 'complete', run: () => store.completeProject(p.id) },
         {
           label: 'Delete project',
+          key: 'd',
+          icon: 'delete',
+          danger: true,
           hint: 'its to-dos go to the Trash',
           run: () => confirmAction(`Delete the project “${p.name}”?`, 'Delete project', () => store.deleteProject(p.id), 'its to-dos go to the Trash for 30 days'),
         },

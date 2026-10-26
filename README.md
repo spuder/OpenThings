@@ -127,7 +127,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `U` / `I` | Urgent / important |
 | `F` | Focus mode (Pomodoro on the selected to-do) |
 | `P` / `⇧P` | Timer / quick Pomodoro |
-| `⇧L` | Rename / move / delete the current area or project, or remove one of its headings |
+| `⇧L` | Rename / move / delete the current area or project, or remove one of its headings. In that menu, each option's underlined letter runs it (`R` rename, `M` move, `H` new heading, `E` remove heading, `C` complete, `D` delete) |
 | `⇧D` | Toggle dark mode |
 | `⇧T` | Theme switcher (Omarchy themes, desktop) |
 | `Alt+↑` / `Alt+↓` | Reorder |

@@ -1,7 +1,4 @@
-<script lang="ts">
-  /** Original line icons for each list. Simple geometric shapes, drawn for this project. */
-  let { name, size = 18 }: { name: string; size?: number } = $props();
-
+<script module lang="ts">
   const colors: Record<string, string> = {
     inbox: 'var(--inbox)',
     today: 'var(--star)',
@@ -19,8 +16,27 @@
     bell: 'var(--habits)',
     area: 'var(--text-2)',
     evening: 'var(--evening)',
+    // Menu actions (area and project menus)
+    rename: 'var(--inbox)',
+    add: 'var(--anytime)',
+    move: 'var(--anytime)',
+    heading: 'var(--matrix)',
+    unheading: 'var(--text-2)',
+    complete: 'var(--logbook)',
+    delete: 'var(--deadline)',
   };
-  const color = $derived(colors[name] ?? 'var(--text-2)');
+
+  /** The color an icon is drawn in; menus reuse it for the item's letter. */
+  export function iconColor(name: string): string {
+    return colors[name] ?? 'var(--text-2)';
+  }
+</script>
+
+<script lang="ts">
+  /** Original line icons for each list. Simple geometric shapes, drawn for this project. */
+  let { name, size = 18 }: { name: string; size?: number } = $props();
+
+  const color = $derived(iconColor(name));
 </script>
 
 <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke={color} stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -78,12 +94,12 @@
   {:else if name === 'mute'}
     <path d="M4 8v4h3l4 3V5L7 8z" />
     <path d="M14 8l3 4M17 8l-3 4" />
-  {:else if name === 'plus'}
+  {:else if name === 'plus' || name === 'add'}
     <path d="M10 4v12M4 10h12" />
   {:else if name === 'gear' || name === 'settings'}
     <path d="M15.98 8.35 L18.09 8.68 L18.09 11.32 L15.98 11.65 L15.39 13.06 L16.66 14.79 L14.79 16.66 L13.06 15.39 L11.65 15.98 L11.32 18.09 L8.68 18.09 L8.35 15.98 L6.94 15.39 L5.21 16.66 L3.34 14.79 L4.61 13.06 L4.02 11.65 L1.91 11.32 L1.91 8.68 L4.02 8.35 L4.61 6.94 L3.34 5.21 L5.21 3.34 L6.94 4.61 L8.35 4.02 L8.68 1.91 L11.32 1.91 L11.65 4.02 L13.06 4.61 L14.79 3.34 L16.66 5.21 L15.39 6.94 Z" stroke-width="1.5" />
     <circle cx="10" cy="10" r="2.4" stroke-width="1.5" />
-  {:else if name === 'trash'}
+  {:else if name === 'trash' || name === 'delete'}
     <path d="M4 5.5h12M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5.5 5.5l.8 10.6a1.5 1.5 0 0 0 1.5 1.4h4.4a1.5 1.5 0 0 0 1.5-1.4l.8-10.6M8.5 9v5M11.5 9v5" />
   {:else if name === 'bell'}
     <path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.5 1.5H4z" />
@@ -101,6 +117,21 @@
     <path d="M8 3.5v13" />
   {:else if name === 'cloud'}
     <path d="M6 15.5h8.5a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 5.3 9.6 3 3 0 0 0 6 15.5z" />
+  {:else if name === 'rename'}
+    <path d="M12.5 4.5l3 3L7.5 15.5H4.5v-3z" />
+    <path d="M11 6l3 3" />
+  {:else if name === 'move'}
+    <path d="M10 2.5l6.5 3.5v8L10 17.5 3.5 14V6z" />
+    <path d="M7 10h6M10.5 7.5 13 10l-2.5 2.5" />
+  {:else if name === 'heading'}
+    <path d="M4 5.5h12" stroke-width="2.4" />
+    <path d="M4 10.5h8M4 14.5h8M15 11.5v5M12.5 14h5" />
+  {:else if name === 'unheading'}
+    <path d="M4 5.5h12" stroke-width="2.4" />
+    <path d="M4 10.5h8M4 14.5h6M12.5 14h5" />
+  {:else if name === 'complete'}
+    <circle cx="10" cy="10" r="7" />
+    <path d="M7 10.2l2.2 2.2L13.4 8" />
   {:else if name === 'search'}
     <circle cx="9" cy="9" r="5" />
     <path d="M13 13l3.5 3.5" />

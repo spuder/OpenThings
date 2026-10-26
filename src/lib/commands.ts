@@ -25,9 +25,13 @@ export interface Command {
 export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 const sel = () => store.task(store.selectedId);
-const hasTask = () => !!sel() && store.view.kind !== 'habits';
 const inHabits = () => store.view.kind === 'habits';
 const inTrash = () => store.view.kind === 'trash';
+/** One to-do selected: commands that only make sense for a single item (open, tag, timer…). */
+const hasTask = () => !!sel() && !inHabits() && !store.isMulti;
+/** The to-dos bulk-capable commands act on: the multi-selection, or the selected row. */
+const targets = () => (inHabits() ? [] : store.actionIds.filter((id) => !!store.task(id)));
+const hasTargets = () => targets().length > 0;
 
 function typingNow() {
   const el = document.activeElement as HTMLElement | null;
@@ -41,6 +45,16 @@ function withTask(fn: (id: string) => void) {
   };
 }
 
+/** Run `fn` for every target as one undo step, then `after` once with all of them. */
+function withTargets(label: string, fn: (id: string) => void, after?: (ids: string[]) => void) {
+  return () => {
+    const ids = targets();
+    if (!ids.length) return;
+    store.each(ids, label, fn);
+    after?.(ids);
+  };
+}
+
 function openPalette(kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder' | 'schedule') {
   store.paletteMode = { kind };
   store.overlay = 'palette';
@@ -51,16 +65,45 @@ export function prompt(label: string, onSubmit: (v: string) => void, placeholder
   store.overlay = 'palette';
 }
 
+/**
+ * Ask before a destructive action, in the palette. `window.confirm()` returns false at once in
+ * the macOS app (WKWebView shows no dialog), so it can't be used. Cancel comes first, so a
+ * second Enter doesn't delete anything.
+ */
+export function confirmAction(label: string, action: string, run: () => void, hint?: string) {
+  store.paletteMode = {
+    kind: 'choose',
+    label,
+    options: [
+      { label: 'Cancel', run: () => {} },
+      { label: action, hint, run },
+    ],
+  };
+  store.overlay = 'palette';
+}
+
+export function confirmEmptyTrash() {
+  const n = store.trashed.length;
+  confirmAction(`Permanently delete ${n} to-do${n === 1 ? '' : 's'}?`, 'Empty Trash', () => store.emptyTrash(), 'can’t be undone');
+}
+
 function moveSelection(delta: number) {
   const list = store.selectable;
   if (!list.length) return;
   const i = store.selectedId ? list.indexOf(store.selectedId) : -1;
   const next = i < 0 ? (delta > 0 ? 0 : list.length - 1) : Math.max(0, Math.min(list.length - 1, i + delta));
-  store.selectedId = list[next];
-  if (store.expandedId && store.expandedId !== list[next]) store.expandedId = null;
+  setCursor(list[next]);
 }
 
-/** Rename / move / delete menu for an area or project, shown in the palette. */
+/** Move the keyboard cursor. In selection mode the selected set stays; otherwise a multi-selection collapses to this row. */
+function setCursor(id: string | null) {
+  if (store.selecting) store.multi = { ...store.multi, cursor: id };
+  else if (store.isMulti) store.clearMulti();
+  store.selectedId = id;
+  if (store.expandedId && store.expandedId !== id) store.expandedId = null;
+}
+
+/** Rename / move / delete menu for an area or project, shown in the palette. Each option has a letter (see menu.ts). */
 export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
   if (target.kind === 'area') {
     const a = store.areas.find((x) => x.id === target.id);
@@ -69,12 +112,15 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
       kind: 'choose',
       label: a.name,
       options: [
-        { label: 'Rename…', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
-        { label: 'New project in this area…', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
+        { label: 'Rename…', key: 'r', icon: 'rename', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
+        { label: 'New project in this area…', key: 'n', icon: 'add', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
         {
           label: 'Delete area',
+          key: 'd',
+          icon: 'delete',
+          danger: true,
           hint: 'projects are kept, its to-dos go to the Inbox',
-          run: () => confirm(`Delete the area “${a.name}”? Its projects are kept and its to-dos move to the Inbox.`) && store.deleteArea(a.id),
+          run: () => confirmAction(`Delete the area “${a.name}”?`, 'Delete area', () => store.deleteArea(a.id), 'projects are kept, its to-dos go to the Inbox'),
         },
       ],
     };
@@ -85,9 +131,11 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
       kind: 'choose',
       label: p.name,
       options: [
-        { label: 'Rename…', run: () => prompt('Rename project', (n) => store.renameProject(p.id, n), p.name, p.name) },
+        { label: 'Rename…', key: 'r', icon: 'rename', run: () => prompt('Rename project', (n) => store.renameProject(p.id, n), p.name, p.name) },
         {
           label: 'Move to area…',
+          key: 'm',
+          icon: 'move',
           run: () => {
             store.paletteMode = {
               kind: 'choose',
@@ -100,16 +148,52 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
             store.overlay = 'palette';
           },
         },
-        { label: 'New heading…', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
-        { label: 'Complete project', run: () => store.completeProject(p.id) },
+        { label: 'New heading…', key: 'h', icon: 'heading', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
+        ...(store.headings.some((h) => h.project_id === p.id)
+          ? [
+              {
+                label: 'Remove heading…',
+                key: 'e',
+                icon: 'unheading',
+                hint: 'its to-dos stay in the project',
+                run: () => {
+                  store.paletteMode = {
+                    kind: 'choose',
+                    label: 'Remove heading',
+                    options: store.headings.filter((h) => h.project_id === p.id).map((h) => ({ label: h.name, run: () => store.deleteHeading(h.id) })),
+                  };
+                  store.overlay = 'palette';
+                },
+              },
+            ]
+          : []),
+        { label: 'Complete project', key: 'c', icon: 'complete', run: () => store.completeProject(p.id) },
         {
           label: 'Delete project',
+          key: 'd',
+          icon: 'delete',
+          danger: true,
           hint: 'its to-dos go to the Trash',
-          run: () => confirm(`Delete the project “${p.name}”? Its to-dos move to the Trash for 30 days.`) && store.deleteProject(p.id),
+          run: () => confirmAction(`Delete the project “${p.name}”?`, 'Delete project', () => store.deleteProject(p.id), 'its to-dos go to the Trash for 30 days'),
         },
       ],
     };
   }
+  store.overlay = 'palette';
+}
+
+/** Right-click menu for a to-do: its Task commands, shown in the palette like the list menu. */
+export function openTaskMenu(id: string) {
+  const t = store.task(id);
+  if (!t) return;
+  store.selectedId = id;
+  store.paletteMode = {
+    kind: 'choose',
+    label: t.title,
+    options: commands
+      .filter((c) => c.group === 'Task' && !c.hidden && applicable(c))
+      .map((c) => ({ label: c.title, hint: c.keys[0] ? keyLabel(c.keys[0]) : undefined, run: c.run })),
+  };
   store.overlay = 'palette';
 }
 
@@ -140,7 +224,7 @@ export const commands: Command[] = [
     id: 'create.quickadd',
     title: 'Quick add',
     group: 'Create',
-    keys: ['q', 'n', 'mod+n', 'ctrl+space'],
+    keys: ['n', 'mod+n', 'ctrl+space'],
     run: () => {
       store.quickAddPrefill = store.contextToken();
       store.overlay = 'quickadd';
@@ -161,7 +245,7 @@ export const commands: Command[] = [
     id: 'create.project',
     title: 'New project',
     group: 'Create',
-    keys: ['shift+n'],
+    keys: ['mod+shift+n'],
     when: () => !inHabits(),
     run: () =>
       prompt('New project', (name) => {
@@ -191,23 +275,61 @@ export const commands: Command[] = [
     id: 'create.section',
     title: 'New brain dump section',
     group: 'Brain dump',
-    keys: ['shift+s'],
+    // Shift+H, like a new heading in a project.
+    keys: ['shift+h', 'shift+s'],
     when: () => store.view.kind === 'dump',
     run: () => prompt('New section', (name) => store.addDumpSection(name)),
+  },
+  {
+    id: 'dump.removeSection',
+    title: 'Remove brain dump section…',
+    group: 'Brain dump',
+    keys: ['shift+backspace'],
+    when: () => store.view.kind === 'dump' && store.dumpSections.length > 0,
+    run: () => {
+      const current = sel()?.dump_section_id;
+      store.paletteMode = {
+        kind: 'choose',
+        label: 'Remove section (its to-dos are kept)',
+        options: store.dumpSections.map((s) => ({ label: s.name, hint: s.id === current ? 'current' : undefined, run: () => store.deleteDumpSection(s.id) })),
+      };
+      store.overlay = 'palette';
+    },
   },
   {
     id: 'create.habit',
     title: 'New habit',
     group: 'Habits',
-    keys: ['shift+n'],
+    keys: ['shift+h'],
     when: inHabits,
     run: () => prompt('New habit', (name) => store.addHabit(name)),
   },
 
   { id: 'sel.down', title: 'Select next', group: 'Selection', keys: ['j', 'arrowdown'], run: () => moveSelection(1), hidden: true },
   { id: 'sel.up', title: 'Select previous', group: 'Selection', keys: ['k', 'arrowup'], run: () => moveSelection(-1), hidden: true },
-  { id: 'sel.first', title: 'Select first', group: 'Selection', keys: ['g g', 'home'], run: () => (store.selectedId = store.selectable[0] ?? null), hidden: true },
-  { id: 'sel.last', title: 'Select last', group: 'Selection', keys: ['shift+g', 'end'], run: () => (store.selectedId = store.selectable.at(-1) ?? null), hidden: true },
+  { id: 'sel.first', title: 'Select first', group: 'Selection', keys: ['g g', 'home'], run: () => setCursor(store.selectable[0] ?? null), hidden: true },
+  { id: 'sel.last', title: 'Select last', group: 'Selection', keys: ['shift+g', 'end'], run: () => setCursor(store.selectable.at(-1) ?? null), hidden: true },
+  // Multi-select. Shift+J/K already move a to-do, so extending uses Shift+arrows (and Shift / ⌘ click).
+  { id: 'sel.extendDown', title: 'Extend selection down', group: 'Selection', keys: ['shift+arrowdown'], when: () => store.canMulti, run: () => store.extendSelection(1), hidden: true },
+  { id: 'sel.extendUp', title: 'Extend selection up', group: 'Selection', keys: ['shift+arrowup'], when: () => store.canMulti, run: () => store.extendSelection(-1), hidden: true },
+  { id: 'sel.all', title: 'Select all to-dos in this list', group: 'Selection', keys: ['mod+a'], when: () => store.canMulti && !typingNow() && store.selectable.length > 0, run: () => store.selectAll() },
+  {
+    id: 'sel.mode',
+    title: 'Select multiple (tap or click to pick)',
+    group: 'Selection',
+    keys: ['v'],
+    when: () => store.canMulti,
+    run: () => (store.selecting ? store.clearMulti() : store.startSelecting()),
+  },
+  {
+    id: 'sel.toggle',
+    title: 'Pick / unpick this to-do',
+    group: 'Selection',
+    keys: ['space'],
+    when: () => store.selecting && !!store.selectedId,
+    run: () => store.selectedId && store.toggleSelect(store.selectedId),
+    hidden: true,
+  },
   {
     id: 'task.open',
     title: 'Open / close task',
@@ -223,26 +345,29 @@ export const commands: Command[] = [
     keys: ['escape'],
     hidden: true,
     run: () => {
-      if (store.expandedId) store.expandedId = null;
+      if (store.isMulti) store.clearMulti();
+      else if (store.expandedId) store.expandedId = null;
       else store.selectedId = null;
     },
   },
 
-  { id: 'task.complete', title: 'Complete task', group: 'Task', keys: ['x', 'mod+enter'], when: hasTask, run: withTask((id) => store.toggleComplete(id)) },
-  { id: 'task.today', title: 'Start today', group: 'Task', keys: ['t'], when: hasTask, run: withTask((id) => { store.setToday(id); store.announceWhen(id); }) },
-  { id: 'task.evening', title: 'This evening', group: 'Task', keys: ['e'], when: hasTask, run: withTask((id) => { store.setEvening(id); store.announceWhen(id); }) },
-  { id: 'task.tomorrow', title: 'Tomorrow', group: 'Task', keys: ['r'], when: hasTask, run: withTask((id) => { store.setTomorrow(id); store.announceWhen(id); }) },
-  { id: 'task.someday', title: 'Someday', group: 'Task', keys: ['s'], when: hasTask, run: withTask((id) => { store.setSomeday(id); store.announceWhen(id); }) },
-  { id: 'task.when', title: 'When…', group: 'Task', keys: ['w'], when: hasTask, run: () => openPalette('when') },
-  { id: 'task.deadline', title: 'Deadline…', group: 'Task', keys: ['d'], when: hasTask, run: () => openPalette('deadline') },
+  // These act on every selected to-do (one undo step); the rest below are single to-do only.
+  { id: 'task.complete', title: 'Complete task', group: 'Task', keys: ['x', 'mod+enter'], when: hasTargets, run: () => store.completeMany(targets()) },
+  { id: 'task.today', title: 'Start today', group: 'Task', keys: ['t'], when: hasTargets, run: withTargets('date change', (id) => store.setToday(id), (ids) => store.announceWhenMany(ids)) },
+  { id: 'task.evening', title: 'This evening', group: 'Task', keys: ['e'], when: hasTargets, run: withTargets('date change', (id) => store.setEvening(id), (ids) => store.announceWhenMany(ids)) },
+  { id: 'task.tomorrow', title: 'Tomorrow', group: 'Task', keys: ['r'], when: hasTargets, run: withTargets('date change', (id) => store.setTomorrow(id), (ids) => store.announceWhenMany(ids)) },
+  { id: 'task.someday', title: 'Someday', group: 'Task', keys: ['s'], when: hasTargets, run: withTargets('date change', (id) => store.setSomeday(id), (ids) => store.announceWhenMany(ids)) },
+  { id: 'task.when', title: 'When…', group: 'Task', keys: ['w'], when: hasTargets, run: () => openPalette('when') },
+  { id: 'task.deadline', title: 'Deadline…', group: 'Task', keys: ['d'], when: hasTargets, run: () => openPalette('deadline') },
   { id: 'task.reminder', title: 'Reminder…', group: 'Task', keys: ['a'], when: hasTask, run: () => openPalette('reminder') },
-  { id: 'task.move', title: 'Move to…', group: 'Task', keys: ['m'], when: hasTask, run: () => openPalette('move') },
+  { id: 'task.repeat', title: 'Repeat…', group: 'Task', keys: ['shift+w'], when: hasTask, run: () => (store.overlay = 'repeat') },
+  { id: 'task.move', title: 'Move to…', group: 'Task', keys: ['m'], when: hasTargets, run: () => openPalette('move') },
   { id: 'task.tag', title: 'Add tag…', group: 'Task', keys: ['#', 'l'], when: hasTask, run: () => openPalette('tag') },
   { id: 'task.urgent', title: 'Toggle urgent', group: 'Task', keys: ['u'], when: hasTask, run: withTask((id) => { store.toggleUrgent(id); store.notify(sel()?.urgent ? 'Marked urgent' : 'Not urgent'); }) },
   { id: 'task.important', title: 'Toggle important', group: 'Task', keys: ['i'], when: hasTask, run: withTask((id) => { store.toggleImportant(id); store.notify(sel()?.important ? 'Marked important' : 'Not important'); }) },
-  { id: 'task.up', title: 'Move up', group: 'Task', keys: ['alt+arrowup', 'shift+k'], when: hasTask, run: withTask((id) => store.reorder(id, -1)) },
-  { id: 'task.down', title: 'Move down', group: 'Task', keys: ['alt+arrowdown', 'shift+j'], when: hasTask, run: withTask((id) => store.reorder(id, 1)) },
-  { id: 'task.delete', title: 'Move to Trash', group: 'Task', keys: ['backspace', 'delete'], when: hasTask, run: withTask((id) => store.deleteTask(id)) },
+  { id: 'task.up', title: 'Move up', group: 'Task', keys: ['alt+arrowup', 'shift+k'], when: hasTargets, run: () => store.reorderMany(targets(), -1) },
+  { id: 'task.down', title: 'Move down', group: 'Task', keys: ['alt+arrowdown', 'shift+j'], when: hasTargets, run: () => store.reorderMany(targets(), 1) },
+  { id: 'task.delete', title: 'Move to Trash', group: 'Task', keys: ['backspace', 'delete'], when: hasTargets, run: () => store.deleteMany(targets()) },
 
   { id: 'dump.keep', title: 'Keep: move to Inbox', group: 'Brain dump', keys: ['shift+i'], when: () => !!sel()?.dump, run: withTask((id) => { store.moveTo(id, { inbox: true }); store.notify('Moved to Inbox'); }) },
 
@@ -267,7 +392,7 @@ export const commands: Command[] = [
 
   { id: 'trash.restore', title: 'Restore from Trash', group: 'Trash', keys: ['shift+r', 'enter'], when: () => inTrash() && !!store.selectedId, run: () => store.selectedId && store.restoreTask(store.selectedId) },
   { id: 'trash.purge', title: 'Delete permanently', group: 'Trash', keys: ['backspace', 'delete'], when: () => inTrash() && !!store.selectedId, run: () => store.selectedId && store.purgeTask(store.selectedId) },
-  { id: 'trash.empty', title: 'Empty Trash', group: 'Trash', keys: [], when: () => store.trashed.length > 0, run: () => confirm(`Permanently delete ${store.trashed.length} to-dos?`) && store.emptyTrash() },
+  { id: 'trash.empty', title: 'Empty Trash', group: 'Trash', keys: [], when: () => store.trashed.length > 0, run: confirmEmptyTrash },
 
   { id: 'time.track', title: 'Start / stop timer', group: 'Time', keys: ['p'], when: hasTask, run: withTask((id) => store.toggleTracking(id)) },
   {

@@ -145,6 +145,35 @@ export function playScratch() {
   src.start();
 }
 
+/**
+ * Move to Trash: paper crumpled into a ball. Many tiny noise crackles, densest at the start and
+ * thinning out, through a band-pass so it reads as crinkling rather than hiss.
+ */
+export function playCrumple() {
+  const ac = audio();
+  if (!ac) return;
+  const len = 0.32;
+  const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let k = 0; k < 70; k++) {
+    // Square the random offset so crackles bunch up early, like the first squeeze of the ball.
+    const at = Math.floor(Math.random() ** 2 * data.length * 0.85);
+    const dur = Math.floor(ac.sampleRate * (0.002 + Math.random() * 0.007));
+    const amp = (0.3 + Math.random() * 0.7) * (1 - at / data.length);
+    for (let i = 0; i < dur && at + i < data.length; i++) data[at + i] += (Math.random() * 2 - 1) * amp * Math.exp((-5 * i) / dur);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 2600;
+  bp.Q.value = 0.6;
+  const g = ac.createGain();
+  g.gain.value = 0.3;
+  src.connect(bp).connect(g).connect(ac.destination);
+  src.start();
+}
+
 /** Pomodoro finished: three slow, low bells. */
 export function playBell() {
   const ac = audio();

@@ -21,6 +21,7 @@
 		7018B2CEC4F1087CFF97D892 /* OpenThingsWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ABF6F596946CF579C353143B /* OpenThingsWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		740064F78EC5072AEAC88CF4 /* OTShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016BCEB8EC3FAF2A91D7169F /* OTShared.swift */; };
 		81926C2E5A11F60B0BA95F5D /* OpenThingsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6945FAE527BE3F5DF822A0E8 /* OpenThingsPlugin.swift */; };
+		A1B2C3D4E5F6071829304A5B /* QRScannerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A5C /* QRScannerViewController.swift */; };
 		89CE26D95A6B0FFCC3AA002D /* OpenThingsShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 59150905DBBCB6CB2FCCBCA7 /* OpenThingsShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		9FBF8394C385FB49625F7463 /* OpenThingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90403E51DA63F08EBBBA7D3 /* OpenThingsViewController.swift */; };
@@ -77,6 +78,7 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		59150905DBBCB6CB2FCCBCA7 /* OpenThingsShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenThingsShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6945FAE527BE3F5DF822A0E8 /* OpenThingsPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenThingsPlugin.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304A5C /* QRScannerViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QRScannerViewController.swift; sourceTree = "<group>"; };
 		894475B156BC7AB6DD9775D8 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		8F1D729D1F3F32955238A5DC /* OpenThings.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = OpenThings.xcconfig; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -154,6 +156,7 @@
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 				6945FAE527BE3F5DF822A0E8 /* OpenThingsPlugin.swift */,
+				A1B2C3D4E5F6071829304A5C /* QRScannerViewController.swift */,
 				C90403E51DA63F08EBBBA7D3 /* OpenThingsViewController.swift */,
 				3B0F7B8B36A1EF3DA3F1AC29 /* OpenThingsIntents.swift */,
 			);
@@ -352,6 +355,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				81926C2E5A11F60B0BA95F5D /* OpenThingsPlugin.swift in Sources */,
+				A1B2C3D4E5F6071829304A5B /* QRScannerViewController.swift in Sources */,
 				9FBF8394C385FB49625F7463 /* OpenThingsViewController.swift in Sources */,
 				0A04D291D96805B55283646E /* OpenThingsIntents.swift in Sources */,
 				DD57CCF92D5F66763A71C170 /* OTShared.swift in Sources */,

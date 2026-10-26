@@ -19,8 +19,7 @@ provides=('openthings')
 conflicts=('openthings')
 options=('!strip' '!debug')
 source_x86_64=("$_pkgname-$pkgver-linux-x86_64.tar.gz::https://github.com/spuder/OpenThings/releases/download/v$pkgver/$_pkgname-$pkgver-linux-x86_64.tar.gz")
-# Replace with the real checksum (updpkgsums) once the v$pkgver release exists.
-sha256sums_x86_64=('SKIP')
+sha256sums_x86_64=('5f8512a6973c39996754d9da8f204c99dfa5ab56e266279d74a399cf102257b2')
 
 package() {
   cd "$srcdir/$_pkgname-$pkgver"

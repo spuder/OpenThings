@@ -37,6 +37,8 @@
 	<false/>
 	<key>OTAppGroup</key>
 	<string>$(OT_APP_GROUP)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>OpenThings uses the camera to scan the pairing QR code from your computer and fill in your sync server.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

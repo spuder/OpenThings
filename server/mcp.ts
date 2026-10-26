@@ -9,7 +9,7 @@ export const MCP_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', 
 
 const QUICK_ADD_HELP =
   'Quick-add syntax (same as the app): #tag, +Project (hyphens for spaces), @today @tonight @tomorrow @fri @someday @2026-11-02 (when), ' +
-  '!fri (deadline), %9am or %fri-9am (reminder), *daily *weekly *weekdays *2w (repeat), ~30m (estimate), ^u ^i (urgent / important), ' +
+  '!fri (deadline), %9am or %fri-9am (reminder), *daily *weekly *weekdays *2w *mon,thu *1st,15th *last-fri (repeat), ~30m (estimate), ^u ^i (urgent / important), ' +
   '@dump (brain dump), and "title // notes".';
 
 type Json = Record<string, unknown>;
@@ -55,6 +55,10 @@ export function compact(t: TaskOut): Json {
   return out;
 }
 
+const nameArg = (a: Json) => {
+  if (typeof a.name !== 'string') throw new UserError('"name" must be a string');
+  return a.name;
+};
 const id = (a: Json) => {
   if (typeof a.id !== 'string' || !a.id) throw new UserError('"id" is required');
   return a.id;
@@ -117,7 +121,7 @@ export const TOOLS: Tool[] = [
         when: strOrNull(WHEN),
         deadline: strOrNull('Deadline: a day word or YYYY-MM-DD'),
         reminder: strOrNull('Reminder: "9am", "fri 9am", "in 30m", or an ISO timestamp'),
-        repeat: strOrNull('daily, weekly, monthly, yearly, weekdays, 2d, 3w…'),
+        repeat: strOrNull('daily, weekly, monthly, yearly, weekdays, 2d, 3w, mon,thu, 2w-mon,thu, 1st,15th, last-day, 2nd-tue, last-fri, or an RRULE like FREQ=MONTHLY;BYDAY=-1FR'),
         project: str('Existing project name or id'),
         area: str('Existing area name or id'),
         tags: tagList('Tag names'),
@@ -140,7 +144,7 @@ export const TOOLS: Tool[] = [
         when: strOrNull(WHEN),
         deadline: strOrNull('Deadline: a day word or YYYY-MM-DD'),
         reminder: strOrNull('Reminder: "9am", "fri 9am", "in 30m", or an ISO timestamp'),
-        repeat: strOrNull('daily, weekly, weekdays, 2w…; null stops repeating'),
+        repeat: strOrNull('daily, weekly, weekdays, 2w, mon,thu, 1st,15th, last-fri, or an RRULE (FREQ=…); null stops repeating'),
         tags: tagList('Replace all tags'),
         add_tags: tagList('Tags to add'),
         remove_tags: tagList('Tags to remove'),
@@ -236,7 +240,21 @@ export const TOOLS: Tool[] = [
     description: 'Create a project, optionally inside an area.',
     inputSchema: { type: 'object', properties: { name: str('Project name'), area: str('Area name or id') }, required: ['name'] },
     annotations: { readOnlyHint: false, destructiveHint: false },
-    run: (s, a) => s.addProject(String(a.name ?? ''), opt(a, 'area')),
+    run: (s, a) => s.addProject(nameArg(a), opt(a, 'area')),
+  },
+  {
+    name: 'add_area',
+    title: 'Add an area',
+    description:
+      'Create an area of responsibility. If an area with this name already exists, returns it with "existed": true. ' +
+      'Use its id for add_project, add_task and move_task.',
+    inputSchema: { type: 'object', properties: { name: str('Area name') }, required: ['name'] },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    run: (s, a) => {
+      const found = s.areaNamed(nameArg(a));
+      const area = found ?? s.addArea(nameArg(a));
+      return { id: area.id, name: area.name, ...(found ? { existed: true } : {}) };
+    },
   },
   {
     name: 'list_habits',

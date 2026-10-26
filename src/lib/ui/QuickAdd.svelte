@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { store } from '../store.svelte';
-  import { parseQuickAdd, tagCompletion, type TokenKind } from '../parse';
+  import { parseQuickAdd, projectFragment, setProject, tagCompletion, type TokenKind } from '../parse';
   import { relLabel } from '../dates';
 
   /**
@@ -45,6 +45,46 @@
   // Inline tag completion: the rest of the best match shows as ghost text after the cursor. It's
   // never inserted while you type, so the cursor stays put; Tab takes one step, → takes it all.
   const completion = $derived(simple || caret === null ? null : tagCompletion(value, caret, tagNames));
+
+  // Project picker: typing `+` (or `+Gar`) lists projects and areas, ↑/↓ moves, ↵ or ⇥ picks.
+  // A to-do has one project, so picking replaces any other +Project, such as the pre-filled one.
+  // Not in the desktop quick-add window: it's one line tall.
+  const fragment = $derived(simple || native || caret === null ? null : projectFragment(value, caret));
+  const norm = (s: string) => s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
+  /** The project set elsewhere in the text, which the picker would replace. */
+  const currentProject = $derived.by(() => {
+    if (!fragment) return null;
+    const rest = value.slice(0, fragment.start) + value.slice(fragment.start + 1 + fragment.typed.length);
+    return parseQuickAdd(rest, store.day).project;
+  });
+  /** Esc closes the list for the `+` it was open for; typing another `+` opens it again. */
+  let pickerClosedAt = $state<number | null>(null);
+  const picker = $derived.by(() => {
+    if (!fragment || pickerClosedAt === fragment.start) return [];
+    const q = norm(fragment.typed);
+    const cur = currentProject && norm(currentProject);
+    const all = [
+      ...store.projects.filter((p) => !p.completed_at).map((p) => ({ name: p.name, area: false })),
+      ...store.areas.map((a) => ({ name: a.name, area: true })),
+    ]
+      .filter((c) => norm(c.name).includes(q))
+      .sort((a, b) => Number(!norm(b.name).startsWith(q)) - Number(!norm(a.name).startsWith(q)));
+    return all.slice(0, 8).map((c) => ({ ...c, current: !!cur && norm(c.name) === cur }));
+  });
+  let pick = $state(0);
+  // Each time the list opens or its matches change, start on the current project (else the best match).
+  $effect(() => {
+    const i = picker.findIndex((c) => c.current);
+    pick = i >= 0 ? i : 0;
+  });
+
+  function choose(name: string) {
+    if (!fragment) return;
+    const r = setProject(value, fragment, name);
+    value = r.text;
+    caret = r.caret;
+    placeCursor(r.caret);
+  }
 
   function syncCaret() {
     if (!input) return;
@@ -142,6 +182,22 @@
   }
 
   function onKey(e: KeyboardEvent) {
+    const plain = !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
+    if (picker.length && plain && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      pick = (pick + (e.key === 'ArrowDown' ? 1 : -1) + picker.length) % picker.length;
+      return;
+    }
+    if (picker.length && plain && (e.key === 'Enter' || e.key === 'Tab')) {
+      e.preventDefault();
+      choose(picker[pick].name);
+      return;
+    }
+    if (picker.length && fragment && e.key === 'Escape') {
+      e.preventDefault();
+      pickerClosedAt = fragment.start;
+      return;
+    }
     if (completion && e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       complete(completion.step, true);
@@ -201,12 +257,26 @@
       autocomplete="off"
       aria-label="New to-do"
       aria-autocomplete="inline"
+      aria-expanded={picker.length > 0}
+      aria-controls="qa-projects"
     />
     {#if completion}
       <!-- Draws the whole line with the ghost spliced in; the input's own text is hidden meanwhile. -->
       <div class="ghost" aria-hidden="true"><span style:transform="translateX({-scrollX}px)"><span class="text">{value.slice(0, caret ?? 0)}</span>{completion.ghost}<span class="text">{value.slice(caret ?? 0)}</span></span></div>
     {/if}
   </div>
+  {#if picker.length}
+    <ul class="picker" id="qa-projects" role="listbox" aria-label="Projects" transition:slide={{ duration: 120 }}>
+      {#each picker as c, i (c.name + c.area)}
+        <li role="option" aria-selected={i === pick}>
+          <button type="button" class:active={i === pick} onpointerdown={(e) => e.preventDefault()} onpointerenter={() => (pick = i)} onclick={() => choose(c.name)}>
+            <span class="pname">{c.name}</span>
+            {#if c.current}<span class="phint">current</span>{:else if c.area}<span class="phint">area</span>{/if}
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
   <!-- Tappable syntax chips are for touch; the desktop quick-add window is keyboard-only and small. -->
   {#if value && !simple && !native}
     <div class="keys" transition:slide={{ duration: 160 }}>
@@ -254,6 +324,7 @@
   </div>
   {/if}
   <div class="foot">
+    {#if picker.length}<span class="kb"><kbd>↑↓</kbd> project <kbd>↵</kbd> pick</span>{/if}
     {#if completion}<span class="kb"><kbd>⇥</kbd> #{completion.step}</span>{/if}
     <span class="kb"><kbd>↵</kbd> add</span>
     <span class="kb"><kbd>⇧↵</kbd> add another</span>
@@ -359,6 +430,46 @@
   .warn {
     color: var(--deadline);
     font-size: 12px;
+  }
+  .picker {
+    list-style: none;
+    margin: 6px 0 2px;
+    padding: 4px;
+    border-radius: 8px;
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--line);
+    max-height: 264px;
+    overflow-y: auto;
+  }
+  .picker button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
+    text-align: left;
+    color: var(--text);
+  }
+  .picker button.active {
+    background: var(--select);
+  }
+  .pname {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .phint {
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  @media (pointer: coarse) {
+    .picker button {
+      min-height: 44px;
+    }
   }
   .foot {
     display: flex;

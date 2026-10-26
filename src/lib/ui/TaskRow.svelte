@@ -4,14 +4,33 @@
   import type { Task } from '../types';
   import { daysBetween, formatDuration, relLabel } from '../dates';
   import { describeRule, reminderLabel } from '../parse';
-  import { commands, keyLabel } from '../commands';
+  import { commands, keyLabel, openTaskMenu } from '../commands';
   import Icon from './Icon.svelte';
   import Checkbox from './Checkbox.svelte';
   import { isTouch } from '../env';
+  import { drag, draggable } from './drag.svelte';
+  import { swipeable } from './swipe.svelte';
+  import { isMac } from '../commands';
 
-  let { task, showWhen = false, showContainer = false }: { task: Task; showWhen?: boolean; showContainer?: boolean } = $props();
+  let {
+    task,
+    showWhen = false,
+    showContainer = false,
+    joinUp = false,
+    joinDown = false,
+  }: {
+    task: Task;
+    showWhen?: boolean;
+    showContainer?: boolean;
+    /** The row above / below is in the same multi-selection: draw them as one block (TaskList). */
+    joinUp?: boolean;
+    joinDown?: boolean;
+  } = $props();
 
-  const selected = $derived(store.selectedId === task.id);
+  const selected = $derived(store.isPicked(task.id));
+  /** Keyboard cursor inside a multi-selection (Shift+arrows, selection mode). */
+  const cursor = $derived(store.isMulti && store.selectedId === task.id);
+  const dragging = $derived(drag.active && drag.ids.includes(task.id));
   const expanded = $derived(store.expandedId === task.id);
   const done = $derived(task.completed_at !== null);
   const tags = $derived(store.tagsFor(task.id));
@@ -21,25 +40,36 @@
   const tracked = $derived(store.trackedMs(task.id));
   const reminderPending = $derived(!!task.reminder_at && !task.reminder_sent_at && !task.completed_at);
   const deadlineDiff = $derived(task.deadline ? daysBetween(store.day, task.deadline) : null);
+  const repeatLabel = $derived(task.rrule ? describeRule(task.rrule, store.day) : '');
 
   let el: HTMLElement | undefined = $state();
   let titleInput: HTMLInputElement | undefined = $state();
   let newItem = $state('');
 
   $effect(() => {
-    if (selected && el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (store.selectedId === task.id && el && !drag.active) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
   $effect(() => {
     if (expanded && titleInput) titleInput.focus({ preventScroll: true });
   });
 
-  function select() {
+  function select(e: MouseEvent) {
+    if (expanded) return;
+    // Selection mode (long-press on touch, or V): taps and clicks pick rows.
+    if (store.selecting) return store.toggleSelect(task.id);
+    if (e.shiftKey) return store.selectRange(task.id);
+    if (isMac ? e.metaKey : e.ctrlKey) return store.toggleSelect(task.id);
+    if (store.isMulti) store.clearMulti();
     // Touch has no double click: a tap opens the task; taps inside an open task are left alone.
     if (isTouch) {
-      if (!expanded) toggleOpen();
+      toggleOpen();
       return;
     }
     store.selectedId = task.id;
+  }
+  function openOnDouble(e: MouseEvent) {
+    if (store.selecting || e.shiftKey || e.metaKey || e.ctrlKey) return;
+    toggleOpen();
   }
   function toggleOpen() {
     store.selectedId = task.id;
@@ -75,21 +105,40 @@
     commands.find((c) => c.id === id)?.run();
   }
   const key = (id: string) => keyLabel(commands.find((c) => c.id === id)?.keys[0] ?? '');
+  /** Right-click: the to-do's actions (text fields keep the browser's own menu). */
+  function contextMenu(e: MouseEvent) {
+    if (e.target instanceof Element && e.target.closest('input, textarea')) return;
+    // On touch screens a long press starts multi-select (drag.svelte.ts), not this menu.
+    if (isTouch || store.selecting) return;
+    e.preventDefault();
+    openTaskMenu(task.id);
+  }
 </script>
 
 <div
   class="task"
   class:selected
+  class:multi={store.isMulti}
+  class:join-up={joinUp}
+  class:join-down={joinDown}
+  class:cursor
+  class:picking={store.selecting}
+  class:dragging
   class:expanded
   class:done
+  class:swiped-right={store.swipeSheet?.id === task.id && store.swipeSheet.side === 'right'}
+  class:swiped-left={store.swipeSheet?.id === task.id && store.swipeSheet.side === 'left'}
   bind:this={el}
   data-id={task.id}
   role="option"
   aria-selected={selected}
   tabindex="-1"
   onclick={select}
-  ondblclick={toggleOpen}
+  ondblclick={openOnDouble}
+  oncontextmenu={contextMenu}
   onkeydown={() => {}}
+  {@attach draggable(task.id)}
+  {@attach swipeable(task.id)}
 >
   <div class="row">
     <Checkbox checked={done} onToggle={() => store.toggleComplete(task.id)} urgent={!!task.urgent && !!task.important} />
@@ -119,7 +168,7 @@
         {#each tags as t (t.id)}<span class="tag">{t.name}</span>{/each}
         {#if task.urgent}<span class="dot urgent" title="Urgent"></span>{/if}
         {#if task.important}<span class="dot important" title="Important"></span>{/if}
-        {#if task.rrule}<span class="mini" title={describeRule(task.rrule)}><Icon name="repeat" size={13} /></span>{/if}
+        {#if task.rrule}<span class="repeat" title={repeatLabel}><Icon name="repeat" size={13} /><span class="repeat-label">{repeatLabel}</span></span>{/if}
         {#if reminderPending}<span class="reminder" title="Reminder"><Icon name="bell" size={12} />{reminderLabel(task.reminder_at!, store.day).replace(/^Today /, '')}</span>{/if}
         {#if tracking}
           <span class="timer live"><span class="pulse"></span>{formatDuration(tracked)}</span>
@@ -164,7 +213,7 @@
             </span>
           {/if}
           {#if task.deadline}<span class="chip deadline-chip"><Icon name="flag" size={12} /> {relLabel(task.deadline, store.day)}</span>{/if}
-          {#if task.rrule}<span class="chip"><Icon name="repeat" size={12} /> {describeRule(task.rrule)}</span>{/if}
+          {#if task.rrule}<button class="chip chip-btn" onclick={() => run('task.repeat')} title="Change repeat ({key('task.repeat')})"><Icon name="repeat" size={12} /> {repeatLabel}</button>{/if}
           {#if task.reminder_at}
             <span class="chip" class:sent={!!task.reminder_sent_at}><Icon name="bell" size={12} /> {reminderLabel(task.reminder_at, store.day)}<button class="x" onclick={() => store.setReminder(task.id, null)} aria-label="Remove reminder">×</button></span>
           {/if}
@@ -177,6 +226,7 @@
           <button onclick={() => run('task.when')} title="When ({key('task.when')})"><Icon name="today" size={15} /></button>
           <button onclick={() => run('task.deadline')} title="Deadline ({key('task.deadline')})"><Icon name="flag" size={15} /></button>
           <button class:on={reminderPending} onclick={() => run('task.reminder')} title="Reminder ({key('task.reminder')})"><Icon name="bell" size={15} /></button>
+          <button class:on={!!task.rrule} onclick={() => run('task.repeat')} title="Repeat ({key('task.repeat')})" aria-label="Repeat"><Icon name="repeat" size={15} /></button>
           <button onclick={() => run('task.tag')} title="Tag ({key('task.tag')})">#</button>
           <button onclick={() => run('task.move')} title="Move ({key('task.move')})">→</button>
           <button class:on={task.urgent} onclick={() => store.toggleUrgent(task.id)} title="Urgent ({key('task.urgent')})">U</button>
@@ -202,6 +252,71 @@
       margin 0.2s var(--ease);
     cursor: default;
     user-select: none;
+    -webkit-user-select: none;
+    /* Long-press picks the row; no iOS callout. */
+    -webkit-touch-callout: none;
+  }
+  /* Multi-selection: the blue bar runs along every selected row, and neighbouring rows join into
+     one block (join-up / join-down square off the corners between them). The keyboard cursor is a
+     shade stronger; on a row that isn't selected (selection mode) it keeps the bar on its own. */
+  .task.multi.selected:not(.expanded),
+  .task.cursor:not(.selected, .expanded) {
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .task.cursor.selected:not(.expanded) {
+    background-image: linear-gradient(color-mix(in srgb, var(--accent) 9%, transparent), color-mix(in srgb, var(--accent) 9%, transparent));
+  }
+  .task.join-up:not(.expanded) {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+  .task.join-down:not(.expanded) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  /* Touch swipe: green behind a right swipe (Complete / Move), red behind a left swipe (Trash).
+     The stronger tint means letting go opens the actions. */
+  .task:global([data-swipe='hint-right']) {
+    background: color-mix(in srgb, var(--logbook) 14%, transparent);
+  }
+  .task:global([data-swipe='right']) {
+    background: color-mix(in srgb, var(--logbook) 32%, transparent);
+  }
+  .task:global([data-swipe='hint-left']) {
+    background: color-mix(in srgb, var(--deadline) 14%, transparent);
+  }
+  .task:global([data-swipe='left']) {
+    background: color-mix(in srgb, var(--deadline) 32%, transparent);
+  }
+  /* While its swipe sheet is open, the to-do keeps a border in the swipe's color, so it's clear
+     which one the sheet acts on. (:not(.expanded) outranks the cursor's border.) */
+  .task.swiped-right:not(.expanded) {
+    background: color-mix(in srgb, var(--logbook) 18%, transparent);
+    box-shadow: inset 0 0 0 2px var(--logbook);
+  }
+  .task.swiped-left:not(.expanded) {
+    background: color-mix(in srgb, var(--deadline) 18%, transparent);
+    box-shadow: inset 0 0 0 2px var(--deadline);
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .task {
+      /* The browser keeps vertical scrolling and pinch-zoom; sideways motion is left to the row swipe. */
+      touch-action: pan-y pinch-zoom;
+      /* A swipe's tint fades out with the row gliding back, rather than vanishing. */
+      transition:
+        background 0.45s,
+        box-shadow 0.2s var(--ease),
+        margin 0.2s var(--ease);
+      /* A swiped row slides under its tint instead of widening the list. */
+      overflow-x: clip;
+    }
+  }
+  .task.dragging {
+    opacity: 0.45;
+  }
+  /* In selection mode a tap anywhere on the row picks it, including where the checkbox is. */
+  .task.picking :global(.box) {
+    pointer-events: none;
   }
   .task.selected:not(.expanded) {
     background: var(--select);
@@ -316,6 +431,23 @@
     50% {
       opacity: 0.3;
     }
+  }
+  .repeat {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    color: var(--text-3);
+    font-size: 11.5px;
+  }
+  .repeat-label {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chip-btn:hover {
+    color: var(--accent);
   }
   .reminder {
     display: inline-flex;
@@ -487,7 +619,8 @@
       justify-content: flex-end;
       max-width: 40%;
     }
-    .meta .tag {
+    .meta .tag,
+    .repeat-label {
       display: none;
     }
     .task.expanded {
@@ -508,6 +641,14 @@
     }
     .actions {
       justify-content: space-between;
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    .actions button {
+      flex-shrink: 0;
+    }
+    .actions .done-btn {
+      margin-left: auto;
     }
   }
 </style>

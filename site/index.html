@@ -98,7 +98,7 @@
         <div class="copy reveal">
           <p class="kicker" style="--k: var(--blue)">Capture</p>
           <h2>Type it once, put it anywhere</h2>
-          <p>Press <kbd>Q</kbd> from any screen and write the whole thing in one line. Short prefixes set the project, date, reminder, deadline, estimate and tags as you type.</p>
+          <p>Press <kbd>N</kbd> from any screen and write the whole thing in one line. Short prefixes set the project, date, reminder, deadline, estimate and tags as you type.</p>
           <div class="syntax">
             <code><b class="t-proj">+Project</b> <b class="t-when">@fri</b> <b class="t-rem">%9am</b> <b class="t-dl">!next-week</b> <b class="t-est">~2h</b> <b class="t-tag">#shop</b> <b class="t-rep">*weekly</b></code>
           </div>
@@ -185,7 +185,7 @@
         <div class="copy center-copy reveal">
           <p class="kicker" style="--k: var(--blue)">iPhone</p>
           <h2>Made for your thumb, too</h2>
-          <p>The same app on iPhone, with reminders that arrive when it's closed, Home and Lock Screen widgets, a Share Sheet to the Inbox or Brain Dump, and Shortcuts. Add with the big blue button, swipe right for your lists, and pull down to find anything.</p>
+          <p>The same app on iPhone, with reminders that arrive when it's closed, Home and Lock Screen widgets, a Share Sheet to the Inbox or Brain Dump, and Shortcuts. Say “Add to OpenThings” and Siri asks what to add. Add with the big blue button, swipe right for your lists, and pull down to find anything. To sync, scan the QR code from Settings on your computer.</p>
           <div class="cta">
             <a class="btn" href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">Build it for your iPhone</a>
             <a class="btn btn-ghost" href="https://github.com/spuder/OpenThings/issues/6">Android: testers wanted</a>
@@ -215,9 +215,10 @@
           <div class="code brew-code">
             <div class="code-head"><span>Install on a Mac with Homebrew</span><button type="button" data-copy="brew">Copy</button></div>
 <pre id="brew"><code>brew tap spuder/openthings
+brew trust spuder/openthings
 brew install --cask openthings</code></pre>
           </div>
-          <p class="fine">One universal build for Apple silicon and Intel Macs. It isn't notarized yet, so the first launch needs <em>Open Anyway</em> in Privacy &amp; Security. Linux preview builds come from GitHub Actions (sign in to download).</p>
+          <p class="fine">One universal build for Apple silicon and Intel Macs, signed and notarized by Apple. Linux preview builds come from GitHub Actions (sign in to download).</p>
         </div>
         <div class="desktop-shots">
           <figure class="desk-shot reveal">
@@ -256,6 +257,7 @@ brew install --cask openthings</code></pre>
           <p class="kicker" style="--k: var(--green)">Self-hosted</p>
           <h2>Runs on your server, in one container</h2>
           <p>Pull the image and start it. With <a href="https://github.com/marvinvr/docktail">DockTail</a> on the host, it appears on your tailnet over HTTPS with no ports to open. Images are built for amd64 and arm64.</p>
+          <p>Set <code>OPENTHINGS_PUBLIC_URL</code> to the address your devices use, such as <code>https://openthings.&lt;tailnet&gt;.ts.net</code>. The web app fills it in for you, and your computer shows it as a QR code that the iPhone app scans to connect.</p>
           <p class="muted">Local-first by design: every change is stored on your device in SQLite and recorded in a change log, which the container syncs between your devices. It also serves a <a href="https://github.com/spuder/OpenThings/blob/main/docs/api.md">REST API and MCP endpoint</a>.</p>
         </div>
         <div class="code reveal">
@@ -266,6 +268,8 @@ brew install --cask openthings</code></pre>
     restart: unless-stopped
     environment:
       TZ: America/Denver
+      # the address your devices use
+      OPENTHINGS_PUBLIC_URL: https://openthings.example.ts.net
     volumes:
       - openthings-data:/data
     labels:
@@ -290,7 +294,7 @@ volumes:
           <article class="card reveal"><span class="tag">Next</span><h3>Reminders from the server</h3><p>Notifications pushed by your server, so they arrive in the browser even with the app closed. Plus device tokens for the API.</p></article>
           <article class="card reveal"><span class="tag">Planned</span><h3>Calendar time-blocking</h3><p>Drag to-dos onto your day and sync blocks to any CalDAV calendar.</p></article>
           <article class="card reveal"><span class="tag">Testing</span><h3>iPhone &amp; Android</h3><p>The <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iPhone app</a> runs today; App Store next. Android is coming and <a href="https://github.com/spuder/OpenThings/issues/6">needs testers</a>.</p></article>
-          <article class="card reveal"><span class="tag">Preview</span><h3>Desktop app</h3><p>The <a href="#desktop">Mac and Arch Linux app</a> works today; signed releases and the AUR are next.</p></article>
+          <article class="card reveal"><span class="tag">Preview</span><h3>Desktop app</h3><p>The <a href="#desktop">Mac and Arch Linux app</a> works today; the AUR is next.</p></article>
         </div>
       </div>
     </section>

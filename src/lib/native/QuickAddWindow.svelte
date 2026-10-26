@@ -8,6 +8,7 @@
   import { today } from '../dates';
   import QuickAdd from '../ui/QuickAdd.svelte';
   import { invoke, listen } from './desktop';
+  import { addLinkPrefill, parseRoute } from './snapshot';
 
   let opened = $state(0);
   /** No typing since the last reset, so the window can be shown as it is. */
@@ -27,8 +28,11 @@
 
   // Reset when the window goes away rather than when it opens: macOS shows the last frame it drew
   // before the webview repaints, so resetting on open would flash the old text first.
-  void listen<{ text: string }>('ot://quick-add-open', ({ text }) => {
-    if (text || !fresh) reset(text ?? '');
+  void listen<{ text: string; url?: string | null }>('ot://quick-add-open', ({ text, url }) => {
+    // From an openthings://add link: its title, list, tags… become tokens to review.
+    const r = url ? parseRoute(url) : null;
+    const prefill = r?.kind === 'add' ? addLinkPrefill(r) : (text ?? '');
+    if (prefill || !fresh) reset(prefill);
     else store.day = today();
   });
 

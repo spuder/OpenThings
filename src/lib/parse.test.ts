@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextOccurrence, parseQuickAdd, parseReminder, tagCompletion } from './parse';
+import { nextOccurrence, parseQuickAdd, parseReminder, projectFragment, setProject, tagCompletion } from './parse';
 import { challengeProgress, describeSchedule, dump, habitStreak, parseSchedule, inbox, isDumpExpired, matrix, streak, todayView, upcoming } from './views';
 import type { Task } from './types';
 
@@ -54,7 +54,8 @@ describe('parseQuickAdd', () => {
   it('repeat implies a start date, matrix flags, notes', () => {
     const p = parseQuickAdd('Standup *weekdays ^ui // bring notes', REF);
     expect(p.rrule).toContain('BYDAY=MO,TU,WE,TH,FR');
-    expect(p.when?.date).toBe(REF);
+    // REF is a Sunday: a weekdays repeat starts on Monday.
+    expect(p.when?.date).toBe('2026-10-19');
     expect(p.urgent && p.important).toBe(true);
     expect(p.notes).toBe('bring notes');
     expect(p.title).toBe('Standup');
@@ -268,5 +269,47 @@ describe('tagCompletion', () => {
   });
   it('skips tags already in the text', () => {
     expect(at('#foobar #fo')?.suggestion).toBe('football');
+  });
+});
+
+describe('one project per to-do', () => {
+  it('uses the last +Project, shows one project chip and warns', () => {
+    const p = parseQuickAdd('Buy seeds +Garden +Errands', '2026-10-24');
+    expect(p.project).toBe('Errands');
+    expect(p.title).toBe('Buy seeds');
+    expect(p.tokens.filter((t) => t.kind === 'project').map((t) => t.label)).toEqual(['Errands']);
+    expect(p.warnings).toEqual(['One project per to-do: using "Errands"']);
+  });
+  it('has no warning for a single project', () => {
+    expect(parseQuickAdd('Buy seeds +Garden', '2026-10-24').warnings).toEqual([]);
+  });
+});
+
+describe('projectFragment', () => {
+  it('finds a bare + or a partly typed project before the caret', () => {
+    expect(projectFragment('Buy seeds +', 11)).toEqual({ start: 10, typed: '' });
+    expect(projectFragment('Buy seeds +Gar', 14)).toEqual({ start: 10, typed: 'Gar' });
+    expect(projectFragment('+Gar', 4)).toEqual({ start: 0, typed: 'Gar' });
+  });
+  it('ignores +, text mid-word, the caret inside a word and notes', () => {
+    expect(projectFragment('Buy seeds', 9)).toBeNull();
+    expect(projectFragment('a+b', 3)).toBeNull();
+    expect(projectFragment('Buy +Gar', 6)).toBeNull();
+    expect(projectFragment('Buy // see +x', 13)).toBeNull();
+    expect(projectFragment('Buy +-x', 7)).toBeNull();
+  });
+});
+
+describe('setProject', () => {
+  it('replaces the fragment and drops the pre-filled project', () => {
+    const text = 'Buy seeds + +Garden';
+    expect(setProject(text, { start: 10, typed: '' }, 'Weekend errands')).toEqual({ text: 'Buy seeds +Weekend-errands ', caret: 27 });
+  });
+  it('keeps other tokens and notes, and the caret after the new token', () => {
+    const text = '+Garden Buy seeds +Err @today #shop // ask +someone';
+    const r = setProject(text, { start: 18, typed: 'Err' }, 'Errands');
+    expect(r.text).toBe('Buy seeds +Errands @today #shop // ask +someone');
+    expect(r.text.slice(0, r.caret)).toBe('Buy seeds +Errands ');
+    expect(parseQuickAdd(r.text, '2026-10-24').project).toBe('Errands');
   });
 });

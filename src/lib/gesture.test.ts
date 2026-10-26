@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifySwipe } from './gesture';
+import { classifyRowSwipe, classifySwipe, ROW_SWIPE_COMMIT, ROW_SWIPE_EDGE, rowSwipeOffset, swipeFromEdge } from './gesture';
 
 describe('classifySwipe', () => {
   it('detects a quick horizontal swipe in either direction', () => {
@@ -23,5 +23,43 @@ describe('classifySwipe', () => {
 
   it('ignores slow drags', () => {
     expect(classifySwipe(150, 0, 1200)).toBeNull();
+  });
+});
+
+describe('classifyRowSwipe', () => {
+  it('reports the side once past the commit point, nothing for short drags', () => {
+    expect(classifyRowSwipe(ROW_SWIPE_COMMIT)).toBe('right');
+    expect(classifyRowSwipe(-ROW_SWIPE_COMMIT - 10)).toBe('left');
+    expect(classifyRowSwipe(ROW_SWIPE_COMMIT - 1)).toBeNull();
+    expect(classifyRowSwipe(-20)).toBeNull();
+  });
+});
+
+describe('rowSwipeOffset', () => {
+  it('follows the finger up to the commit point, then resists and stops at max', () => {
+    expect(rowSwipeOffset(40, 200)).toBe(40);
+    expect(rowSwipeOffset(-ROW_SWIPE_COMMIT, 200)).toBe(-ROW_SWIPE_COMMIT);
+    const past = rowSwipeOffset(ROW_SWIPE_COMMIT + 100, 1000);
+    expect(past).toBeGreaterThan(ROW_SWIPE_COMMIT);
+    expect(past).toBeLessThan(ROW_SWIPE_COMMIT + 100);
+    expect(rowSwipeOffset(5000, 200)).toBeLessThanOrEqual(200);
+    expect(rowSwipeOffset(5000, 200)).toBeGreaterThan(195);
+    expect(rowSwipeOffset(-5000, 200)).toBeGreaterThanOrEqual(-200);
+  });
+  it('has no kink at the commit point: the band starts at the speed of the finger', () => {
+    const before = rowSwipeOffset(ROW_SWIPE_COMMIT, 200) - rowSwipeOffset(ROW_SWIPE_COMMIT - 1, 200);
+    const after = rowSwipeOffset(ROW_SWIPE_COMMIT + 1, 200) - rowSwipeOffset(ROW_SWIPE_COMMIT, 200);
+    expect(after).toBeGreaterThan(0.98 * before);
+  });
+  it('never caps below the commit point', () => {
+    expect(rowSwipeOffset(ROW_SWIPE_COMMIT, 10)).toBe(ROW_SWIPE_COMMIT);
+  });
+});
+
+describe('swipeFromEdge', () => {
+  it('flags touches near either screen edge', () => {
+    expect(swipeFromEdge(ROW_SWIPE_EDGE - 1, 400)).toBe(true);
+    expect(swipeFromEdge(400 - ROW_SWIPE_EDGE + 1, 400)).toBe(true);
+    expect(swipeFromEdge(200, 400)).toBe(false);
   });
 });

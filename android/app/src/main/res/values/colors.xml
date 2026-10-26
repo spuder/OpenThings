@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app's background colour (bg token in src/app.css), so launch doesn't flash a different colour. -->
+    <color name="app_background">#FFFFFF</color>
+    <!-- The accent token (src/app.css). -->
+    <color name="accent">#2F6FED</color>
+    <!-- Widgets: the text, text-2 and text-3 tokens in src/app.css, and star, evening, logbook, habits and deadline for status. -->
+    <color name="widget_text">#1C1C1E</color>
+    <color name="widget_text_secondary">#6E6E73</color>
+    <color name="widget_text_tertiary">#A1A1A6</color>
+    <color name="widget_star">#F2B72E</color>
+    <color name="widget_evening">#5A78D1</color>
+    <color name="sync_ok">#3FA66B</color>
+    <color name="sync_offline">#E3743B</color>
+    <color name="sync_error">#E0453C</color>
+</resources>

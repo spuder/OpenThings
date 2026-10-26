@@ -1,7 +1,7 @@
 import { SvelteSet } from 'svelte/reactivity';
 import * as db from './db';
 import { addDays, longLabel, relLabel, shiftReminder, today as todayFn } from './dates';
-import { nextOccurrence, parseHabit, type Parsed, type When } from './parse';
+import { describeRule, firstOccurrence, nextRepeat, parseHabit, type Parsed, type When } from './parse';
 import * as sound from './sound';
 import type {
   Area,
@@ -27,6 +27,8 @@ import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
+import * as Sel from './selection';
+import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
 import { mergeImportedTags, type ThingsImport } from './import/things';
 
@@ -36,10 +38,12 @@ export interface Group {
   subtitle?: string;
   /** For dump sections: the section id (null = unsectioned). */
   sectionId?: ID | null;
+  /** For project headings: the heading id. */
+  headingId?: ID;
   items: Task[];
 }
 
-export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes';
+export type Overlay = null | 'quickadd' | 'palette' | 'help' | 'focus' | 'find' | 'themes' | 'repeat' | 'swipe';
 
 export interface FocusSession {
   taskId: ID;
@@ -57,7 +61,7 @@ export interface FocusSession {
 export type PaletteMode =
   | { kind: 'commands' | 'move' | 'when' | 'deadline' | 'tag' | 'challenge' | 'reminder' | 'schedule' }
   | { kind: 'prompt'; label: string; placeholder?: string; initial?: string; onSubmit: (value: string) => void }
-  | { kind: 'choose'; label: string; options: { label: string; hint?: string; run: () => void }[] };
+  | { kind: 'choose'; label: string; options: MenuOption[] };
 
 export const TRASH_DAYS = 30;
 
@@ -73,6 +77,9 @@ function loadRecent(): ViewKey[] {
 function norm(s: string) {
   return s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
 }
+
+/** Top-level lists a to-do can be moved to directly (see `moveToList`). */
+export type MoveList = 'inbox' | 'today' | 'anytime' | 'someday' | 'dump';
 
 class Store {
   ready = $state(false);
@@ -92,8 +99,16 @@ class Store {
   opCount = $state(0);
 
   view = $state<ViewKey>({ kind: 'today' });
+  /** The row the keyboard is on (and the one single-item actions use). */
   selectedId = $state<ID | null>(null);
   expandedId = $state<ID | null>(null);
+  /**
+   * Multi-selection (Shift / ⌘ click, Shift+arrows, long-press on touch). Only meaningful while
+   * `isMulti`; otherwise the selection is just `selectedId`. Its cursor is kept equal to `selectedId`.
+   */
+  multi = $state<Sel.Selection>(Sel.EMPTY);
+  /** Selection mode: taps and clicks toggle rows instead of opening them (touch, or V). */
+  selecting = $state(false);
   /** Tasks checked this session stay visible until you leave the view (like Things). */
   keep = new SvelteSet<ID>();
   /** Ticks every 30s so brain-dump fade and timers update. */
@@ -126,7 +141,9 @@ class Store {
   }
   paletteMode = $state<PaletteMode>({ kind: 'commands' });
   quickAddPrefill = $state('');
-  toast = $state<{ text: string; id: number } | null>(null);
+  /** The to-do a touch swipe opened actions for (overlay 'swipe'), and which way it was swiped. */
+  swipeSheet = $state<{ id: ID; side: 'right' | 'left' } | null>(null);
+  toast = $state<{ text: string; id: number; undo?: boolean } | null>(null);
   muted = $state(sound.isMuted());
 
   /** Running time tracking. */
@@ -188,7 +205,16 @@ class Store {
     }
   }
 
+  /** While > 0, load() is postponed so a bulk action reloads once at the end. */
+  private deferLoad = 0;
+  private loadPending = false;
+
   load() {
+    if (this.deferLoad) {
+      this.loadPending = true;
+      return;
+    }
+    this.loadPending = false;
     this.areas = db.all<Area>('SELECT * FROM areas ORDER BY sort');
     this.projects = db.all<Project>('SELECT * FROM projects ORDER BY sort');
     this.headings = db.all<Heading>('SELECT * FROM headings ORDER BY sort');
@@ -221,12 +247,19 @@ class Store {
     window.dispatchEvent(new CustomEvent('openthings:reminders', { detail: list }));
   }
 
-  /** Unchecked brain-dump items older than 48h are deleted for good. Returns true if any were removed. */
+  /**
+   * Unchecked brain-dump items older than 48h are deleted for good, and sections whose last to-do
+   * has expired with them. Returns true if anything was removed.
+   */
   purgeDump(): boolean {
     const now = Date.now();
     const expired = db.all<Task>('SELECT * FROM tasks WHERE dump = 1 AND completed_at IS NULL').filter((t) => V.isDumpExpired(t, now));
     for (const t of expired) this.hardDelete(t.id);
-    return expired.length > 0;
+    const justExpired = new Set(expired.map((t) => t.dump_section_id).filter((id): id is ID => !!id));
+    const named = db.all<Task>('SELECT * FROM tasks WHERE dump_section_id IS NOT NULL');
+    const gone = V.expiredDumpSections(db.all<DumpSection>('SELECT * FROM dump_sections'), named, justExpired, now);
+    for (const s of gone) db.remove('dump_sections', s.id);
+    return expired.length > 0 || gone.length > 0;
   }
 
   /** Trashed tasks older than 30 days are deleted for good. */
@@ -237,12 +270,16 @@ class Store {
     return old.length > 0;
   }
 
-  notify(text: string) {
+  /** Show a short message. With `undo`, it carries an Undo button and stays up longer (no ⌘Z on a phone). */
+  notify(text: string, opts: { undo?: boolean } = {}) {
     const id = Date.now();
-    this.toast = { text, id };
-    setTimeout(() => {
-      if (this.toast?.id === id) this.toast = null;
-    }, 2600);
+    this.toast = { text, id, undo: opts.undo };
+    setTimeout(
+      () => {
+        if (this.toast?.id === id) this.toast = null;
+      },
+      opts.undo ? 5000 : 2600,
+    );
   }
 
   // ---------- undo ----------
@@ -277,6 +314,7 @@ class Store {
     this.sidebarOpen = false;
     this.keep.clear();
     this.expandedId = null;
+    this.clearMulti();
     this.selectedId = isTouch ? null : (this.selectable[0] ?? null);
   }
 
@@ -322,6 +360,112 @@ class Store {
     if (this.view.kind === 'trash') return this.trashed.map((t) => t.id);
     return this.groups.flatMap((g) => g.items.map((t) => t.id));
   });
+
+  // ---------- multi-selection ----------
+
+  /** More than one row is selected, or selection mode is on. */
+  get isMulti(): boolean {
+    return this.selecting || this.multi.ids.length > 1;
+  }
+
+  /** The to-dos an action applies to: the multi-selection, else the selected row. */
+  get actionIds(): ID[] {
+    if (this.isMulti) return Sel.inOrder(this.multi.ids, this.selectable);
+    return this.selectedId ? [this.selectedId] : [];
+  }
+
+  isPicked(id: ID): boolean {
+    return this.isMulti ? this.multi.ids.includes(id) : this.selectedId === id;
+  }
+
+  /** Multi-selection lists only to-dos; Habits, Trash and Brain Dump keep single selection. */
+  get canMulti(): boolean {
+    return !['habits', 'trash', 'dump', 'settings'].includes(this.view.kind);
+  }
+
+  /** The current selection as a Selection, whether or not it's multi. */
+  private currentSel(): Sel.Selection {
+    if (this.isMulti) return this.multi;
+    return this.selectedId ? Sel.selectOnly(this.selectedId) : Sel.EMPTY;
+  }
+
+  private setSel(next: Sel.Selection) {
+    this.multi = next;
+    this.selectedId = next.cursor;
+    if (next.ids.length > 1 || this.selecting) this.expandedId = null;
+  }
+
+  clearMulti() {
+    this.multi = Sel.EMPTY;
+    this.selecting = false;
+  }
+
+  /** Shift click: select from the anchor to this row. */
+  selectRange(id: ID) {
+    if (!this.canMulti) return;
+    this.setSel(Sel.range(this.currentSel(), id, this.selectable));
+  }
+
+  /** ⌘/Ctrl click, or a tap in selection mode: add or remove one row. */
+  toggleSelect(id: ID) {
+    if (!this.canMulti) return;
+    const next = Sel.toggle(this.currentSel(), id, this.selectable);
+    this.setSel(next);
+    // Outside selection mode, one row left is an ordinary single selection.
+    if (!this.selecting && next.ids.length <= 1) this.multi = Sel.EMPTY;
+  }
+
+  /** Shift+↑ / Shift+↓. */
+  extendSelection(delta: number) {
+    if (!this.canMulti) return;
+    this.setSel(Sel.extend(this.currentSel(), delta, this.selectable));
+  }
+
+  selectAll() {
+    if (!this.canMulti) return;
+    this.setSel(Sel.selectAll(this.selectable, this.selectedId));
+  }
+
+  /** Enter selection mode (long-press on touch, V on a keyboard), optionally picking a first row. */
+  startSelecting(id: ID | null = this.selectedId) {
+    if (!this.canMulti) return;
+    const base = this.currentSel();
+    this.selecting = true;
+    this.setSel(id && !base.ids.includes(id) ? Sel.toggle(base, id, this.selectable) : base);
+  }
+
+  /** After a bulk action: forget rows that left the list; leave multi mode when nothing is left. */
+  private pruneSelection() {
+    if (!this.isMulti) return;
+    const next = Sel.prune(this.multi, this.selectable);
+    if (!next.ids.length && !this.selecting) return this.clearMulti();
+    this.multi = next;
+    this.selectedId = next.cursor;
+    if (next.ids.length <= 1 && !this.selecting) this.multi = Sel.EMPTY;
+  }
+
+  /** Run several writes as one undo step with one reload. */
+  bulk(label: string, fn: () => void) {
+    this.deferLoad++;
+    try {
+      this.undoStack.group(label, fn);
+    } finally {
+      this.deferLoad--;
+      // Always reload: some actions (Move to Trash) write without calling load() themselves.
+      if (!this.deferLoad) this.load();
+    }
+    this.pruneSelection();
+  }
+
+  /** Apply a single-item action to each id, as one undo step. */
+  each(ids: ID[], label: string, fn: (id: ID) => void) {
+    if (ids.length === 1) {
+      fn(ids[0]);
+      this.pruneSelection();
+      return;
+    }
+    this.bulk(label, () => ids.forEach(fn));
+  }
 
   private groupByContainer(items: Task[]): Group[] {
     const loose = items.filter((t) => !t.project_id);
@@ -380,11 +524,11 @@ class Store {
       }
       case 'dump': {
         const items = V.dump(ts, keep, this.now);
-        const out: Group[] = [{ key: 'dump-loose', sectionId: null, items: items.filter((t) => !t.dump_section_id) }];
-        for (const s of this.dumpSections) {
-          out.push({ key: s.id, title: s.name, sectionId: s.id, items: items.filter((t) => t.dump_section_id === s.id) });
-        }
-        return out;
+        const g = V.dumpGroups(this.dumpSections, items);
+        return [
+          { key: 'dump-loose', sectionId: null, items: g.loose },
+          ...g.sections.map(({ section: s, items }) => ({ key: s.id, title: s.name, sectionId: s.id, items })),
+        ];
       }
       case 'matrix': {
         const m = V.matrix(ts, keep);
@@ -397,9 +541,11 @@ class Store {
       }
       case 'project': {
         const items = ts.filter((t) => t.project_id === v.id && !t.dump && (t.completed_at === null || keep.has(t.id))).sort((a, b) => a.sort - b.sort);
-        const out: Group[] = [{ key: 'p-loose', items: items.filter((t) => !t.heading_id) }];
-        for (const h of this.headings.filter((h) => h.project_id === v.id)) {
-          out.push({ key: h.id, title: h.name, items: items.filter((t) => t.heading_id === h.id) });
+        const hs = this.headings.filter((h) => h.project_id === v.id);
+        // A to-do whose heading no longer exists (removed, or on another device) shows without one.
+        const out: Group[] = [{ key: 'p-loose', items: items.filter((t) => !t.heading_id || !hs.some((h) => h.id === t.heading_id)) }];
+        for (const h of hs) {
+          out.push({ key: h.id, title: h.name, headingId: h.id, items: items.filter((t) => t.heading_id === h.id) });
         }
         return out;
       }
@@ -605,13 +751,29 @@ class Store {
     this.load();
   }
 
-  toggleComplete(id: ID) {
+  /** Complete every to-do in `ids`, or uncheck them all if all are already done. One sound, one undo step. */
+  completeMany(ids: ID[]) {
+    if (ids.length <= 1) {
+      if (ids[0]) this.toggleComplete(ids[0]);
+      return;
+    }
+    const ts = ids.map((id) => this.task(id)).filter((t): t is Task => !!t);
+    const uncheck = ts.every((t) => t.completed_at);
+    this.bulk(uncheck ? 'uncheck' : 'complete', () => {
+      for (const t of ts) if (uncheck || !t.completed_at) this.toggleComplete(t.id, true);
+    });
+    if (uncheck) sound.playUncheck();
+    else sound.playComplete();
+    this.notify(uncheck ? `Unchecked ${ts.length} to-dos` : `Completed ${ts.length} to-dos`);
+  }
+
+  toggleComplete(id: ID, quiet = false) {
     const t = this.task(id);
     if (!t) return;
     if (t.completed_at) {
       db.update('tasks', id, { completed_at: null });
       this.keep.delete(id);
-      sound.playUncheck();
+      if (!quiet) sound.playUncheck();
       this.undoStack.push('uncheck', () => db.update('tasks', id, { completed_at: t.completed_at }));
     } else {
       db.update('tasks', id, { completed_at: new Date().toISOString() });
@@ -623,17 +785,23 @@ class Store {
         if (spawned) this.hardDelete(spawned);
       });
       this.keep.add(id);
-      if (t.dump) sound.playScratch();
+      if (quiet) {
+        // Bulk completion plays one sound for the lot.
+      } else if (t.dump) sound.playScratch();
       else sound.playComplete();
       if (this.tracking?.taskId === id) this.stopTracking();
-      if (t.rrule) {
-        const from = t.when_date && t.when_date > this.day ? t.when_date : this.day;
-        const next = nextOccurrence(t.rrule, from);
+      const from = t.when_date && t.when_date > this.day ? t.when_date : this.day;
+      // Counted from the to-do's own date, so a late check-off keeps the schedule; null once COUNT/UNTIL run out.
+      const repeat = t.rrule ? nextRepeat(t.rrule, from, t.when_date ?? from) : null;
+      if (t.rrule && !repeat) this.notify('That was the last repeat');
+      if (repeat) {
+        const next = repeat.date;
         const nid = db.uuid7();
         spawned = nid;
         db.insert('tasks', {
           ...(t as unknown as db.Row),
           id: nid,
+          rrule: repeat.rrule,
           when_date: next,
           evening: t.evening,
           completed_at: null,
@@ -650,12 +818,35 @@ class Store {
     this.load();
   }
 
+  /**
+   * Set or clear a to-do's repeat (an RRULE string, see rrule.ts). With a `start` date the to-do moves to
+   * the rule's first day on or after it, which is also where the series counts its weeks or months from.
+   */
+  setRepeat(id: ID, rrule: string | null, start?: string) {
+    const t = this.task(id);
+    if (!t) return;
+    const fields: Partial<Task> = { rrule };
+    if (rrule && start) {
+      const first = firstOccurrence(rrule, start) ?? start;
+      if (first !== t.when_date || t.someday) Object.assign(fields, { when_date: first, someday: 0 });
+      if (t.reminder_at && t.when_date && first !== t.when_date) {
+        fields.reminder_at = shiftReminder(t.reminder_at, t.when_date, first);
+        fields.reminder_sent_at = null;
+      }
+    }
+    this.update(id, fields, rrule ? 'repeat' : 'stop repeating');
+    this.notify(rrule ? `Repeats: ${describeRule(rrule, this.day)}` : 'No longer repeats');
+  }
+
   setWhen(id: ID, w: When) {
+    // Scheduling a Brain Dump item (Today, Upcoming, Someday…) moves it out, so it becomes permanent.
+    const leavesDump = !!this.task(id)?.dump && (!!w.date || w.someday || w.inbox);
     this.update(id, {
       when_date: w.date,
       evening: w.evening ? 1 : 0,
       someday: w.someday ? 1 : 0,
       ...(w.inbox ? { project_id: null, area_id: null, heading_id: null } : {}),
+      ...(leavesDump ? { dump: 0, dump_section_id: null } : {}),
     }, 'date change');
   }
 
@@ -782,18 +973,148 @@ class Store {
 
   /** Move a task to the Trash. It can be restored for 30 days. */
   deleteTask(id: ID) {
-    const idx = this.selectable.indexOf(id);
-    if (this.tracking?.taskId === id) this.stopTracking();
-    db.update('tasks', id, { deleted_at: new Date().toISOString() });
-    this.undoStack.push('move to Trash', () => {
-      db.update('tasks', id, { deleted_at: null });
-      this.selectedId = id;
+    this.deleteMany([id]);
+  }
+
+  /** Move to-dos to the Trash as one undo step; the selection moves to the row after them. */
+  deleteMany(ids: ID[]) {
+    if (!ids.length) return;
+    const idx = this.selectable.indexOf(ids[0]);
+    const at = new Date().toISOString();
+    this.bulk('move to Trash', () => {
+      for (const id of ids) {
+        if (this.tracking?.taskId === id) this.stopTracking();
+        db.update('tasks', id, { deleted_at: at });
+        this.undoStack.push('move to Trash', () => {
+          db.update('tasks', id, { deleted_at: null });
+          this.selectedId = id;
+        });
+        this.keep.delete(id);
+      }
     });
-    this.keep.delete(id);
-    this.load();
-    this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
-    if (this.expandedId === id) this.expandedId = null;
-    this.notify('Moved to Trash');
+    if (!this.isMulti) this.selectedId = this.selectable[Math.min(idx, this.selectable.length - 1)] ?? null;
+    if (this.expandedId && ids.includes(this.expandedId)) this.expandedId = null;
+    sound.playCrumple();
+    this.notify(ids.length === 1 ? 'Moved to Trash' : `Moved ${ids.length} to-dos to Trash`, { undo: true });
+  }
+
+  /** Toast for a When change on several to-dos ("Moved 3 to-dos to Today"). */
+  announceWhenMany(ids: ID[]) {
+    if (ids.length === 1) return this.announceWhen(ids[0]);
+    const t = this.task(ids[0]);
+    if (t) this.notify(V.describeWhen(t, this.day).replace(/^Moved to/, `Moved ${ids.length} to-dos to`));
+  }
+
+  /**
+   * Drag and drop inside the list: put `ids` (in list order) just before `beforeId` in group `groupKey`
+   * (null = at its end). Rows from another group take on that group's fields (heading, evening, date,
+   * matrix quadrant). Returns false if the group doesn't accept them. One undo step.
+   */
+  dropInList(ids: ID[], groupKey: string, beforeId: ID | null): boolean {
+    const g = this.groups.find((x) => x.key === groupKey);
+    const extra = this.dropFields(ids, groupKey);
+    if (!g || !extra) return false;
+    const sorts = Sel.moveBlock(g.items, ids, beforeId);
+    // Dropped where they already were: nothing to write or undo.
+    const now = g.items.map((t) => t.id).join();
+    const next = g.items.map((t) => ({ id: t.id, sort: sorts.find((s) => s.id === t.id)?.sort ?? t.sort })).sort((a, b) => a.sort - b.sort).map((t) => t.id).join();
+    if (now === next && [...extra.values()].every((f) => !Object.keys(f).length)) return true;
+    this.bulk('move', () => {
+      for (const { id, sort } of sorts) this.update(id, { ...extra.get(id), sort }, 'move');
+    });
+    return true;
+  }
+
+  /** Per-to-do fields for dropping `ids` into group `groupKey`, or null if that group refuses any of them. */
+  dropFields(ids: ID[], groupKey: string): Map<ID, Partial<Task>> | null {
+    if (!ids.length || !this.groups.some((x) => x.key === groupKey)) return null;
+    const fromKey = (id: ID) => this.groups.find((x) => x.items.some((t) => t.id === id))?.key ?? '';
+    const out = new Map<ID, Partial<Task>>();
+    for (const id of ids) {
+      const t = this.task(id);
+      const f = t ? Sel.groupFields(this.view.kind, fromKey(id), groupKey, t, this.day) : null;
+      if (!f) return null;
+      out.set(id, f);
+    }
+    return out;
+  }
+
+  /** Whether dropping `ids` on a sidebar list does something. */
+  acceptsDrop(v: ViewKey): boolean {
+    if (this.isView(v) || !viewEnabled(v.kind)) return false;
+    return ['inbox', 'today', 'anytime', 'someday', 'dump', 'logbook', 'trash', 'project', 'area'].includes(v.kind);
+  }
+
+  /**
+   * Move to-dos to a top-level list, as one undo step: the Move palette and dropping on the sidebar.
+   * Lists that need a day (Upcoming, This Week) go through When instead. Brain Dump only while
+   * that feature is on.
+   */
+  moveToList(ids: ID[], list: MoveList) {
+    if (!ids.length || (list === 'dump' && !viewEnabled('dump'))) return;
+    const now = new Date().toISOString();
+    this.each(ids, 'move', (id) => {
+      const t = this.task(id);
+      if (!t) return;
+      const out = t.dump ? { dump: 0, dump_section_id: null } : {};
+      switch (list) {
+        case 'inbox':
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 0, project_id: null, area_id: null, heading_id: null }, 'move');
+          break;
+        case 'today':
+          this.update(id, { ...out, when_date: this.day, evening: 0, someday: 0 }, 'move');
+          break;
+        case 'anytime':
+          // Anytime keeps the project or area; a to-do in neither lands in the Inbox (said below).
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 0 }, 'move');
+          break;
+        case 'someday':
+          this.update(id, { ...out, when_date: null, evening: 0, someday: 1 }, 'move');
+          break;
+        case 'dump':
+          // Brain Dump deletes unchecked items 48h after created_at; restart the clock so an older
+          // to-do isn't purged the moment it arrives.
+          if (!t.dump) this.update(id, { dump: 1, dump_section_id: null, created_at: now }, 'move');
+          break;
+      }
+    });
+    const n = ids.length === 1 ? '' : ` ${ids.length} to-dos`;
+    const name = { inbox: 'Inbox', today: 'Today', anytime: 'Anytime', someday: 'Someday', dump: 'Brain Dump' }[list];
+    const loose = list === 'anytime' ? ids.filter((id) => { const t = this.task(id); return t && !t.project_id && !t.area_id; }).length : 0;
+    if (loose === ids.length) this.notify(`Moved${n} to Inbox: Anytime needs a project or area`);
+    else if (loose) this.notify(`Moved${n} to Anytime; ${loose} without a project or area went to the Inbox`);
+    else this.notify(list === 'dump' ? `Moved${n} to Brain Dump; ${ids.length === 1 ? 'it goes' : 'they go'} in 48 hours unless kept` : `Moved${n} to ${name}`);
+  }
+
+  /** Drag and drop onto a sidebar list: schedule, move, complete or trash every dragged to-do. One undo step. */
+  dropOnView(ids: ID[], v: ViewKey) {
+    if (!ids.length || !this.acceptsDrop(v)) return;
+    const n = ids.length === 1 ? '' : ` ${ids.length} to-dos`;
+    switch (v.kind) {
+      case 'inbox':
+      case 'today':
+      case 'anytime':
+      case 'someday':
+      case 'dump':
+        this.moveToList(ids, v.kind);
+        break;
+      case 'logbook': {
+        const open = ids.filter((id) => !this.task(id)?.completed_at);
+        if (open.length) this.completeMany(open);
+        break;
+      }
+      case 'trash':
+        this.deleteMany(ids);
+        break;
+      case 'project':
+      case 'area': {
+        const target = v.kind === 'project' ? { project_id: v.id } : { area_id: v.id };
+        this.each(ids, 'move', (id) => this.moveTo(id, target));
+        const name = v.kind === 'project' ? this.projects.find((p) => p.id === v.id)?.name : this.areas.find((a) => a.id === v.id)?.name;
+        this.notify(`Moved${n} to ${name ?? 'list'}`);
+        break;
+      }
+    }
   }
 
   restoreTask(id: ID) {
@@ -817,6 +1138,7 @@ class Store {
   }
 
   emptyTrash() {
+    if (this.trashed.length) sound.playCrumple();
     for (const t of this.trashed) this.hardDelete(t.id);
     this.load();
     this.selectedId = null;
@@ -837,6 +1159,18 @@ class Store {
     const sort = beyond ? (b.sort + beyond.sort) / 2 : b.sort + dir;
     db.update('tasks', a.id, { sort });
     this.load();
+  }
+
+  /** ⌥↑ / ⌥↓ with several rows selected: move them together past one neighbour (same group only). */
+  reorderMany(ids: ID[], dir: -1 | 1) {
+    if (ids.length <= 1) {
+      if (ids[0]) this.reorder(ids[0], dir);
+      return;
+    }
+    const g = this.groups.find((x) => x.items.some((t) => t.id === ids[0]));
+    if (!g || !ids.every((id) => g.items.some((t) => t.id === id))) return this.notify('Select rows from one group to move them');
+    const before = Sel.stepTarget(g.items, ids, dir);
+    if (before !== undefined) this.dropInList(ids, g.key, before);
   }
 
   addChecklist(taskId: ID, title: string) {
@@ -874,9 +1208,49 @@ class Store {
     db.insert('headings', { id: db.uuid7(), project_id: projectId, name, sort: this.nextSort() });
     this.load();
   }
+  /**
+   * Remove a project heading; its to-dos stay in the project without a heading. Undo recreates
+   * it under a new id, because a synced delete is final, and moves back the to-dos still without one.
+   */
+  deleteHeading(id: ID) {
+    const h = this.headings.find((x) => x.id === id);
+    if (!h) return;
+    const taskIds = db.all<{ id: ID }>('SELECT id FROM tasks WHERE heading_id = ?', [id]).map((t) => t.id);
+    for (const tid of taskIds) db.update('tasks', tid, { heading_id: null });
+    db.remove('headings', id);
+    this.undoStack.push('remove heading', () => {
+      const nid = db.uuid7();
+      db.insert('headings', { id: nid, project_id: h.project_id, name: h.name, sort: h.sort });
+      for (const tid of taskIds) {
+        if (db.one('SELECT id FROM tasks WHERE id = ? AND project_id = ? AND heading_id IS NULL', [tid, h.project_id])) db.update('tasks', tid, { heading_id: nid });
+      }
+    });
+    this.load();
+    this.notify(`Removed “${h.name}”; its to-dos stay in the project`);
+  }
   addDumpSection(name: string) {
     this.dumpSectionId(name);
     this.load();
+  }
+  /**
+   * Remove a dump section; its to-dos become unsectioned. Undo recreates it under a new id,
+   * because a synced delete is final, and moves back the to-dos that are still unsectioned.
+   */
+  deleteDumpSection(id: ID) {
+    const s = this.dumpSections.find((x) => x.id === id);
+    if (!s) return;
+    const taskIds = db.all<{ id: ID }>('SELECT id FROM tasks WHERE dump_section_id = ?', [id]).map((t) => t.id);
+    for (const tid of taskIds) db.update('tasks', tid, { dump_section_id: null });
+    db.remove('dump_sections', id);
+    this.undoStack.push('remove section', () => {
+      const nid = db.uuid7();
+      db.insert('dump_sections', { id: nid, name: s.name, sort: s.sort });
+      for (const tid of taskIds) {
+        if (db.one('SELECT id FROM tasks WHERE id = ? AND dump = 1 AND dump_section_id IS NULL', [tid])) db.update('tasks', tid, { dump_section_id: nid });
+      }
+    });
+    this.load();
+    this.notify(`Removed “${s.name}”; its to-dos are unsectioned`);
   }
   renameArea(id: ID, name: string) {
     db.update('areas', id, { name });

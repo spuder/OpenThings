@@ -1,20 +1,26 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { sync } from '../sync/engine.svelte';
   import { PROTOCOL_VERSION } from '../sync/protocol';
+  import { pairingState, pairLink, parsePairCode } from '../sync/pair';
+  import { pairing } from '../sync/pairing.svelte';
   import { store } from '../store.svelte';
   import SyncBadge from './SyncBadge.svelte';
   import CodeBlock from './CodeBlock.svelte';
   import { notifier, upcomingReminders } from '../reminders.svelte';
   import { reminderLabel } from '../parse';
-  import { isDesktop } from '../native/desktop';
+  import { isDesktop, openSelfHostingDocs } from '../native/desktop';
   import DesktopSettings from '../native/DesktopSettings.svelte';
   import { theme, type ThemePref } from '../theme.svelte';
-  import { isNativeShell } from '../native/shell';
+  import { isNativeShell, nativePlatform } from '../native/shell';
   import { nativeStatus } from '../native/status.svelte';
   import { MAX_SCHEDULED } from '../native/snapshot';
   import { isTouch } from '../env';
   import { FEATURES, features } from '../features.svelte';
   import Icon from './Icon.svelte';
+
+  // Which build this is, for bug reports: the version is the same on every platform for a release.
+  const platformName = isDesktop ? 'desktop app' : isNativeShell() ? (nativePlatform() === 'ios' ? 'iOS app' : 'Android app') : 'web app';
   const native = isNativeShell();
   // In the iOS and desktop shells the page origin (capacitor://, tauri://) isn't a server address.
   const servedBySite = !native && !isDesktop;
@@ -41,6 +47,84 @@
     sync.configure(url || null, enable);
     url = sync.serverUrl ?? '';
   }
+
+  // Phone pairing (#43): desktop and web show the sync server as a QR code; the iOS app scans it
+  // (or the Camera app opens the openthings://pair link) and the server URL fills in here.
+  // The address the server advertises (OPENTHINGS_PUBLIC_URL), asked from the sync server, or from
+  // this site when the container serves the web app. It prefills the URL field and goes in the QR code.
+  let advertised = $state<string | null>(null);
+  $effect(() => {
+    const target = sync.serverUrl ?? (servedBySite ? location.origin : null);
+    advertised = null;
+    if (!target) return;
+    let stale = false;
+    sync
+      .test(target)
+      .then((h) => {
+        if (stale) return;
+        advertised = h.publicUrl ? parsePairCode(h.publicUrl) : null;
+        if (untrack(() => !sync.serverUrl && !url) && advertised) url = advertised;
+      })
+      .catch(() => {});
+    return () => (stale = true);
+  });
+  const thisSite = () => advertised ?? location.origin;
+
+  // Only once this device syncs with a server a phone can reach; never this page's own address.
+  const pair = $derived(pairingState({ enabled: sync.enabled, serverUrl: sync.serverUrl, lastSyncedAt: sync.lastSyncedAt, publicUrl: advertised }));
+  const pairServer = $derived(pair.ok ? pair.server : null);
+  let showQr = $state(false);
+  let qrSvg = $state('');
+  $effect(() => {
+    if (!showQr || !pairServer) return;
+    const link = pairLink(pairServer);
+    void import('uqr').then(({ renderSVG }) => (qrSvg = renderSVG(link, { border: 2 })));
+  });
+
+  async function fillFromPairing(server: string) {
+    url = server;
+    await test();
+    if (testResult?.ok && !sync.enabled) testResult = { ok: true, text: `${testResult.text}. Tap Turn on sync to start.` };
+  }
+
+  /** Sync needs the OpenThings server (the Docker image); README#self-hosting explains how to run it. */
+  const SELF_HOSTING_DOCS = 'https://github.com/spuder/OpenThings#self-hosting';
+  function openServerDocs(e: MouseEvent) {
+    if (!isDesktop) return;
+    e.preventDefault();
+    void openSelfHostingDocs();
+  }
+
+  /** Android: open "Alarms & reminders" so reminders use exact alarms. */
+  async function allowExact() {
+    const { allowExactReminders } = await import('../native/capacitor.svelte');
+    await allowExactReminders();
+  }
+
+  let scanning = $state(false);
+  async function scan() {
+    scanning = true;
+    testResult = null;
+    try {
+      const { scanQrCode } = await import('../native/capacitor.svelte');
+      const code = await scanQrCode();
+      if (code === null) return;
+      const server = parsePairCode(code);
+      if (server) await fillFromPairing(server);
+      else testResult = { ok: false, text: "That isn't an OpenThings pairing code. On your computer, open Settings → Sync → Pair a phone." };
+    } catch (e) {
+      testResult = { ok: false, text: (e as Error).message };
+    } finally {
+      scanning = false;
+    }
+  }
+
+  $effect(() => {
+    const server = pairing.server;
+    if (!server) return;
+    pairing.server = null;
+    untrack(() => void fillFromPairing(server));
+  });
 
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : 'Never');
 
@@ -110,12 +194,14 @@ curl '${base}/api/v1/tasks?view=today'`);
     ['delete_task', 'Move to the Trash (or restore)'],
     ['brain_dump', 'Capture something into the Brain Dump'],
     ['add_checklist_item / check_checklist_item', 'Checklists'],
-    ['list_projects / add_project', 'Areas, projects and tags'],
+    ['list_projects / add_project / add_area', 'Areas, projects and tags'],
     ['list_habits / check_habit', 'Habits and check-ins'],
     ['start_timer / stop_timer / current_timer', 'Time tracking'],
   ];
 
 </script>
+
+{#snippet serverDocs(text: string)}<a href={SELF_HOSTING_DOCS} target="_blank" rel="noreferrer" onclick={openServerDocs}>{text}</a>{/snippet}
 
 <div class="settings">
   <section>
@@ -124,7 +210,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       <SyncBadge />
     </header>
     <p class="lead">
-      Sync sends this device's changes to your OpenThings server and pulls changes from your other devices. Without it, data stays in this browser.
+      Sync sends this device's changes to your OpenThings server, the Docker container ({@render serverDocs('how to run it')}), and pulls changes from your other devices. Without it, data stays on this device.
     </p>
 
     <label class="field">
@@ -140,7 +226,8 @@ curl '${base}/api/v1/tasks?view=today'`);
       />
     </label>
     <div class="row-actions">
-      {#if servedBySite}<button class="btn" onclick={() => (url = location.origin)}>Use this site</button>{/if}
+      {#if native}<button class="btn" onclick={scan} disabled={scanning}>{scanning ? 'Scanning…' : 'Scan QR code'}</button>{/if}
+      {#if servedBySite}<button class="btn" onclick={() => (url = thisSite())}>Use this site</button>{/if}
       <button class="btn" onclick={test} disabled={!url || testing}>{testing ? 'Testing…' : 'Test connection'}</button>
       {#if sync.enabled}
         <button class="btn" onclick={() => save(true)} disabled={!url || url === sync.serverUrl}>Save URL</button>
@@ -151,6 +238,26 @@ curl '${base}/api/v1/tasks?view=today'`);
     </div>
     {#if testResult}
       <p class="result" class:ok={testResult.ok}>{testResult.text}</p>
+    {/if}
+    {#if native}
+      <p class="note">Scan QR code opens the camera. On your computer, open OpenThings → Settings → Sync → Pair a phone and point the camera at the code.</p>
+    {:else}
+      <h3>Pair a phone</h3>
+      <p class="lead">Show this server as a QR code, then scan it in OpenThings on your phone (Settings → Sync → Scan QR code) to fill in the server URL.</p>
+      <button class="btn" onclick={() => (showQr = !showQr)} disabled={!pairServer}>{showQr ? 'Hide QR code' : 'Show QR code'}</button>
+      {#if !pair.ok && pair.reason === 'no-server'}
+        <p class="note">Turn on sync above to pair a phone.</p>
+      {:else if !pair.ok && pair.reason === 'loopback'}
+        <p class="note">This device syncs with <code>{pair.server}</code>, which only this computer can reach. Use the server's network or tailnet address to pair a phone.</p>
+      {:else if !pair.ok}
+        <p class="note">Waiting for the first sync with <code>{pair.server}</code>. The QR code is available once this device has synced.</p>
+      {/if}
+      {#if showQr && pairServer}
+        <div class="pair">
+          <div class="qr" role="img" aria-label={`QR code for ${pairServer}`}>{@html qrSvg}</div>
+          <p class="note">Fills in <code>{pairServer}</code>.</p>
+        </div>
+      {/if}
     {/if}
 
     <dl>
@@ -166,7 +273,7 @@ curl '${base}/api/v1/tasks?view=today'`);
       <dd>v{PROTOCOL_VERSION} (draft)</dd>
     </dl>
     <button class="btn" onclick={() => sync.kick()} disabled={!sync.enabled || sync.status === 'syncing'}>Sync now</button>
-    <p class="note">The server is the OpenThings Docker image. Each device keeps a full copy and works offline; changes wait here until the server is reachable.</p>
+    <p class="note">Each device keeps a full copy and works offline; changes wait here until the server is reachable.</p>
   </section>
 
   <section>
@@ -193,8 +300,17 @@ curl '${base}/api/v1/tasks?view=today'`);
       {#if native}
       <dt>Scheduled with the system</dt>
       <dd>{nativeStatus.scheduled}</dd>
+      {#if nativeStatus.exactAlarms !== null}
+      <dt>Exact timing</dt>
+      <dd>
+        {nativeStatus.exactAlarms ? 'on' : 'off: Android may deliver reminders a few minutes late'}
+        {#if !nativeStatus.exactAlarms}<div class="row-actions"><button class="btn" onclick={allowExact}>Allow exact timing</button></div>{/if}
+      </dd>
+      {/if}
+      {#if nativeStatus.appGroup}
       <dt>App Group</dt>
-      <dd>{nativeStatus.appGroup || 'unknown'} · {nativeStatus.containerAvailable ? 'available' : 'not available (widgets and share sheet off)'}</dd>
+      <dd>{nativeStatus.appGroup} · {nativeStatus.containerAvailable ? 'available' : 'not available (widgets and share sheet off)'}</dd>
+      {/if}
       {#if nativeStatus.lastError}<dt>Native error</dt><dd class="err">{nativeStatus.lastError}</dd>{/if}
       {:else}
       <dt>Service worker</dt>
@@ -326,6 +442,11 @@ curl '${base}/api/v1/tasks?view=today'`);
       <p class="note">The macOS app finds <code>main.sqlite</code> in the Things group container automatically and imports it without a file picker.</p>
     {/if}
   </section>
+
+  <section>
+    <h2>About</h2>
+    <p class="lead">OpenThings <strong>v{__APP_VERSION__}</strong> · {platformName}</p>
+  </section>
 </div>
 
 <style>
@@ -418,6 +539,22 @@ curl '${base}/api/v1/tasks?view=today'`);
   }
   .result.ok {
     color: var(--logbook);
+  }
+  .lead a {
+    color: var(--accent);
+  }
+  .pair {
+    margin-top: 12px;
+  }
+  .qr {
+    width: 200px;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .qr :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
   }
   dl {
     display: grid;

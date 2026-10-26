@@ -1,0 +1,53 @@
+name: Nix
+
+# Builds the flake's packages (desktop app and server) on all four Nix platforms.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+          - system: aarch64-darwin
+            runner: macos-latest
+          - system: x86_64-darwin
+            runner: macos-15-intel
+    name: ${{ matrix.system }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      # Caches what we build in the repo's free GitHub Actions cache. FlakeHub Cache is a paid
+      # service the action would otherwise turn on by itself, so it is switched off.
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+        with:
+          use-gha-cache: true
+          use-flakehub: false
+          diagnostic-endpoint: ''
+      - name: Check flake
+        run: nix flake check --print-build-logs --no-build
+      - name: Build server
+        run: nix build --print-build-logs .#openthings-server
+      - name: Smoke test server
+        run: |
+          DATA_DIR="$RUNNER_TEMP/data" PORT=8099 ./result/bin/openthings-server &
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8099/api/health && break; sleep 0.5; done
+          curl -fsS http://127.0.0.1:8099/ | grep -q '<html'
+          kill %1
+      - name: Build desktop app
+        run: nix build --print-build-logs .#openthings
+      - run: ls -lR result/ | head -40

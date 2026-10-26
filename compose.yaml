@@ -8,6 +8,9 @@ services:
     restart: unless-stopped
     environment:
       TZ: UTC # your time zone, e.g. America/Denver: "today" for the REST API and MCP tools
+      # The address your devices use. Apps prefill it in Settings → Sync and put it in the
+      # phone pairing QR code. With DockTail: https://openthings.<your tailnet>.ts.net
+      # OPENTHINGS_PUBLIC_URL: https://openthings.example.ts.net
     volumes:
       - openthings-data:/data # the synced database; back this up
     labels:

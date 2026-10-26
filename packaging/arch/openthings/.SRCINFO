@@ -26,6 +26,6 @@ pkgbase = openthings
 	options = !lto
 	options = !debug
 	source = openthings-0.1.0.tar.gz::https://github.com/spuder/OpenThings/archive/refs/tags/v0.1.0.tar.gz
-	sha256sums = SKIP
+	sha256sums = e7aae95c54c250876964cd730a51b325814da1279f535192bd1d62924f006de6
 
 pkgname = openthings

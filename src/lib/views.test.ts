@@ -1,12 +1,65 @@
 import { describe, expect, it } from 'vitest';
-import { describeWhen, thisWeek } from './views';
-import type { Task } from './types';
+import { describeWhen, dumpGroups, expiredDumpSections, thisWeek } from './views';
+import type { DumpSection, Task } from './types';
 
 const base = {
   notes: '', project_id: null, area_id: null, heading_id: null, someday: 0, evening: 0, dump: 0, dump_section_id: null,
   deadline: null, when_date: null, completed_at: null, deleted_at: null, sort: 0, created_at: '2026-10-01T00:00:00Z',
 } as unknown as Task;
 const t = (id: string, p: Partial<Task>): Task => ({ ...base, id, title: id, ...p }) as Task;
+
+describe('dumpGroups', () => {
+  const sections: DumpSection[] = [
+    { id: 'unused', name: 'Unused', sort: 0 },
+    { id: 'active', name: 'Active', sort: 1 },
+  ];
+  const ids = (ts: Task[]) => ts.map((x) => x.id);
+
+  it('keeps every section, including empty ones', () => {
+    const g = dumpGroups(sections, [t('a', { dump: 1, dump_section_id: 'active' })]);
+    expect(g.sections.map((s) => [s.section.id, ids(s.items)])).toEqual([['unused', []], ['active', ['a']]]);
+  });
+
+  it('lists tasks whose section was removed as unsectioned', () => {
+    const items = [t('loose', { dump: 1 }), t('orphan', { dump: 1, dump_section_id: 'removed' }), t('kept', { dump: 1, dump_section_id: 'active' })];
+
+    const g = dumpGroups(sections, items);
+    expect(ids(g.loose)).toEqual(['loose', 'orphan']);
+    expect(g.sections.flatMap((s) => ids(s.items))).toEqual(['kept']);
+  });
+});
+
+describe('expiredDumpSections', () => {
+  const now = Date.parse('2026-10-24T12:00:00Z');
+  const hoursAgo = (h: number) => new Date(now - h * 3_600_000).toISOString();
+  const s = (id: string): DumpSection => ({ id, name: id, sort: 0 });
+  const gone = (tasks: Task[], justExpired: string[] = []) =>
+    expiredDumpSections([s('x')], tasks, new Set(justExpired), now).map((x) => x.id);
+
+  it('removes a section when its last to-do just expired', () => {
+    expect(gone([], ['x'])).toEqual(['x']);
+  });
+
+  it('keeps a section that never had a to-do', () => {
+    expect(gone([])).toEqual([]);
+  });
+
+  it('keeps a section with an open to-do', () => {
+    expect(gone([t('a', { dump: 1, dump_section_id: 'x', created_at: hoursAgo(1) })], ['x'])).toEqual([]);
+  });
+
+  it('keeps a section whose deleted to-do has not reached 48h yet', () => {
+    expect(gone([t('a', { dump: 1, dump_section_id: 'x', created_at: hoursAgo(10), deleted_at: hoursAgo(1) })])).toEqual([]);
+  });
+
+  it('removes it once the deleted or checked to-dos would have expired', () => {
+    const tasks = [
+      t('trashed', { dump: 1, dump_section_id: 'x', created_at: hoursAgo(49), deleted_at: hoursAgo(40) }),
+      t('checked', { dump: 1, dump_section_id: 'x', created_at: hoursAgo(50), completed_at: hoursAgo(45) }),
+    ];
+    expect(gone(tasks)).toEqual(['x']);
+  });
+});
 
 describe('thisWeek', () => {
   // 2026-10-14 is a Wednesday; the week runs Mon 10-12 .. Sun 10-18.

@@ -56,7 +56,19 @@
 
     {#each store.groups as g (g.key)}
       <section>
-        {#if g.title}<h3>{g.title}</h3>{/if}
+        {#if g.title}
+          <div class="section-head">
+            <h3>{g.title}</h3>
+            {#if g.sectionId}
+              <button
+                class="delete-section"
+                onclick={() => store.deleteDumpSection(g.sectionId!)}
+                aria-label={`Remove ${g.title} section`}
+                title="Remove section"
+              >×</button>
+            {/if}
+          </div>
+        {/if}
         <ul>
           {#each g.items as t (t.id)}
             <li
@@ -156,7 +168,14 @@
     opacity: 0.55;
     margin-bottom: var(--line-h);
   }
+  .section-head {
+    display: flex;
+    align-items: center;
+    height: var(--line-h);
+  }
   h3 {
+    flex: 1;
+    min-width: 0;
     margin: 0;
     font-size: 27px;
     font-weight: 600;
@@ -168,6 +187,22 @@
     text-decoration: underline wavy color-mix(in srgb, var(--paper-ink) 35%, transparent);
     text-underline-offset: 5px;
     text-decoration-thickness: 1px;
+  }
+  .delete-section {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    /* A 44px touch target in a 34px row, without pushing the ruled lines apart. */
+    margin-block: calc((var(--line-h) - 44px) / 2);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 22px;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.35;
+  }
+  .delete-section:hover,
+  .delete-section:focus-visible {
+    opacity: 0.85;
   }
   section {
     margin-bottom: var(--line-h);

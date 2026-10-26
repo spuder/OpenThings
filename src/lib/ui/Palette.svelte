@@ -2,15 +2,22 @@
   import { fade, fly } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { commands, keyLabel } from '../commands';
+  import { viewEnabled } from '../features.svelte';
   import { parseDateWord, parseReminder, reminderLabel } from '../parse';
   import { notifier } from '../reminders.svelte';
   import { parseSchedule, scheduleToString, type HabitSchedule } from '../views';
   import { addDays, longLabel, nextWeekday, relLabel } from '../dates';
+  import { optionForKey, splitMnemonic } from '../menu';
+  import Icon, { iconColor } from './Icon.svelte';
 
   interface Item {
     label: string;
     hint?: string;
     keys?: string;
+    /** Menu letter (choose mode): underlined in the label. */
+    key?: string;
+    icon?: string;
+    danger?: boolean;
     run: () => void;
   }
 
@@ -19,6 +26,7 @@
   $effect(() => {
     const m = store.paletteMode;
     q = m.kind === 'prompt' ? (m.initial ?? '') : '';
+    index = 0;
     input?.focus();
     if (m.kind === 'prompt' && m.initial) queueMicrotask(() => input?.select());
   });
@@ -27,6 +35,10 @@
 
   const mode = $derived(store.paletteMode);
   const task = $derived(store.task(store.selectedId));
+  /** Move, When and Deadline apply to every selected to-do. */
+  const ids = $derived(store.actionIds.filter((id) => !!store.task(id)));
+  const first = $derived(store.task(ids[0] ?? null));
+  const many = $derived(ids.length > 1 ? ` ${ids.length} to-dos` : '');
 
   $effect(() => {
     input?.focus();
@@ -73,16 +85,31 @@
         return [...cmds, ...lists].filter((i) => fuzzy(`${i.label} ${i.hint ?? ''}`, q));
       }
       case 'move': {
-        if (!task) return [];
+        if (!first) return [];
+        const targets = ids;
         const moveTo = (name: string, target: Parameters<typeof store.moveTo>[1]) => {
-          store.moveTo(task.id, target);
-          store.notify(`Moved to ${name}`);
+          store.each(targets, 'move', (id) => store.moveTo(id, target));
+          store.notify(`Moved${many} to ${name}`);
         };
         const toDump = (name: string, sectionId: string | null) => {
-          store.moveToDumpSection(task.id, sectionId);
-          store.notify(`Moved to ${name}`);
+          store.each(targets, 'move', (id) => store.moveToDumpSection(id, sectionId));
+          store.notify(`Moved${many} to ${name}`);
         };
-        const out: Item[] = [{ label: 'Inbox', run: () => moveTo('Inbox', { inbox: true }) }];
+        // Top-level lists first, only those turned on in Settings → Features. Upcoming and This Week
+        // need a day, so they open When for the same to-dos.
+        const toWhen = () => {
+          store.paletteMode = { kind: 'when' };
+          store.overlay = 'palette';
+        };
+        const out: Item[] = [
+          { label: 'Inbox', hint: 'List', run: () => store.moveToList(targets, 'inbox') },
+          { label: 'Today', hint: 'List', run: () => store.moveToList(targets, 'today') },
+          ...(viewEnabled('week') ? [{ label: 'This Week', hint: 'List · pick a day', run: toWhen }] : []),
+          { label: 'Upcoming', hint: 'List · pick a day', run: toWhen },
+          { label: 'Anytime', hint: 'List', run: () => store.moveToList(targets, 'anytime') },
+          { label: 'Someday', hint: 'List', run: () => store.moveToList(targets, 'someday') },
+          ...(viewEnabled('dump') && !first.dump ? [{ label: 'Brain Dump', hint: 'List · deleted after 48h unless kept', run: () => store.moveToList(targets, 'dump') }] : []),
+        ];
         for (const a of store.areas) {
           out.push({ label: a.name, hint: 'Area', run: () => moveTo(a.name, { area_id: a.id }) });
           for (const p of store.projects.filter((p) => p.area_id === a.id && !p.completed_at)) {
@@ -92,24 +119,28 @@
         for (const p of store.projects.filter((p) => !p.area_id && !p.completed_at)) {
           out.push({ label: p.name, hint: 'Project', run: () => moveTo(p.name, { project_id: p.id }) });
         }
-        if (task.dump) {
+        if (first.dump && viewEnabled('dump')) {
           out.push({ label: 'Brain Dump', hint: 'No section', run: () => toDump('Brain Dump', null) });
           for (const s of store.dumpSections) out.push({ label: `Brain Dump / ${s.name}`, hint: 'Section', run: () => toDump(`Brain Dump / ${s.name}`, s.id) });
         }
         return out.filter((i) => fuzzy(`${i.label} ${i.hint ?? ''}`, q));
       }
-      case 'when':
-        if (!task) return [];
+      case 'when': {
+        if (!first) return [];
+        const targets = ids;
         return dateItems((date, extra) => {
-          store.setWhen(task.id, { date, evening: extra === 'evening', someday: extra === 'someday', inbox: false });
-          store.announceWhen(task.id);
+          store.each(targets, 'date change', (id) => store.setWhen(id, { date, evening: extra === 'evening', someday: extra === 'someday', inbox: false }));
+          store.announceWhenMany(targets);
         }, true);
-      case 'deadline':
-        if (!task) return [];
+      }
+      case 'deadline': {
+        if (!first) return [];
+        const targets = ids;
         return dateItems((date) => {
-          store.update(task.id, { deadline: date });
-          store.notify(date ? `Deadline: ${relLabel(date, store.day)}` : 'Deadline cleared');
+          store.each(targets, 'deadline change', (id) => store.update(id, { deadline: date }, 'deadline change'));
+          store.notify(date ? `Deadline${many ? ` for${many}` : ''}: ${relLabel(date, store.day)}` : `Deadline cleared${many ? ` for${many}` : ''}`);
         }, false);
+      }
       case 'tag': {
         if (!task) return [];
         const have = new Set(store.tagsFor(task.id).map((t) => t.id));
@@ -190,7 +221,9 @@
         return out;
       }
       case 'choose':
-        return mode.options.filter((o) => fuzzy(`${o.label} ${o.hint ?? ''}`, q));
+        return mode.options
+          .filter((o) => fuzzy(`${o.label} ${o.hint ?? ''}`, q))
+          .map((o) => ({ ...o, keys: o.key?.toUpperCase() }));
       case 'prompt':
         return [];
     }
@@ -205,7 +238,7 @@
   const placeholder = $derived.by(() => {
     switch (mode.kind) {
       case 'commands': return 'Type a command or list name…';
-      case 'move': return `Move “${task?.title ?? ''}” to…`;
+      case 'move': return many ? `Move${many} to…` : `Move “${first?.title ?? ''}” to…`;
       case 'when': return 'When? today, fri, in 3d, nov 3…';
       case 'deadline': return 'Deadline? fri, 2026-11-02…';
       case 'tag': return 'Tag name…';
@@ -250,6 +283,14 @@
     } else if (e.key === 'Enter') {
       e.preventDefault();
       choose(index);
+    } else if (mode.kind === 'choose') {
+      // A menu letter runs its option while the filter is empty; after that, typing filters.
+      const option = optionForKey(mode.options, e, q);
+      if (option) {
+        e.preventDefault();
+        close();
+        option.run();
+      }
     }
   }
 </script>
@@ -261,11 +302,15 @@
   {#if items.length}
     <ul role="listbox">
       {#each items as item, i (item.label + i)}
+        {@const parts = splitMnemonic(item.label, item.key)}
         <li role="option" aria-selected={i === index}>
-          <button class:active={i === index} onmouseenter={() => (index = i)} onclick={() => choose(i)}>
-            <span class="l">{item.label}</span>
+          <button class:active={i === index} style:--c={item.icon ? iconColor(item.icon) : null} onmouseenter={() => (index = i)} onclick={() => choose(i)}>
+            {#if item.icon}<Icon name={item.icon} />{/if}
+            <span class="l" class:danger={item.danger}>
+              {#if parts}{parts[0]}<u>{parts[1]}</u>{parts[2]}{:else}{item.label}{/if}
+            </span>
             {#if item.hint}<span class="h">{item.hint}</span>{/if}
-            {#if item.keys}<kbd>{item.keys}</kbd>{/if}
+            {#if item.keys}<kbd class:tinted={!!item.key}>{item.keys}</kbd>{/if}
           </button>
         </li>
       {/each}
@@ -336,6 +381,17 @@
     flex: 1;
     font-weight: 500;
   }
+  .danger {
+    color: var(--deadline);
+  }
+  u {
+    text-decoration: none;
+    color: var(--c, var(--accent));
+    box-shadow: inset 0 -1.5px 0 var(--c, var(--accent));
+  }
+  kbd.tinted {
+    color: var(--c, var(--text-2));
+  }
   .h {
     font-size: 12px;
     color: var(--text-3);
@@ -349,6 +405,10 @@
     .panel {
       top: calc(8px + env(safe-area-inset-top));
       width: calc(100vw - 16px);
+    }
+    /* Menu letters need a keyboard; on a phone they only crowd the row. */
+    kbd.tinted {
+      display: none;
     }
   }
 </style>

@@ -24,6 +24,9 @@
   /** Caret position while it's a plain cursor (no selection) in the focused input; null otherwise. */
   let caret = $state<number | null>(null);
   let scrollX = $state(0);
+  // The desktop window is the panel, so it doesn't animate: a remount there would briefly show the
+  // old panel flying out next to the new one, and the text would jump.
+  const panelIn = (node: Element) => (native ? { duration: 0 } : fly(node, { y: -10, duration: 180 }));
 
   const parsed = $derived(
     simple
@@ -179,7 +182,7 @@
 </script>
 
 {#if !native}<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>{/if}
-<div class="panel" class:native transition:fly={{ y: -10, duration: 180 }} role="dialog" aria-label="Quick add" aria-modal="true">
+<div class="panel" class:native transition:panelIn role="dialog" aria-label="Quick add" aria-modal="true">
   <div class="field">
     <input
       bind:this={input}

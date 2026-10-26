@@ -8,7 +8,7 @@ The desktop app is the same web app in a native window, plus what a browser can'
 
 | Feature | macOS | Arch / Hyprland |
 | --- | --- | --- |
-| Global quick-add hotkey (default ⌃⌥Space / Ctrl+Alt+Space), configurable in Settings → Desktop | yes | X11 only. On Wayland bind `openthings --quick-add` in the compositor (below) |
+| Global quick-add hotkey, configurable in Settings → Desktop (default ⌃Space / Ctrl+Alt+Space / Super+Alt+Space on Hyprland) | yes | Hyprland: written into its config (below). X11: key grab. Other Wayland: bind `openthings --quick-add` yourself |
 | Floating quick-add window (frameless, always on top, title `OpenThings Quick Add`) | yes | yes |
 | `openthings://add?text=…` deep links, `openthings --quick-add [text]`, `openthings --add <text>` | links | yes |
 | Tray / menu-bar icon showing sync status; menu: Show, Quick Add, Sync Now, Quit | menu bar | needs a StatusNotifier host (Waybar `tray` module) |
@@ -34,6 +34,7 @@ src/lib/native/DesktopSettings.svelte  Settings → Desktop (only rendered in Ta
 - **Sync status.** `window.OpenThings.sync.subscribe` → `set_sync_status` → tray icon (5 states: local, synced, pending, offline, error) and the disabled status line in the tray menu. "Sync Now" emits `ot://sync-now` → `sync.kick()`.
 - **Quitting.** Quit (menu, ⌘Q, tray) asks the web app to flush the database (`ot://will-quit` → `db.saveNow()` → `quit_now`), with a 1.5 s fallback.
 - **Settings.** The hotkey is stored by the shell in `<config dir>/io.github.spuder.openthings/desktop.json`, not in the synced database, since it is per machine.
+- **Hotkey on Hyprland.** `src-tauri/src/hyprland.rs`: when `HYPRLAND_INSTANCE_SIGNATURE` is set, `set_hotkey` doesn't grab a key; it writes the bind and the quick-add window rules to `~/.config/hypr/openthings.conf` and appends one `source = …` line to `hyprland.conf` (only then, from Settings, never on startup). Hyprland reloads changed config on its own (`hyprctl reload` if `misc:disable_autoreload` is set). It refuses keys `hyprctl binds` already shows bound to something else, and picks `windowrule { }` or `windowrulev2` from `hyprctl version`.
 - **Guarding.** `isDesktop` (`'__TAURI_INTERNALS__' in window`) gates every native path; the web, PWA and Docker builds behave as before. Shared web files touched: `main.ts` (pick window), `reminders.svelte.ts` (`notifier.native` hook), `QuickAdd.svelte` (optional `native` prop), `SettingsView.svelte` (Desktop section).
 
 Shell → web events: `ot://command`, `ot://add`, `ot://reveal`, `ot://sync-now`, `ot://will-quit`, `ot://quick-add-open` (quick-add window). Web → shell commands: `desktop_info`, `set_hotkey`, `set_autostart`, `set_sync_status`, `set_reminders`, `show_notification`, `submit_quick_add`, `hide_quick_add`, `show_main_window`, `quit_now`.
@@ -55,7 +56,9 @@ A second launch hands its arguments to the running instance and exits.
 
 ## Hyprland (Omarchy)
 
-Apps can't grab global keys on Wayland, so bind quick add in Hyprland. In Omarchy, `~/.config/hypr/bindings.conf` (Super+Space is Omarchy's launcher):
+Apps can't grab global keys on Wayland, so Hyprland has to bind quick add. Settings → Desktop does that for you: choose a shortcut (or **Use Super+Alt+Space**; Super+Space is Omarchy's launcher) and OpenThings writes `~/.config/hypr/openthings.conf` and sources it from `hyprland.conf`. The key works as soon as Hyprland reloads its config, which it does by itself. **Turn off** removes the bind; to remove it all, delete the `source` line and the file.
+
+To set it up by hand instead (or in another compositor; sway uses `bindsym … exec openthings --quick-add`), put this in Omarchy's `~/.config/hypr/bindings.conf`:
 
 ```ini
 bind = SUPER ALT, SPACE, exec, openthings --quick-add
@@ -120,7 +123,9 @@ macOS (not yet run on real hardware):
 
 - [ ] First launch: Gatekeeper "Open Anyway" works; window opens to an empty database (no demo data).
 - [ ] Quit and relaunch: data, window size and position are kept.
-- [ ] ⌃⌥Space from another app opens the floating quick-add window; typing `Test @tomorrow %9am #x` previews tokens; ↵ adds it and the window hides; the to-do is in Upcoming with the tag and reminder. ⇧↵ adds and keeps the window open. Esc or clicking elsewhere hides it. Pressing ⌃⌥Space again hides it.
+- [ ] ⌃Space from another app opens the floating quick-add window; typing `Test @tomorrow %9am #x` previews tokens; ↵ adds it and the window hides; the to-do is in Upcoming with the tag and reminder. ⇧↵ adds and keeps the window open. Esc or clicking elsewhere hides it. Pressing ⌃Space again hides it. If ⌃Space switches input source instead (several keyboard layouts), turn off System Settings → Keyboard → Keyboard Shortcuts → Input Sources, or pick another key.
+- [ ] Opening quick add repeatedly (with and without typing first): the text field appears in place, empty, without sliding or jumping.
+- [ ] Settings → Desktop: click the shortcut and press the current one (⌃Space): it records instead of opening quick add; Esc cancels and ⌃Space works again.
 - [ ] Settings → Desktop: record a new shortcut (e.g. ⌃⌥⌘T); the old one stops working, the new one works after relaunch. "Reset" and "Turn off" work. A shortcut taken by another app shows an error.
 - [ ] Menu bar: File → New To-Do (⌘N), New Project, New Area; View → Today (⌥2) etc.; ⌘, opens Settings; ⌘K palette; ⌘F Quick Find; Help → Keyboard Shortcuts. No command fires twice (e.g. ⌘/ toggles the sidebar exactly once).
 - [ ] ⌘C / ⌘V / ⌘X / ⌘A / ⌘Z work in the quick-add field and task notes.
@@ -135,7 +140,9 @@ macOS (not yet run on real hardware):
 Arch / Hyprland:
 
 - [ ] `makepkg -si` (openthings-bin) installs; the app shows in the launcher (and its "Quick Add" action).
-- [ ] With the bind above, Super+Alt+Space opens the floating, centered quick-add window; adding works; Esc hides it.
+- [ ] Settings → Desktop → **Use Super+Alt+Space** writes `~/.config/hypr/openthings.conf` and one `source` line in `hyprland.conf`; without a restart, Super+Alt+Space opens the floating, centered quick-add window; adding works; Esc hides it.
+- [ ] Recording a key Omarchy already uses (e.g. Super+Return) shows an error and changes nothing. Recording a free one replaces the bind; **Turn off** removes it.
+- [ ] With an AppImage, the bind runs the AppImage path.
 - [ ] `openthings --add "From CLI"` adds to the Inbox while the app runs (toast appears).
 - [ ] Waybar shows the tray icon and menu.
 - [ ] A reminder fires as a mako notification with the window closed; clicking it opens the task.

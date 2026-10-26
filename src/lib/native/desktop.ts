@@ -49,12 +49,18 @@ export interface DesktopInfo {
   defaultHotkey: string;
   hotkeysAvailable: boolean;
   hotkeyError: string | null;
+  /** Hyprland: the shortcut is a bind OpenThings writes into this file (null elsewhere). */
+  hyprlandConfig: string | null;
+  /** Hyprland: that file is written and sourced by hyprland.conf. */
+  hyprlandBound: boolean;
   autostart: boolean;
   version: string;
 }
 
 export const desktopInfo = () => invoke<DesktopInfo>('desktop_info');
 export const setHotkey = (hotkey: string) => invoke('set_hotkey', { hotkey });
+/** Release the global shortcut while Settings records a new one (false: restore it). */
+export const pauseHotkey = (paused: boolean) => invoke('pause_hotkey', { paused });
 export const setAutostart = (enabled: boolean) => invoke<boolean>('set_autostart', { enabled });
 
 /** Short label for the tray tooltip and menu, like the in-app sync badge. */

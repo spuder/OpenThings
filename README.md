@@ -160,7 +160,7 @@ A fresh install starts empty — there is no demo data.
   <img src="docs/screenshots/desktop-today.png" alt="OpenThings desktop app on macOS, Today list" width="760">
 </p>
 
-| Quick add from anywhere (⌃⌥Space) | Settings → Desktop |
+| Quick add from anywhere (⌃Space) | Settings → Desktop |
 | --- | --- |
 | ![Floating quick-add window with a parsed date, tag and reminder](docs/screenshots/desktop-quickadd.png) | ![Desktop settings: global shortcut and launch at login](docs/screenshots/desktop-settings.png) |
 
@@ -186,19 +186,7 @@ The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebre
 
 **macOS first launch:** releases are signed and notarized. Builds from pull requests aren't, so macOS blocks them the first time: open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
 
-**Quick add from anywhere:** ⌃⌥Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Wayland apps can't grab global keys, so bind the CLI in Hyprland (Super+Space is Omarchy's launcher):
-
-```ini
-# ~/.config/hypr/bindings.conf
-bind = SUPER ALT, SPACE, exec, openthings --quick-add
-windowrule {
-  name = openthings-quick-add
-  match:title = ^(OpenThings Quick Add)$
-  float = on
-  center = on
-  pin = on
-}
-```
+**Quick add from anywhere:** ⌃Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Hyprland (Omarchy) apps can't grab global keys, so Settings → Desktop writes the bind into Hyprland's config for you: Super+Alt+Space by default, since Super+Space is Omarchy's launcher. On other Wayland compositors, bind `openthings --quick-add` yourself ([docs/desktop.md](docs/desktop.md#hyprland-omarchy)).
 
 `openthings --add "Buy milk #errand"` adds without a window; `openthings://add?title=…` links work too, from Automator, Shortcuts or scripts ([docs/url-scheme.md](docs/url-scheme.md)). The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
 

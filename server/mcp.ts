@@ -55,6 +55,10 @@ export function compact(t: TaskOut): Json {
   return out;
 }
 
+const nameArg = (a: Json) => {
+  if (typeof a.name !== 'string') throw new UserError('"name" must be a string');
+  return a.name;
+};
 const id = (a: Json) => {
   if (typeof a.id !== 'string' || !a.id) throw new UserError('"id" is required');
   return a.id;
@@ -236,7 +240,21 @@ export const TOOLS: Tool[] = [
     description: 'Create a project, optionally inside an area.',
     inputSchema: { type: 'object', properties: { name: str('Project name'), area: str('Area name or id') }, required: ['name'] },
     annotations: { readOnlyHint: false, destructiveHint: false },
-    run: (s, a) => s.addProject(String(a.name ?? ''), opt(a, 'area')),
+    run: (s, a) => s.addProject(nameArg(a), opt(a, 'area')),
+  },
+  {
+    name: 'add_area',
+    title: 'Add an area',
+    description:
+      'Create an area of responsibility. If an area with this name already exists, returns it with "existed": true. ' +
+      'Use its id for add_project, add_task and move_task.',
+    inputSchema: { type: 'object', properties: { name: str('Area name') }, required: ['name'] },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    run: (s, a) => {
+      const found = s.areaNamed(nameArg(a));
+      const area = found ?? s.addArea(nameArg(a));
+      return { id: area.id, name: area.name, ...(found ? { existed: true } : {}) };
+    },
   },
   {
     name: 'list_habits',

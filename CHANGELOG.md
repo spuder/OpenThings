@@ -2,6 +2,15 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.10.0](https://github.com/spuder/OpenThings/releases/tag/v0.10.0) - 2026-10-27
+
+### What's Changed
+
+* Importing from Things no longer gives to-dos a deadline in 2009: Things' far-future "no date" value is now read as no date. By @spuder in https://github.com/spuder/OpenThings/pull/104 (https://github.com/spuder/OpenThings/issues/100)
+* Nix packages are gone: the flake, NixOS module, FlakeHub publishing and the Nix CI workflow are removed. Install with Homebrew, the release downloads or the container image instead. By @spuder in https://github.com/spuder/OpenThings/pull/105 (https://github.com/spuder/OpenThings/issues/102)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.9.0...v0.10.0
+
 ## [v0.9.0](https://github.com/spuder/OpenThings/releases/tag/v0.9.0) - 2026-10-25
 
 ### What's Changed

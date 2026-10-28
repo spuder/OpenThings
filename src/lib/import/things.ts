@@ -194,6 +194,10 @@ export function decodeThingsDate(value: SqlValue | undefined): string | null {
     const d = new Date(year, month - 1, day);
     if (d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day) return ymd(d);
   }
+  // Things uses far-future packed dates such as 4001-01-01 as a "no date"
+  // sentinel. Without this they fall through to the 2001-seconds fallback and
+  // decode to a bogus date in 2009 (#100).
+  if (year > 2200 && year < 10000 && n % 128 === 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31) return null;
 
   // Seconds since 2001-01-01 (older Things 3 databases).
   const epoch = Date.UTC(2001, 0, 1) + n * 1000;

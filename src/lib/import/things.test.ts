@@ -108,6 +108,11 @@ describe('decodeThingsDate', () => {
     expect(decodeThingsDate(757382400)).toBe('2025-01-01');
   });
 
+  it('treats far-future packed sentinels like 4001-01-01 as no date (#100)', () => {
+    expect(packed(4001, 1, 1)).toBe(262213760);
+    expect(decodeThingsDate(262213760)).toBeNull();
+  });
+
   it('treats zero, null and empty values as no date', () => {
     expect(decodeThingsDate(0)).toBeNull();
     expect(decodeThingsDate(null)).toBeNull();

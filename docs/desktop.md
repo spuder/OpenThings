@@ -94,20 +94,38 @@ windowrule {
 
 **macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. Releases and manual runs are notarized and open normally. Builds from pull requests are only ad-hoc signed, so their first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
 
-**Arch:** run the AppImage from [Releases](https://github.com/spuder/OpenThings/releases), or install the package from a checkout (`makepkg` downloads the release tarball and checks it):
+**Arch / Omarchy with pacman:** every release publishes a small pacman repo with `openthings-bin` on the latest GitHub release. Add it to `/etc/pacman.conf`:
+
+```ini
+[openthings]
+SigLevel = Optional TrustAll
+Server = https://github.com/spuder/OpenThings/releases/latest/download
+```
+
+then `sudo pacman -Sy openthings-bin`. `sudo pacman -Syu` (or `omarchy-update`) picks up new versions. The packages aren't GPG-signed; pacman fetches them over HTTPS from GitHub.
+
+**Arch by hand:** run the AppImage from [Releases](https://github.com/spuder/OpenThings/releases), or install the package from a checkout of a release tag (`makepkg` downloads the release tarball; the checkout's PKGBUILD has `SKIP` checksums):
 
 ```sh
 cd packaging/arch/openthings-bin
 makepkg -si
 ```
 
-To try a build from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) instead, download `OpenThings-arch-x86_64`, copy its `openthings-<version>-linux-x86_64.tar.gz` into `packaging/arch/openthings-bin/` and run `makepkg -si --skipchecksums` (its checksum differs from the release's).
+To try a build from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) instead, download `OpenThings-arch-x86_64`, copy its `openthings-<version>-linux-x86_64.tar.gz` into `packaging/arch/openthings-bin/` and run `makepkg -si`.
 
-The `openthings` (source) and `openthings-bin` PKGBUILDs in `packaging/arch/` carry the checksums of the `v0.1.0` tag tarball and release asset. For a new release, bump `pkgver`, run `updpkgsums` and `makepkg --printsrcinfo > .SRCINFO`. CI checks that both build with `makepkg` in an `archlinux:latest` container (from this checkout's files, so with `--skipchecksums`) and that `.SRCINFO` matches.
+The `openthings` (source) and `openthings-bin` PKGBUILDs in `packaging/arch/` follow the app version: `scripts/bump-version.sh` sets `pkgver` in them and their `.SRCINFO`, and their checksums stay `SKIP`. The *Arch packages* workflow (`.github/workflows/arch-publish.yml`) fills in the real checksums from the published release. CI checks that both build with `makepkg` in an `archlinux:latest` container, that `pkgver` is the app version and that `.SRCINFO` matches; *Tag release* refuses a version the PKGBUILDs don't have.
+
+### AUR
+
+The *Arch packages* workflow pushes `openthings` and `openthings-bin` to the AUR when the `AUR_SSH_KEY` secret is set, and skips that step otherwise. AUR registration is paused for now ([#8](https://github.com/spuder/OpenThings/issues/8)). Once there's an account:
+
+1. `ssh-keygen -t ed25519 -N '' -C openthings-aur -f aur_key`, and add `aur_key.pub` under My Account → SSH Public Key on [aur.archlinux.org](https://aur.archlinux.org).
+2. `gh secret set AUR_SSH_KEY --repo spuder/OpenThings < aur_key`, then delete `aur_key`.
+3. Publish the current release: Actions → *Arch packages* → Run workflow (from `main`) with its tag, e.g. `v0.10.0`. The first push creates both packages.
 
 ## Releasing
 
-Run `scripts/bump-version.sh X.Y.Z` (it updates `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` and the iOS `MARKETING_VERSION`), add a `CHANGELOG.md` entry, and open a `Release vX.Y.Z` PR. Merging it releases: the *Tag release* workflow sees the new version on `main`, checks the files agree, tags the commit `v<version>` and starts the Desktop and Container workflows on the tag. Don't push the tag yourself. (A matching tag pushed by hand still works; the workflow skips versions that are already tagged.) The Desktop workflow's `release` job refuses tags whose commit isn't on `main`, checks the tag matches the version, publishes a GitHub release with the `.dmg`, `.app.zip`, AppImage and Linux tarball, and pushes the new version and `.dmg` checksum to `Casks/openthings.rb` in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings). It pushes with a write deploy key on that repo, stored here as the `TAP_DEPLOY_KEY` secret; to rotate it, make a new key pair, replace the deploy key and the secret.
+Run `scripts/bump-version.sh X.Y.Z` (it updates `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, the iOS `MARKETING_VERSION` and the Arch PKGBUILDs), add a `CHANGELOG.md` entry, and open a `Release vX.Y.Z` PR. Merging it releases: the *Tag release* workflow sees the new version on `main`, checks the files agree, tags the commit `v<version>` and starts the Desktop and Container workflows on the tag. Don't push the tag yourself. (A matching tag pushed by hand still works; the workflow skips versions that are already tagged.) The Desktop workflow's `release` job refuses tags whose commit isn't on `main`, checks the tag matches the version, publishes a GitHub release with the `.dmg`, `.app.zip`, AppImage and Linux tarball, and pushes the new version and `.dmg` checksum to `Casks/openthings.rb` in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings). It pushes with a write deploy key on that repo, stored here as the `TAP_DEPLOY_KEY` secret; to rotate it, make a new key pair, replace the deploy key and the secret.
 
 ## Signing and notarization
 
@@ -174,7 +192,7 @@ macOS (not yet run on real hardware):
 
 Arch / Hyprland:
 
-- [ ] `makepkg -si` (openthings-bin) installs; the app shows in the launcher (and its "Quick Add" action).
+- [ ] `pacman -Sy openthings-bin` from the `[openthings]` repo (or `makepkg -si`) installs; the app shows in the launcher (and its "Quick Add" action).
 - [ ] Settings → Desktop → **Use Super+Alt+Space** writes `~/.config/hypr/openthings.conf` and one `source` line in `hyprland.conf`; without a restart, Super+Alt+Space opens the floating, centered quick-add window; adding works; Esc hides it.
 - [ ] Recording a key Omarchy already uses (e.g. Super+Return) shows an error and changes nothing. Recording a free one replaces the bind; **Turn off** removes it.
 - [ ] With an AppImage, the bind runs the AppImage path.

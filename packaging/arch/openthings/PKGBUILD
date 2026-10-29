@@ -1,9 +1,11 @@
 # Maintainer: Spencer Owen <owenspencer at gmail dot com>
 #
 # Builds OpenThings (Tauri desktop app) from a release tag.
-# Before publishing to the AUR: bump pkgver, run `updpkgsums`, then `makepkg --printsrcinfo > .SRCINFO`.
+# pkgver follows the app version (scripts/bump-version.sh). Checksums stay SKIP here: the release
+# workflow (.github/workflows/arch-publish.yml) fills them in before publishing to the AUR and the
+# pacman repo.
 pkgname=openthings
-pkgver=0.1.0
+pkgver=0.10.0
 pkgrel=1
 pkgdesc='Self-hosted, local-first task manager with a calm, keyboard-first design'
 arch=('x86_64' 'aarch64')
@@ -17,7 +19,7 @@ optdepends=('notification-daemon: reminder notifications (mako, dunst, swaync, â
 conflicts=('openthings-bin')
 options=('!lto' '!debug')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/spuder/OpenThings/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('e7aae95c54c250876964cd730a51b325814da1279f535192bd1d62924f006de6')
+sha256sums=('SKIP')
 
 _srcdir() { echo "$srcdir/OpenThings-$pkgver"; }
 

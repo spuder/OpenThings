@@ -74,7 +74,9 @@ npx cap sync android  # same for the Android project (open it in Android Studio,
 Releases are automatic once a version bump merges to `main`; never push a `v*` tag by hand. Steps, details and how to check the result: `.claude/skills/release/SKILL.md` and `docs/desktop.md#releasing`.
 
 1. `scripts/bump-version.sh X.Y.Z`, add a `CHANGELOG.md` entry, open a `Release vX.Y.Z` PR.
-2. Merge it after checks pass. The *Tag release* workflow tags it, then Desktop notarizes, publishes the GitHub release and bumps the Homebrew cask (spuder/homebrew-openthings); Container publishes the image.
+2. Merge it after checks pass. The *Tag release* workflow tags it, then Desktop notarizes, publishes the GitHub release, bumps the Homebrew cask (spuder/homebrew-openthings) and publishes the Arch packages (pacman repo on the release; AUR when `AUR_SSH_KEY` is set); Container publishes the image.
+
+Version numbers live in several files, including the Arch PKGBUILDs; only change them with `scripts/bump-version.sh`, never by hand.
 
 ## Code map
 

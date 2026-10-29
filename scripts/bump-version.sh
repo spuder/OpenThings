@@ -17,10 +17,16 @@ perl -0pi -e "s/(\"name\": \"openthings\",\n  \"version\": )\"\Q$old\E\"/\$1\"$n
 perl -pi -e "s/^version = \"\Q$old\E\"/version = \"$new\"/" src-tauri/Cargo.toml
 perl -0pi -e "s/(name = \"openthings\"\nversion = )\"\Q$old\E\"/\$1\"$new\"/" src-tauri/Cargo.lock
 perl -pi -e "s/^MARKETING_VERSION = \Q$old\E\$/MARKETING_VERSION = $new/" ios/App/Config/OpenThings.xcconfig
+# AUR PKGBUILDs and their .SRCINFO (same as `makepkg --printsrcinfo`, which macOS lacks). Checksums
+# stay SKIP; .github/workflows/arch-publish.yml fills them in when it publishes the release.
+arch=(packaging/arch/openthings/PKGBUILD packaging/arch/openthings/.SRCINFO
+      packaging/arch/openthings-bin/PKGBUILD packaging/arch/openthings-bin/.SRCINFO)
+perl -pi -e "s/^pkgver=\Q$old\E\$/pkgver=$new/; s/^pkgrel=.*/pkgrel=1/" packaging/arch/*/PKGBUILD
+perl -pi -e "s/\Q$old\E/$new/g if /^\t(pkgver|source)/; s/^\tpkgrel = .*/\tpkgrel = 1/" packaging/arch/*/.SRCINFO
 
 # Every file must now say $new; fail loudly if a pattern stopped matching.
 bad=0
-for f in package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock ios/App/Config/OpenThings.xcconfig; do
+for f in package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock ios/App/Config/OpenThings.xcconfig "${arch[@]}"; do
   git diff --quiet -- "$f" && { echo "Not updated: $f" >&2; bad=1; }
 done
 [ "$bad" = 0 ] || exit 1

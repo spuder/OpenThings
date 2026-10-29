@@ -1,4 +1,4 @@
-import { addLink, normalizeSettings, openLink, pageNotes, serverError, serverRequest } from './lib.js';
+import { addedLabel, addLink, CONFIRM_MS, normalizeSettings, openLink, pageNotes, serverError, serverRequest } from './lib.js';
 
 const $ = (id) => document.getElementById(id);
 const form = $('form');
@@ -7,6 +7,7 @@ const status = $('status');
 
 let settings = normalizeSettings({});
 let tab = null;
+let stored0 = {};
 
 function show(msg, kind = '') {
   status.textContent = msg;
@@ -41,8 +42,8 @@ async function add(e) {
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(serverError(res.status, body, location.origin));
       text.value = '';
-      show(t === 'dump' ? 'Added to Brain Dump.' : 'Added.', 'ok');
-      setTimeout(() => window.close(), 900);
+      show(addedLabel(t), 'ok');
+      setTimeout(() => window.close(), CONFIRM_MS);
     } catch (err) {
       show(err instanceof TypeError ? `Can't reach ${settings.serverUrl}. Check the server URL in Settings.` : String(err.message ?? err), 'error');
     } finally {
@@ -57,8 +58,13 @@ async function add(e) {
     return show(`Couldn't open the link: ${err?.message ?? err}`, 'error');
   }
   text.value = '';
-  show('Sent. Allow OpenThings links if Firefox asks.', 'ok');
-  setTimeout(() => window.close(), 700);
+  if (stored0.handoffGranted) {
+    show(addedLabel(t), 'ok');
+    setTimeout(() => window.close(), CONFIRM_MS);
+  } else {
+    show(`${addedLabel(t)} — allow OpenThings links if Firefox asks.`, 'ok');
+    setTimeout(() => window.close(), CONFIRM_MS * 2);
+  }
 }
 
 async function openApp() {
@@ -73,6 +79,7 @@ async function openApp() {
 
 async function init() {
   const stored = await browser.storage.local.get(null);
+  stored0 = stored;
   settings = normalizeSettings(stored);
   if (settings.mode === 'server' && !settings.serverUrl) settings.mode = 'app';
   $('mode').textContent = settings.mode === 'server' ? 'Server' : 'App';
@@ -89,6 +96,8 @@ async function init() {
     $('includePage').checked = true;
   }
   await browser.action.setBadgeText({ text: '' });
+  // App mode, links not confirmed yet, and at least one sent: ask once, so later adds skip the tab.
+  if (settings.mode === 'app' && !stored.handoffGranted && (stored.handoffCount ?? 0) > 0) $('confirm').hidden = false;
   text.focus();
   text.select();
 }
@@ -98,6 +107,11 @@ text.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) form.requestSubmit();
 });
 $('open').addEventListener('click', openApp);
+$('confirmYes').addEventListener('click', async () => {
+  await browser.storage.local.set({ handoffGranted: true });
+  $('confirm').hidden = true;
+  text.focus();
+});
 $('settings').addEventListener('click', (e) => {
   e.preventDefault();
   browser.runtime.openOptionsPage();

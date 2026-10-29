@@ -89,16 +89,37 @@ export function isOpenThingsLink(link) {
   return typeof link === 'string' && /^openthings:\/\//i.test(link);
 }
 
-/**
- * Where to open an openthings:// link so Firefox's permission prompt shows full-size:
- * 'tab': on the active web page (an external link doesn't navigate it away);
- * 'helper': in handoff.html, for about:, the new tab page, extension pages and other pages extensions can't navigate.
- */
-export function handoffPlan(tabUrl) {
-  return /^https?:\/\//i.test(tabUrl ?? '') ? 'tab' : 'helper';
+/** Pages extensions can't navigate, or where the prompt can't show: about:, extension pages, files. */
+export function privilegedPage(url) {
+  return /^(about|moz-extension|chrome|resource|view-source|file|data|jar):/i.test(url ?? '');
 }
+
+/**
+ * How to hand an openthings:// link to Firefox, in order of preference.
+ * - 'background': the background page sets its own location to the link. Invisible, works on any page,
+ *   but Firefox can't show its "open with OpenThings?" prompt from there (bug 1745931), so it's only
+ *   used once you've allowed OpenThings links (`granted`). Background iframes aren't used: Firefox
+ *   blocks external-protocol iframes without fresh user activation (bug 1744018).
+ * - 'tab': the active web page's tab (an external link doesn't navigate it away); the prompt shows in it.
+ * - 'helper': handoff.html in a new tab, for pages where 'tab' can't work.
+ */
+export function handoffPlan({ granted = false, tabUrl } = {}) {
+  if (granted) return ['background'];
+  return privilegedPage(tabUrl) ? ['helper'] : ['tab', 'helper'];
+}
+
+/** The helper tab closes itself this long after the handoff, once links are allowed. */
+export const HELPER_AUTO_CLOSE_MS = 2500;
 
 /** The helper page's URL for a link. */
 export function handoffPage(link) {
   return `handoff.html?to=${encodeURIComponent(link)}`;
 }
+
+/** The popup's confirmation. In app mode it means "handed to the app": a link can't report back. */
+export function addedLabel(target) {
+  return target === 'dump' ? '✓ Added to Brain Dump' : '✓ Added to Inbox';
+}
+
+/** How long the popup shows the confirmation before closing. */
+export const CONFIRM_MS = 1200;

@@ -30,16 +30,25 @@ browser.runtime.onMessage.addListener((msg) => {
 });
 
 async function handoff(link, tabId) {
+  const { handoffGranted = false, handoffCount = 0 } = await browser.storage.local.get(['handoffGranted', 'handoffCount']);
   const [active] = await browser.tabs.query({ active: true, currentWindow: true });
   const tab = tabId != null ? await browser.tabs.get(tabId).catch(() => active) : active;
-  if (tab?.id != null && handoffPlan(tab.url) === 'tab') {
+  await browser.storage.local.set({ handoffCount: handoffCount + 1 });
+  for (const via of handoffPlan({ granted: handoffGranted, tabUrl: tab?.url })) {
     try {
-      await browser.tabs.update(tab.id, { url: link });
-      return { via: 'tab' };
+      if (via === 'background') {
+        // External protocols don't replace the document, so this page stays as it is.
+        window.location.href = link;
+      } else if (via === 'tab') {
+        if (tab?.id == null) continue;
+        await browser.tabs.update(tab.id, { url: link });
+      } else {
+        await browser.tabs.create({ url: browser.runtime.getURL(handoffPage(link)), active: true, index: tab ? tab.index + 1 : undefined, windowId: tab?.windowId });
+      }
+      return { via };
     } catch {
-      // Some pages can't be navigated by extensions (reader view, addons.mozilla.org): use the helper.
+      // Try the next way (some pages can't be navigated by extensions: reader view, addons.mozilla.org).
     }
   }
-  await browser.tabs.create({ url: browser.runtime.getURL(handoffPage(link)), active: true, index: tab ? tab.index + 1 : undefined, windowId: tab?.windowId });
-  return { via: 'helper' };
+  return { via: 'none' };
 }

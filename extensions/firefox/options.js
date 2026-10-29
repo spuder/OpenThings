@@ -11,6 +11,7 @@ async function init() {
   form.elements.mode.value = s.mode;
   $('serverUrl').value = s.serverUrl;
   $('dump').checked = s.dump;
+  $('handoffGranted').checked = (await browser.storage.local.get('handoffGranted')).handoffGranted === true;
 }
 
 /** Ask for access to the server's host (needs the click), so fetch from the popup is allowed. */
@@ -25,7 +26,7 @@ form.addEventListener('submit', async (e) => {
   if (mode === 'server' && !serverUrl) return show('Enter the server URL.', 'error');
   if (mode === 'server' && !(await grant(serverUrl))) return show('Firefox needs access to the server to add to-dos.', 'error');
   const dump = $('dump').checked;
-  await browser.storage.local.set({ mode, serverUrl, dump, ...(dump ? {} : { target: 'inbox' }) });
+  await browser.storage.local.set({ mode, serverUrl, dump, handoffGranted: $('handoffGranted').checked, ...(dump ? {} : { target: 'inbox' }) });
   $('serverUrl').value = serverUrl;
   show('Saved.', 'ok');
 });

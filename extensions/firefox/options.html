@@ -18,6 +18,10 @@
       <legend>Lists</legend>
       <label><input type="checkbox" id="dump" checked /> <b>Brain Dump</b>: show the Inbox / Brain Dump switch in the popup. Turn it off if Brain Dump is off in OpenThings (Settings → Features); then everything goes to the Inbox.</label>
     </fieldset>
+    <fieldset>
+      <legend>App links</legend>
+      <label><input type="checkbox" id="handoffGranted" /> <b>Send silently</b>: Firefox already opens <code>openthings://</code> links with OpenThings (you chose <i>Always allow</i>). To-dos are sent without opening or touching a tab. Turn it off if nothing reaches the app; it will show Firefox's prompt again.</label>
+    </fieldset>
     <label>Server URL
       <input type="url" id="serverUrl" placeholder="https://openthings.example.ts.net" />
     </label>

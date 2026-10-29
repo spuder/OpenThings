@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain JS module without types
-import { addLink, normalizeServerUrl, normalizeSettings, openLink, pageNotes, serverError, serverRequest } from './lib.js';
+import { addedLabel, addLink, normalizeServerUrl, normalizeSettings, openLink, pageNotes, serverError, serverRequest } from './lib.js';
 import { addLinkParsed, parseRoute } from '../../src/lib/native/snapshot';
 
 const day = '2026-10-29';
@@ -101,12 +101,26 @@ describe('Brain Dump switch', () => {
 });
 
 describe('handoff', () => {
-  it('uses the web page tab, or the helper page where extensions cannot navigate', async () => {
+  it('sends silently from the background once links are allowed', async () => {
     // @ts-expect-error plain JS module without types
-    const { handoffPlan, handoffPage, isOpenThingsLink } = await import('./lib.js');
-    expect(handoffPlan('https://example.com/a')).toBe('tab');
-    expect(handoffPlan('http://localhost:8080/')).toBe('tab');
-    for (const u of ['about:newtab', 'about:home', 'about:debugging', 'moz-extension://x/options.html', 'file:///tmp/a', '', undefined]) expect(handoffPlan(u)).toBe('helper');
+    const { handoffPlan } = await import('./lib.js');
+    for (const tabUrl of ['https://example.com', 'about:newtab', undefined]) expect(handoffPlan({ granted: true, tabUrl })).toEqual(['background']);
+  });
+  it('before that, uses the web page tab, or the helper page where extensions cannot navigate', async () => {
+    // @ts-expect-error plain JS module without types
+    const { handoffPlan, privilegedPage } = await import('./lib.js');
+    expect(handoffPlan({ tabUrl: 'https://example.com/a' })).toEqual(['tab', 'helper']);
+    expect(handoffPlan({ tabUrl: 'http://localhost:8080/' })).toEqual(['tab', 'helper']);
+    // Unknown URL (no tab access): try the tab first, fall back to the helper.
+    expect(handoffPlan({})).toEqual(['tab', 'helper']);
+    for (const u of ['about:newtab', 'about:home', 'about:debugging', 'moz-extension://x/options.html', 'file:///tmp/a']) {
+      expect(privilegedPage(u)).toBe(true);
+      expect(handoffPlan({ tabUrl: u })).toEqual(['helper']);
+    }
+  });
+  it('helper page link and the openthings:// only check', async () => {
+    // @ts-expect-error plain JS module without types
+    const { handoffPage, isOpenThingsLink } = await import('./lib.js');
     const link = addLink({ text: 'Buy milk #shop', target: 'dump' });
     const page = handoffPage(link);
     expect(page.startsWith('handoff.html?to=')).toBe(true);
@@ -114,5 +128,12 @@ describe('handoff', () => {
     expect(isOpenThingsLink(link)).toBe(true);
     expect(isOpenThingsLink('javascript:alert(1)')).toBe(false);
     expect(isOpenThingsLink('https://evil.test')).toBe(false);
+  });
+});
+
+describe('addedLabel', () => {
+  it('names the destination', () => {
+    expect(addedLabel('dump')).toBe('✓ Added to Brain Dump');
+    expect(addedLabel('inbox')).toBe('✓ Added to Inbox');
   });
 });

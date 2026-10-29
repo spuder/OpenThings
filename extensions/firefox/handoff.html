@@ -11,10 +11,11 @@
   <main>
     <img src="icons/icon-64.png" alt="" width="48" height="48" />
     <h1 style="font-size: 16px; margin: 0">Opening OpenThings…</h1>
-    <p id="msg">If Firefox asks, allow it to open <b>openthings</b> links with OpenThings (tick <i>Always allow</i> so it won't ask again).</p>
+    <p id="msg">If Firefox asks, allow it to open <b>openthings</b> links with OpenThings (tick <i>Always allow</i> so it won't ask again). Then press <b>It worked</b>: later to-dos are sent without opening a tab.</p>
     <div class="buttons" style="gap: 8px">
       <button type="button" id="retry" class="secondary">Try again</button>
-      <button type="button" id="close">Close</button>
+      <button type="button" id="close" class="secondary">Close</button>
+      <button type="button" id="worked">It worked</button>
     </div>
     <p class="hint" style="font-size: 12px; color: var(--muted)">Nothing happened? Install the OpenThings desktop app, or use your server in the extension's Settings.</p>
   </main>

@@ -30,3 +30,6 @@ button:disabled { opacity: .6; cursor: default; }
 footer { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 footer a { color: var(--accent); }
 .target[hidden] { display: none; }
+.confirm { font-size: 12px; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.confirm[hidden] { display: none; }
+.confirm button { padding: 4px 8px; }

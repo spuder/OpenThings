@@ -60,18 +60,6 @@ fn default_hotkey() -> &'static str {
 }
 const TRAY_ID: &str = "openthings-tray";
 
-/// Bumped each time the tray is rebuilt after an Omarchy theme switch (see `retint_tray`).
-static TRAY_GEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-
-/// The tray's id for a generation; generation 0 (every non-Omarchy run) keeps the original id.
-fn tray_id_for(generation: u32) -> String {
-    if generation == 0 { TRAY_ID.to_string() } else { format!("{TRAY_ID}-{generation}") }
-}
-
-fn tray_id() -> String {
-    tray_id_for(TRAY_GEN.load(std::sync::atomic::Ordering::SeqCst))
-}
-
 /// Tray icons, one per sync state (drawn for this project, see `scripts/make-tray-icons.py`).
 const TRAY_LOCAL: &[u8] = include_bytes!("../icons/tray/local.png");
 const TRAY_SYNCED: &[u8] = include_bytes!("../icons/tray/synced.png");
@@ -455,39 +443,12 @@ fn tray_image(status: &str) -> Option<Image<'static>> {
     }
 }
 
-fn current_tray_status() -> String {
-    let status = TRAY_STATUS.lock().unwrap().clone();
-    if status.is_empty() { "local".into() } else { status }
-}
-
-/// Redraw the tray after an Omarchy theme switch.
-///
-/// `omarchy-theme-set` restarts the bar (quickshell's `omarchy-bar`, which hosts the
-/// StatusNotifierWatcher). A plain `set_icon` during that restart left the item registered on
-/// D-Bus but never shown again by the new bar: tray-icon's Linux backend deletes the previous PNG
-/// and points libappindicator's IconName at a new file, and the restarted host doesn't pick the
-/// item back up. So wait for the bar to come back, then drop the tray and build a fresh one under a
-/// new id (new SNI object path, new icon file), which registers cleanly with the new watcher. Done
-/// twice in case the bar is slow to restart; rebuilding an already-visible tray is harmless.
+/// Redraw the tray icon after an Omarchy theme switch.
 fn retint_tray(app: &AppHandle) {
-    let app = app.clone();
-    let _ = std::thread::Builder::new().name("omarchy-tray".into()).spawn(move || {
-        for delay in [2, 4] {
-            std::thread::sleep(std::time::Duration::from_secs(delay));
-            let h = app.clone();
-            let _ = app.run_on_main_thread(move || rebuild_tray(&h));
-        }
-    });
-}
-
-fn rebuild_tray(app: &AppHandle) {
-    let old = app.remove_tray_by_id(&tray_id());
-    TRAY_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let shell = app.state::<Arc<Shell>>().inner().clone();
-    if let Err(e) = build_tray(app, &shell) {
-        eprintln!("tray rebuild failed: {e}");
+    let status = TRAY_STATUS.lock().unwrap().clone();
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        let _ = tray.set_icon(tray_image(if status.is_empty() { "local" } else { &status }));
     }
-    drop(old);
 }
 
 fn stock_tray_image(status: &str) -> Option<Image<'static>> {
@@ -516,8 +477,8 @@ fn build_tray(app: &AppHandle, shell: &Arc<Shell>) -> tauri::Result<TrayIcon> {
         ],
     )?;
     *shell.tray_status.lock().unwrap() = Some(status);
-    TrayIconBuilder::with_id(tray_id())
-        .icon(tray_image(&current_tray_status()).expect("tray icon"))
+    TrayIconBuilder::with_id(TRAY_ID)
+        .icon(tray_image("local").expect("tray icon"))
         .tooltip("OpenThings")
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -710,7 +671,7 @@ struct SyncInfo {
 
 #[tauri::command]
 fn set_sync_status(app: AppHandle, shell: tauri::State<Arc<Shell>>, info: SyncInfo) {
-    if let Some(tray) = app.tray_by_id(&tray_id()) {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
         let _ = tray.set_icon(tray_image(&info.status));
         let _ = tray.set_tooltip(Some(format!("OpenThings · {}", info.label)));
     }
@@ -960,15 +921,6 @@ pub fn run() {
             }
             _ => {}
         });
-}
-
-#[cfg(test)]
-mod tray_id_tests {
-    #[test]
-    fn first_generation_keeps_original_id() {
-        assert_eq!(super::tray_id_for(0), "openthings-tray");
-        assert_eq!(super::tray_id_for(3), "openthings-tray-3");
-    }
 }
 
 #[cfg(test)]

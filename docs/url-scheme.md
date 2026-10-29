@@ -24,7 +24,7 @@ openthings://add?title=Call%20the%20plumber&when=tomorrow&list=House&tags=errand
 | `tags` | Comma-separated: `tags=errand,phone`. Tags that don't exist yet are created. |
 | `list` | A project or area, by name; the start of the name is enough. A project with that name is created if there is none. |
 | `text` | Quick-add text with its tokens: `Buy milk #shop @fri // 2%`. See the quick-add syntax in the README. The fields above go on top of it. |
-| `save` | `save=1` adds the to-do right away and shows a short "Added" notice. Without it, quick add opens with everything filled in, for you to check and press Enter. |
+| `save` | `save=1` adds the to-do right away and shows a short "Added" notice. In the desktop app it saves in the background: the window isn't shown or focused, and when it's hidden a native "Added to Inbox" notification appears instead (a link that starts the app is held until it has loaded). Without it, quick add opens with everything filled in, for you to check and press Enter. |
 
 A to-do with no `list` and no `when` goes to the Inbox. With `save=1` and no `title` or `text`
 nothing is added. A `when` or `deadline` the app doesn't understand is left out.

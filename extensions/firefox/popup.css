@@ -10,7 +10,11 @@ textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-
 .target { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .target label { cursor: pointer; }
 .target input { position: absolute; opacity: 0; pointer-events: none; }
-.target span { display: block; text-align: center; padding: 5px 0; }
+.target span { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 0; }
+.target .icon { flex: none; }
+.target input[value="inbox"] + span .icon { color: var(--accent); }
+.target input[value="dump"] + span .icon { color: var(--dump); }
+.target input:checked + span .icon { color: inherit; }
 .target label + label span { border-left: 1px solid var(--border); }
 .target input:checked + span { background: var(--accent); color: #fff; font-weight: 600; }
 .target input[value="dump"]:checked + span { background: var(--dump); color: #222; }

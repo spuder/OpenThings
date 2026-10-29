@@ -2,6 +2,16 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.11.0](https://github.com/spuder/OpenThings/releases/tag/v0.11.0) - 2026-10-28
+
+### What's Changed
+
+* The desktop app follows the Omarchy desktop theme. By @spuder in https://github.com/spuder/OpenThings/pull/108 (https://github.com/spuder/OpenThings/issues/107)
+* Complete a to-do with C instead of X. By @spuder in https://github.com/spuder/OpenThings/pull/112
+* Overlays no longer flicker or bounce when they open, and Ctrl+K toggles the command palette. By @spuder in https://github.com/spuder/OpenThings/pull/111 (https://github.com/spuder/OpenThings/issues/110)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.10.0...v0.11.0
+
 ## [v0.10.0](https://github.com/spuder/OpenThings/releases/tag/v0.10.0) - 2026-10-27
 
 ### What's Changed

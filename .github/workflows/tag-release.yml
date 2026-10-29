@@ -1,9 +1,9 @@
 name: Tag release
 
 # When a merge to main changes the app version (src-tauri/tauri.conf.json), tag the commit
-# v<version> and start the Desktop, Container and Android workflows on that tag. Desktop
+# v<version> and start the Desktop, Container, Android and TestFlight workflows on that tag. Desktop
 # notarizes, publishes the GitHub release and bumps the Homebrew cask; Container publishes the image;
-# Android attaches the signed APK to the release.
+# Android attaches the signed APK to the release; TestFlight uploads the iOS build.
 # A tag pushed with GITHUB_TOKEN doesn't trigger `on: push` workflows, but workflow_dispatch
 # does, so no extra secrets are needed. Pushing a tag by hand still works. See docs/desktop.md#releasing.
 on:
@@ -57,4 +57,5 @@ jobs:
           gh workflow run desktop.yml --ref "$tag"
           gh workflow run container.yml --ref "$tag"
           gh workflow run android.yml --ref "$tag"
-          echo "Tagged $tag; started Desktop, Container and Android on it."
+          gh workflow run testflight.yml --ref "$tag"
+          echo "Tagged $tag; started Desktop, Container, Android and TestFlight on it."

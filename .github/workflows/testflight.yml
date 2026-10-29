@@ -1,0 +1,202 @@
+name: TestFlight
+
+# Archives the iOS app with its widget and share extensions, signs it for App Store distribution
+# and uploads it to TestFlight. Submitting for App Store review stays manual.
+# Tag release starts this on each new v* tag (tags pushed with GITHUB_TOKEN don't fire `on: push`);
+# a tag pushed by hand, or Actions → TestFlight → Run workflow, works too. Skips cleanly when the
+# secrets aren't set. One-time setup and secrets: docs/testflight.md.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check secrets
+        id: secrets
+        env:
+          DIST_CERT: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          for v in DIST_CERT TEAM_ID API_KEY_ID API_ISSUER_ID API_KEY_CONTENT; do
+            if [ -z "${!v}" ]; then
+              echo "::notice::TestFlight upload skipped: secrets not set (docs/testflight.md)."
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.enabled == 'true'
+        with:
+          fetch-depth: 0
+
+      # Only commits that reached main (through a reviewed merge) are uploaded, whoever pushed the tag.
+      - name: Require the commit to be on main
+        if: steps.secrets.outputs.enabled == 'true' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) isn't on main; only commits merged to main are uploaded."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.enabled == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Xcode version
+        if: steps.secrets.outputs.enabled == 'true'
+        run: |
+          # Capacitor 8 needs Xcode 26+. Pick the newest installed Xcode.
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+
+      - name: Build web app and sync Capacitor
+        if: steps.secrets.outputs.enabled == 'true'
+        run: |
+          npm ci
+          npm run build
+          npx cap sync ios
+
+      - name: Import Apple Distribution certificate and API key
+        id: sign
+        if: steps.secrets.outputs.enabled == 'true'
+        env:
+          DIST_CERT: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          DIST_CERT_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          set -eu
+          umask 077
+          keychain="$RUNNER_TEMP/ios-signing.keychain-db"
+          kc_pass="$(openssl rand -hex 24)"
+          printf '%s' "$DIST_CERT" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security create-keychain -p "$kc_pass" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$kc_pass" "$keychain"
+          security import "$RUNNER_TEMP/dist.p12" -k "$keychain" -P "$DIST_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kc_pass" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          rm "$RUNNER_TEMP/dist.p12"
+          if ! security find-identity -v -p codesigning "$keychain" | grep -q '"Apple Distribution: '; then
+            echo "::error::APPLE_DISTRIBUTION_CERTIFICATE has no \"Apple Distribution\" identity."
+            exit 1
+          fi
+          # altool looks for AuthKey_<id>.p8 in ./private_keys, ~/private_keys, ~/.private_keys or
+          # ~/.appstoreconnect/private_keys; xcodebuild takes the path directly.
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          key="$HOME/.appstoreconnect/private_keys/AuthKey_$API_KEY_ID.p8"
+          printf '%s\n' "$API_KEY_CONTENT" > "$key"
+          echo "keychain=$keychain" >> "$GITHUB_OUTPUT"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Swift packages
+        if: steps.secrets.outputs.enabled == 'true'
+        working-directory: ios/App
+        run: xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App
+
+      # Automatic signing (as in the project) with the API key: -allowProvisioningUpdates lets Xcode
+      # create or refresh the App Store profiles for the app and both extensions. The build number
+      # must be unique per upload, so it comes from the run number instead of the committed "1".
+      - name: Archive
+        if: steps.secrets.outputs.enabled == 'true'
+        working-directory: ios/App
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          KEY_PATH: ${{ steps.sign.outputs.key }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/OpenThings.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$API_KEY_ID" \
+            -authenticationKeyIssuerID "$API_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            | tee "$RUNNER_TEMP/archive.log" | grep -E '(error|BUILD|ARCHIVE|\*\* )' || true
+          grep -q 'ARCHIVE SUCCEEDED' "$RUNNER_TEMP/archive.log"
+
+      - name: Export IPA
+        if: steps.secrets.outputs.enabled == 'true'
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          KEY_PATH: ${{ steps.sign.outputs.key }}
+        run: |
+          set -eu
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/OpenThings.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$API_KEY_ID" \
+            -authenticationKeyIssuerID "$API_ISSUER_ID"
+          ls -l "$RUNNER_TEMP/export"
+
+      - name: Upload to TestFlight
+        if: steps.secrets.outputs.enabled == 'true'
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          set -eu
+          ipa="$(ls "$RUNNER_TEMP"/export/*.ipa | head -1)"
+          xcrun altool --upload-app --type ios --file "$ipa" \
+            --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID"
+          echo "Uploaded $(basename "$ipa"), build ${{ github.run_number }}; it shows in TestFlight after processing." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove signing keychain and API key
+        if: always() && steps.secrets.outputs.enabled == 'true'
+        run: |
+          security delete-keychain "${{ steps.sign.outputs.keychain }}" 2>/dev/null || true
+          rm -rf "$HOME/.appstoreconnect/private_keys"
+
+      - name: Upload archive log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-archive-log
+          path: ${{ runner.temp }}/archive.log
+          if-no-files-found: ignore

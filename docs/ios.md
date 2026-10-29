@@ -147,6 +147,10 @@ After changing web code: `npm run build && npx cap sync ios`, then Run again. Fo
 
 CI (`.github/workflows/ios.yml`) builds the App scheme (which builds and embeds both extensions) for the Simulator with `CODE_SIGNING_ALLOWED=NO`.
 
+## TestFlight
+
+Each release tag uploads a signed build to TestFlight once the one-time Apple setup and secrets are in place. See [testflight.md](testflight.md).
+
 ## Device test checklist
 
 - [ ] App launches to an empty database (no demo data), no white flash in dark mode.

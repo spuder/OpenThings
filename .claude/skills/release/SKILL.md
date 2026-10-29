@@ -26,3 +26,4 @@ If `git push` over SSH fails with `communication with agent failed` (the 1Passwo
 - The macOS build is notarized: download the `.dmg` and `.app.zip`, then `spctl -a -vv -t exec OpenThings.app` and `spctl -a -vv -t open --context context:primary-signature <dmg>` both say `source=Notarized Developer ID`.
 - `Casks/openthings.rb` in spuder/homebrew-openthings has `version "X.Y.Z"` (pushed by `github-actions[bot]`).
 - `ghcr.io/spuder/openthings:X.Y.Z` exists.
+- TestFlight: `gh run list -R spuder/OpenThings -w TestFlight -L 1` succeeded (or skipped with a notice if its secrets aren't set), and build X.Y.Z shows in App Store Connect → TestFlight (docs/testflight.md).

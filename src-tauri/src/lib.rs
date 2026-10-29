@@ -11,7 +11,8 @@
 //! - native notifications for reminders (and a backstop timer, so they fire on time even if the
 //!   hidden webview is throttled);
 //! - a native macOS menu bar wired to the web app's command registry;
-//! - window-state memory and launch at login.
+//! - window-state memory and launch at login;
+//! - on Omarchy, the desktop theme's colors, kept in step as it changes (`omarchy`).
 //!
 //! The web app talks to this crate through the commands below and the `ot://…` events; see
 //! `src/lib/native/desktop.ts` and `docs/desktop.md`.
@@ -39,6 +40,7 @@ use tauri_plugin_deep_link::DeepLinkExt as _;
 use tauri_plugin_notification::NotificationExt as _;
 
 mod hyprland;
+mod omarchy;
 
 const MAIN: &str = "main";
 const QUICK_ADD: &str = "quickadd";
@@ -709,6 +711,12 @@ fn open_self_hosting_docs() -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// The Omarchy desktop theme to follow, or null when this isn't an Omarchy desktop.
+#[tauri::command]
+fn omarchy_theme() -> Option<omarchy::Current> {
+    omarchy::read()
+}
+
 /// The web app saved its database; exit now.
 #[tauri::command]
 fn quit_now(app: AppHandle, shell: tauri::State<Arc<Shell>>) {
@@ -762,6 +770,7 @@ pub fn run() {
             hide_quick_add,
             show_main_window,
             open_self_hosting_docs,
+            omarchy_theme,
             quit_now,
         ])
         .setup(move |app| {
@@ -838,6 +847,7 @@ pub fn run() {
             }
 
             spawn_reminder_thread(handle.clone(), shell.clone());
+            omarchy::watch(handle.clone());
 
             // Deep links: register the scheme for AppImages (packages ship it in their .desktop file).
             #[cfg(target_os = "linux")]

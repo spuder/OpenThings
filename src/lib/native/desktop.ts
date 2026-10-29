@@ -9,6 +9,7 @@
  *   ot://reveal   <task id>      open a task (notification click, openthings://task/<id>)
  *   ot://sync-now                tray "Sync Now"
  *   ot://will-quit               save the database, then call `quit_now`
+ *   ot://omarchy-theme {id, colors}  the Omarchy desktop theme changed (all windows)
  * Web -> shell (commands): set_sync_status, set_reminders, show_notification, quit_now, …
  *
  * See docs/desktop.md.
@@ -64,6 +65,19 @@ export const pauseHotkey = (paused: boolean) => invoke('pause_hotkey', { paused 
 export const setAutostart = (enabled: boolean) => invoke<boolean>('set_autostart', { enabled });
 /** The webview can't open external links itself; this opens README#self-hosting in the browser. */
 export const openSelfHostingDocs = () => invoke('open_self_hosting_docs');
+
+/** The Omarchy desktop's current theme: its id and the text of its colors.toml. */
+export interface OmarchyTheme {
+  id: string;
+  colors: string;
+}
+
+/** Call `fn` with the Omarchy desktop theme now (null: not an Omarchy desktop) and whenever it changes. */
+export function followOmarchyTheme(fn: (t: OmarchyTheme | null) => void) {
+  if (!isDesktop) return;
+  void invoke<OmarchyTheme | null>('omarchy_theme').then(fn, () => {});
+  void listen<OmarchyTheme>('ot://omarchy-theme', fn);
+}
 
 /** Short label for the tray tooltip and menu, like the in-app sync badge. */
 export function syncLabel(s: SyncState): string {

@@ -433,11 +433,12 @@ export const commands: Command[] = [
     title: 'Choose theme (Omarchy themes)…',
     group: 'App',
     keys: ['shift+t'],
-    // Desktop only: the picker is built for a keyboard and a wide screen.
-    when: () => !isTouch && !isNarrow(),
+    // Desktop only: the picker is built for a keyboard and a wide screen. On an Omarchy desktop the
+    // theme follows the system's.
+    when: () => !isTouch && !isNarrow() && !theme.following,
     run: () => (store.overlay = 'themes'),
   },
-  { id: 'app.theme', title: 'Toggle dark mode', group: 'App', keys: ['shift+d'], run: () => { theme.toggle(); store.notify(theme.isDark ? 'Dark mode' : 'Light mode'); } },
+  { id: 'app.theme', title: 'Toggle dark mode', group: 'App', keys: ['shift+d'], when: () => !theme.following, run: () => { theme.toggle(); store.notify(theme.isDark ? 'Dark mode' : 'Light mode'); } },
   { id: 'app.mute', title: 'Toggle sounds', group: 'App', keys: ['shift+m'], run: () => store.toggleMute() },
   { id: 'app.export', title: 'Export JSON backup', group: 'App', keys: ['mod+shift+e'], run: () => store.exportJson() },
 ];

@@ -391,20 +391,27 @@ curl '${base}/api/v1/tasks?view=today'`);
   <section>
     <header>
       <h2>Appearance</h2>
-      <kbd title="Toggle dark mode">⇧D</kbd>
+      {#if !theme.following}<kbd title="Toggle dark mode">⇧D</kbd>{/if}
     </header>
-    <div class="segmented" role="radiogroup" aria-label="Theme">
-      {#each themes as [value, label]}
-        <button role="radio" aria-checked={!theme.omarchy && theme.pref === value} class:on={!theme.omarchy && theme.pref === value} onclick={() => theme.set(value)}>{label}</button>
-      {/each}
-    </div>
-    {#if !isTouch}
+    {#if theme.following}
       <div class="omarchy">
-        <span>Omarchy theme: <strong>{theme.palette?.name ?? 'None'}</strong></span>
-        <button class="btn" onclick={() => (store.overlay = 'themes')}>Choose theme… <kbd>⇧T</kbd></button>
+        <span>Following your Omarchy theme: <strong>{theme.palette?.name}</strong></span>
       </div>
+      <p class="note">Change it from Omarchy's theme menu and OpenThings follows along.</p>
+    {:else}
+      <div class="segmented" role="radiogroup" aria-label="Theme">
+        {#each themes as [value, label]}
+          <button role="radio" aria-checked={!theme.omarchy && theme.pref === value} class:on={!theme.omarchy && theme.pref === value} onclick={() => theme.set(value)}>{label}</button>
+        {/each}
+      </div>
+      {#if !isTouch}
+        <div class="omarchy">
+          <span>Omarchy theme: <strong>{theme.palette?.name ?? 'None'}</strong></span>
+          <button class="btn" onclick={() => (store.overlay = 'themes')}>Choose theme… <kbd>⇧T</kbd></button>
+        </div>
+      {/if}
+      <p class="note">System follows your device's light/dark setting. Choices are saved on this device only.</p>
     {/if}
-    <p class="note">System follows your device's light/dark setting. Choices are saved on this device only.</p>
   </section>
 
   {#if isDesktop}<DesktopSettings />{/if}

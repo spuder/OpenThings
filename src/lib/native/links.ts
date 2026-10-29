@@ -10,17 +10,15 @@ import { addLinkParsed, addLinkPrefill, parseRoute } from './snapshot';
 
 /** Returns false when the link isn't one OpenThings knows. */
 export function openRoute(url: string): boolean {
-  let r = parseRoute(url);
+  const r = parseRoute(url);
   if (!r) return false;
-  // With Brain Dump turned off its list is hidden and items in it expire unseen: use the Inbox.
-  if (r.kind === 'add' && r.dump && !viewEnabled('dump')) r = { ...r, dump: false };
   if (r.kind === 'task') store.reveal(r.id);
   else if (r.kind === 'view') store.go({ kind: r.view });
   else if (r.kind === 'pair') {
     pairing.server = r.server;
     store.go({ kind: 'settings' });
   } else if (r.save) {
-    const p = addLinkParsed(r, store.day);
+    const p = addLinkParsed(r, store.day, viewEnabled('dump'));
     if (!p.title) {
       store.notify('Nothing to add: the link has no title');
       return true;
@@ -29,8 +27,7 @@ export function openRoute(url: string): boolean {
     store.addParsed(p, { useContext: false });
     store.notify(`Added “${p.title}”`);
   } else {
-    store.quickAddPrefill = addLinkPrefill(r);
-    store.overlay = 'quickadd';
+    store.openQuickAdd(addLinkPrefill(r, store.day, viewEnabled('dump')));
   }
   return true;
 }

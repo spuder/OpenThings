@@ -12,13 +12,19 @@
   let { native = null }: { native?: { submit(text: string, keepOpen: boolean): void; close(): void } | null } = $props();
 
   // Brain Dump is for getting things out of your head: a plain box, no syntax, chips or tags.
-  // The text is kept literally. Opened elsewhere with @dump (B), it still lands in the dump.
+  // The text is kept literally. Opened elsewhere with just @dump (B), it still lands in the dump.
+  // A pre-fill with more than that (a link's title, tags or `@inbox`) opens full quick add, so
+  // nothing in it is dropped or applied unseen.
   const prefill = parseQuickAdd(store.quickAddPrefill, store.day);
-  const simple = $derived(!native && (store.view.kind === 'dump' || prefill.dump));
+  const bareDump = prefill.dump && !prefill.title && !prefill.notes && prefill.tokens.length === 1;
+  const simple = $derived(!native && (bareDump || (store.view.kind === 'dump' && !store.quickAddPrefill.trim())));
   let value = $state((() => (simple ? '' : store.quickAddPrefill))());
   // Opened with the current list pre-filled (+Project, @today): that text is the context now, so
   // deleting it sends the to-do to the Inbox instead of falling back to the current list.
   const context = store.quickAddPrefill && store.quickAddPrefill === store.contextToken() ? store.quickAddPrefill : '';
+  // What adding another (Shift/⌘-Enter) starts from: the context, or a pre-fill of only tokens
+  // (`@inbox` from a widget), so every to-do goes where the first one did.
+  const restart = context || (!prefill.title && !prefill.notes ? store.quickAddPrefill : '');
   let input: HTMLInputElement | undefined = $state();
   let added = $state(0);
   /** Caret position while it's a plain cursor (no selection) in the focused input; null otherwise. */
@@ -141,7 +147,7 @@
     if (native) native.submit(value, keepOpen);
     else store.addParsed(parsed, { useContext: !context });
     added++;
-    value = keepOpen && !simple ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : context) : '';
+    value = keepOpen && !simple ? (parsed.dump ? `@dump${parsed.dumpSection ? '/' + parsed.dumpSection : ''} ` : restart) : '';
     if (keepOpen) placeCursor(context ? 0 : value.length);
     else close();
   }

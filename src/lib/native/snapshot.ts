@@ -7,7 +7,7 @@
  * file in the same container and the app imports them through `store.addParsed` (see docs/ios.md).
  */
 import type { Parsed } from '../parse';
-import { parseDateWord, parseQuickAdd, parseWhen } from '../parse';
+import { DUMP_PREFILL, parseDateWord, parseQuickAdd, parseWhen } from '../parse';
 import type { UpcomingReminder } from '../reminders.svelte';
 import { parsePairCode } from '../sync/pair';
 import type { SyncState } from '../sync/protocol';
@@ -210,8 +210,11 @@ export function parseRoute(url: string): Route | null {
 /** A date word from a link: spaces work like hyphens ("next week" = next-week). */
 const word = (s: string) => s.trim().toLowerCase().replace(/\s+/g, '-');
 
-/** The to-do an add link describes: `text` parsed as quick add, then the literal fields on top. */
-export function addLinkParsed(r: AddLink, day: string): Parsed {
+/**
+ * The to-do an add link describes: `text` parsed as quick add, then the literal fields on top.
+ * `dumpEnabled`: Brain Dump is turned on in Settings; when it's off, `dump=1` goes to the Inbox.
+ */
+export function addLinkParsed(r: AddLink, day: string, dumpEnabled = true): Parsed {
   const p = parseQuickAdd(r.text, day);
   if (r.title) p.title = r.title;
   if (r.notes) p.notes = p.notes ? `${p.notes}\n${r.notes}` : r.notes;
@@ -227,24 +230,31 @@ export function addLinkParsed(r: AddLink, day: string): Parsed {
   }
   for (const t of r.tags) if (!p.tags.some((x) => x.toLowerCase() === t.toLowerCase())) p.tags.push(t);
   if (r.list) p.project = r.list;
-  if (r.dump && !p.when && !p.project) p.dump = true;
+  // A `when` that didn't parse still asked for a day (with a warning), so it doesn't go to the dump.
+  if (r.dump && dumpEnabled && !r.when && !p.when && !p.project) p.dump = true;
   return p;
 }
 
-/** Quick-add text for an add link that opens quick add, so the fields show as tokens to review. */
-export function addLinkPrefill(r: AddLink): string {
+/**
+ * Quick-add text for an add link that opens quick add, so the fields show as tokens to review.
+ * It ends in a space (unless it ends in notes) so what you type starts a new word.
+ */
+export function addLinkPrefill(r: AddLink, day: string, dumpEnabled = true): string {
   const dash = (s: string) => s.trim().replace(/\s+/g, '-');
+  // Same placement rule as `addLinkParsed`, so `+List @dump` can't put a to-do in both places.
+  const p = addLinkParsed(r, day, dumpEnabled);
   const parts = [
     r.title,
-    r.text,
+    r.text.trim(),
     ...r.tags.map((t) => `#${dash(t)}`),
     r.list && `+${dash(r.list)}`,
     r.when && `@${word(r.when)}`,
     r.deadline && `!${word(r.deadline)}`,
-    r.dump && '@dump',
+    p.dump && DUMP_PREFILL.trim(),
+    // Brain Dump turned off: say Inbox, or quick add would fall back to the list on screen.
+    r.dump && !p.dump && !r.when && !p.when && !p.project && '@inbox',
   ].filter(Boolean);
   const text = parts.join(' ');
   if (r.notes) return `${text} // ${r.notes}`;
-  // Only tokens (`@inbox`, from a widget): end in a space so what you type starts a new word.
-  return text && !r.title && !r.text.trim() ? `${text} ` : text;
+  return text && `${text} `;
 }

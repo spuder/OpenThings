@@ -182,13 +182,32 @@ describe('add links', () => {
     expect(addLinkParsed(link('title=idea&dump=1'), day).dump).toBe(true);
     expect(addLinkParsed(link('title=idea&dump=1&when=today'), day).dump).toBe(false);
     expect(addLinkParsed(link('title=idea&dump=1&list=Garage'), day).dump).toBe(false);
+    // An unknown day was still a request for a day: warn, but don't drop it in the dump.
+    const p = addLinkParsed(link('title=idea&dump=1&when=blursday'), day);
+    expect(p.dump).toBe(false);
+    expect(p.warnings).toEqual(['Unknown when: blursday']);
+  });
+
+  it('sends dump=1 links to the Inbox when Brain Dump is turned off', () => {
+    expect(addLinkParsed(link('title=idea&dump=1'), day, false).dump).toBe(false);
+    expect(addLinkPrefill(link('dump=1'), day, false)).toBe('@inbox ');
+    expect(addLinkPrefill(link('dump=1&list=Garage'), day, false)).toBe('+Garage ');
   });
 
   it('prefills quick add for the widgets, with room to type after the token', () => {
-    expect(addLinkPrefill(link('when=inbox'))).toBe('@inbox ');
-    expect(addLinkPrefill(link('dump=1'))).toBe('@dump ');
-    expect(addLinkPrefill(link(''))).toBe('');
-    expect(addLinkPrefill(link('title=Milk&notes=2%25'))).toBe('Milk // 2%');
+    expect(addLinkPrefill(link('when=inbox'), day)).toBe('@inbox ');
+    expect(addLinkPrefill(link('dump=1'), day)).toBe('@dump ');
+    expect(addLinkPrefill(link(''), day)).toBe('');
+    expect(addLinkPrefill(link('text=%20&when=inbox'), day)).toBe('@inbox ');
+    expect(addLinkPrefill(link('tags=a'), day)).toBe('#a ');
+    expect(addLinkPrefill(link('title=Milk&notes=2%25'), day)).toBe('Milk // 2%');
+  });
+
+  it('leaves @dump out of the prefill when when, list or text places the to-do elsewhere', () => {
+    expect(addLinkPrefill(link('title=Milk&dump=1'), day)).toBe('Milk @dump ');
+    expect(addLinkPrefill(link('title=Milk&list=Garage&dump=1'), day)).toBe('Milk +Garage ');
+    expect(addLinkPrefill(link('title=Milk&when=today&dump=1'), day)).toBe('Milk @today ');
+    expect(addLinkPrefill(link('text=Milk%20%2BGarage&dump=1'), day)).toBe('Milk +Garage ');
   });
 
   it('warns about dates it does not understand', () => {
@@ -199,8 +218,8 @@ describe('add links', () => {
   });
 
   it('turns fields into quick-add text to review', () => {
-    expect(addLinkPrefill(link('text=Milk%20%23shop'))).toBe('Milk #shop');
-    expect(addLinkPrefill(link('title=Paint%20shed&tags=home,big%20job&list=Garage%20cleanup&when=next%20week&deadline=fri&notes=Two%20coats'))).toBe(
+    expect(addLinkPrefill(link('text=Milk%20%23shop'), day)).toBe('Milk #shop ');
+    expect(addLinkPrefill(link('title=Paint%20shed&tags=home,big%20job&list=Garage%20cleanup&when=next%20week&deadline=fri&notes=Two%20coats'), day)).toBe(
       'Paint shed #home #big-job +Garage-cleanup @next-week !fri // Two coats',
     );
   });

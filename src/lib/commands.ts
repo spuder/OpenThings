@@ -8,6 +8,7 @@ import { theme } from './theme.svelte';
 import { isNarrow, isTouch } from './env';
 import type { ViewKey } from './types';
 import { features, viewEnabled } from './features.svelte';
+import { DUMP_PREFILL } from './parse';
 
 export interface Command {
   id: string;
@@ -225,10 +226,7 @@ export const commands: Command[] = [
     title: 'Quick add',
     group: 'Create',
     keys: ['n', 'mod+n', 'ctrl+space'],
-    run: () => {
-      store.quickAddPrefill = store.contextToken();
-      store.overlay = 'quickadd';
-    },
+    run: () => store.openQuickAdd(store.contextToken()),
   },
   {
     id: 'create.dump',
@@ -236,10 +234,7 @@ export const commands: Command[] = [
     group: 'Create',
     keys: ['b'],
     when: () => features.enabled('dump'),
-    run: () => {
-      store.quickAddPrefill = '@dump ';
-      store.overlay = 'quickadd';
-    },
+    run: () => store.openQuickAdd(DUMP_PREFILL),
   },
   {
     id: 'create.project',

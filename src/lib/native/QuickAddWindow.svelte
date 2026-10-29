@@ -6,6 +6,7 @@
    */
   import { store } from '../store.svelte';
   import { today } from '../dates';
+  import { viewEnabled } from '../features.svelte';
   import QuickAdd from '../ui/QuickAdd.svelte';
   import { invoke, listen } from './desktop';
   import { addLinkPrefill, parseRoute } from './snapshot';
@@ -31,7 +32,7 @@
   void listen<{ text: string; url?: string | null }>('ot://quick-add-open', ({ text, url }) => {
     // From an openthings://add link: its title, list, tags… become tokens to review.
     const r = url ? parseRoute(url) : null;
-    const prefill = r?.kind === 'add' ? addLinkPrefill(r) : (text ?? '');
+    const prefill = r?.kind === 'add' ? addLinkPrefill(r, today(), viewEnabled('dump')) : (text ?? '');
     if (prefill || !fresh) reset(prefill);
     else store.day = today();
   });

@@ -24,7 +24,7 @@ openthings://add?title=Call%20the%20plumber&when=tomorrow&list=House&tags=errand
 | `tags` | Comma-separated: `tags=errand,phone`. Tags that don't exist yet are created. |
 | `list` | A project or area, by name; the start of the name is enough. A project with that name is created if there is none. |
 | `text` | Quick-add text with its tokens: `Buy milk #shop @fri // 2%`. See the quick-add syntax in the README. The fields above go on top of it. |
-| `dump` | `dump=1` puts the to-do in the Brain Dump, unless `when` or `list` places it elsewhere. Ignored when Brain Dump is turned off in Settings. |
+| `dump` | `dump=1` puts the to-do in the Brain Dump, unless `when` or `list` places it elsewhere (a `when` that isn't understood counts too). With Brain Dump turned off in Settings it goes to the Inbox, as does `@dump` in `text`. |
 | `save` | `save=1` adds the to-do right away and shows a short "Added" notice. Without it, quick add opens with everything filled in, for you to check and press Enter. |
 
 A to-do with no `list` and no `when` goes to the Inbox. With `save=1` and no `title` or `text`

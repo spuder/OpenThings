@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fade, fly } from 'svelte/transition';
+  import { fly } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { commands, keyLabel } from '../commands';
   import { viewEnabled } from '../features.svelte';
@@ -295,8 +295,8 @@
   }
 </script>
 
-<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
-<div class="panel" transition:fly={{ y: -10, duration: 160 }} role="dialog" aria-modal="true" aria-label={placeholder}>
+<div class="scrim" onclick={close} onkeydown={() => {}} role="presentation"></div>
+<div class="panel" in:fly={{ y: -10, duration: 160, opacity: 1 }} role="dialog" aria-modal="true" aria-label={placeholder}>
   {#if mode.kind === 'prompt' || mode.kind === 'choose'}<div class="label">{mode.label}</div>{/if}
   <input bind:this={input} bind:value={q} onkeydown={onKey} {placeholder} spellcheck="false" aria-label={placeholder} />
   {#if items.length}

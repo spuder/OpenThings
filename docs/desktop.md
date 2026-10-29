@@ -94,12 +94,12 @@ windowrule {
 
 **macOS by hand:** download the `.dmg` from [Releases](https://github.com/spuder/OpenThings/releases), or `OpenThings-macos-universal` from a [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml), unzip, open the `.dmg`, drag OpenThings to Applications. Releases and manual runs are notarized and open normally. Builds from pull requests are only ad-hoc signed, so their first open is blocked: on macOS 15+ try to open it, then System Settings → Privacy & Security → **Open Anyway**; on older macOS, right-click → Open. Alternatively: `xattr -dr com.apple.quarantine /Applications/OpenThings.app`.
 
-**Arch / Omarchy with pacman:** every release publishes a small pacman repo with `openthings-bin` on the latest GitHub release. Add it to `/etc/pacman.conf`:
+**Arch / Omarchy with pacman:** every release publishes a small pacman repo with `openthings-bin` on the [`arch-repo`](https://github.com/spuder/OpenThings/releases/tag/arch-repo) pre-release. Add it to `/etc/pacman.conf`:
 
 ```ini
 [openthings]
 SigLevel = Optional TrustAll
-Server = https://github.com/spuder/OpenThings/releases/latest/download
+Server = https://github.com/spuder/OpenThings/releases/download/arch-repo
 ```
 
 then `sudo pacman -Sy openthings-bin`. `sudo pacman -Syu` (or `omarchy-update`) picks up new versions. The packages aren't GPG-signed; pacman fetches them over HTTPS from GitHub.
@@ -121,7 +121,7 @@ The *Arch packages* workflow pushes `openthings` and `openthings-bin` to the AUR
 
 1. `ssh-keygen -t ed25519 -N '' -C openthings-aur -f aur_key`, and add `aur_key.pub` under My Account → SSH Public Key on [aur.archlinux.org](https://aur.archlinux.org).
 2. `gh secret set AUR_SSH_KEY --repo spuder/OpenThings < aur_key`, then delete `aur_key`.
-3. Publish the current release: Actions → *Arch packages* → Run workflow (from `main`) with its tag, e.g. `v0.10.0`. The first push creates both packages.
+3. Publish the current release: Actions → *Arch packages* → Run workflow (from `main`) with its tag, e.g. `v0.10.0` (only the latest release is accepted). The first push creates both packages.
 
 ## Releasing
 

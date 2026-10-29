@@ -1,16 +1,18 @@
 name: Arch packages
 
 # Publishes the Arch Linux packages of a release, from its published assets:
-#   - pacman repo: builds openthings-bin and attaches it, with the repo database (openthings.db), to
-#     the release, so `Server = https://github.com/spuder/OpenThings/releases/latest/download`
-#     always serves the latest version (docs/desktop.md#install).
+#   - pacman repo: builds openthings-bin and puts it, with the repo database (openthings.db), on the
+#     "arch-repo" pre-release, so `Server = https://github.com/spuder/OpenThings/releases/download/arch-repo`
+#     serves the latest version (docs/desktop.md#install). That release only changes once a build
+#     succeeds, and the package goes up before the database, so `pacman -Syu` never sees a database
+#     without its package (unlike releases/latest, which moves before this runs).
 #   - AUR: pushes the openthings and openthings-bin PKGBUILDs with real checksums, when the
 #     AUR_SSH_KEY secret is set; skipped otherwise (docs/desktop.md#aur).
 # The PKGBUILDs in packaging/arch/ carry pkgver (kept in step by scripts/bump-version.sh) and SKIP
 # checksums; this fills the checksums in from the release.
 # The Desktop workflow calls this on v* tags, after its release job. Run it by hand from main to
-# republish a release (e.g. one made before this workflow existed); raise pkgrel when only the
-# packaging changed.
+# republish the latest release (e.g. one made before this workflow existed); raise pkgrel when only
+# the packaging changed. Older tags are refused, so the repo and the AUR never go backwards.
 on:
   workflow_call:
     inputs:
@@ -29,7 +31,8 @@ on:
 permissions:
   contents: write
 
-concurrency: arch-publish-${{ inputs.tag }}
+# Every run writes the same arch-repo release and AUR packages.
+concurrency: arch-publish
 
 jobs:
   publish:
@@ -48,6 +51,8 @@ jobs:
           set -eux
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Not a release tag: $TAG"; exit 1; }
           [[ "$PKGREL" =~ ^[1-9][0-9]*$ ]] || { echo "::error::pkgrel must be a positive integer: $PKGREL"; exit 1; }
+          latest="$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+          [ "$TAG" = "$latest" ] || { echo "::error::$TAG isn't the latest release ($latest); only the latest is published."; exit 1; }
           ver="${TAG#v}"
           useradd -m builder
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
@@ -78,10 +83,25 @@ jobs:
           for f in repo/openthings.db repo/openthings.files; do
             cp --remove-destination "$(readlink -f "$f")" "$f"
           done
+          rm repo/*.tar.gz
           ls -la repo
 
-      - name: Attach the pacman repo to the release
-        run: gh release upload "$TAG" repo/* --clobber -R "$GITHUB_REPOSITORY"
+      - name: Publish the pacman repo (arch-repo release)
+        run: |
+          set -eux
+          R=(-R "$GITHUB_REPOSITORY")
+          if ! gh release view arch-repo "${R[@]}" >/dev/null 2>&1; then
+            gh release create arch-repo "${R[@]}" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "Arch Linux pacman repo" \
+              --notes "The openthings-bin pacman repo, updated by each release. Setup: https://github.com/$GITHUB_REPOSITORY/blob/main/docs/desktop.md#install"
+          fi
+          pkg="$(basename repo/*.pkg.tar.zst)"
+          # Package first, then the database that points at it.
+          gh release upload arch-repo "${R[@]}" --clobber "repo/$pkg"
+          gh release upload arch-repo "${R[@]}" --clobber repo/openthings.db repo/openthings.files
+          for old in $(gh release view arch-repo "${R[@]}" --json assets -q '.assets[].name' | grep '\.pkg\.tar\.zst$' | grep -vxF "$pkg"); do
+            gh release delete-asset arch-repo "$old" "${R[@]}" --yes
+          done
 
       - name: Push to the AUR
         env:

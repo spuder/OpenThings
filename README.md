@@ -185,7 +185,7 @@ The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebre
 ```ini
 [openthings]
 SigLevel = Optional TrustAll
-Server = https://github.com/spuder/OpenThings/releases/latest/download
+Server = https://github.com/spuder/OpenThings/releases/download/arch-repo
 ```
 
 **Download:** tagged versions are on the [Releases](https://github.com/spuder/OpenThings/releases) page. For a build of the latest commit, open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).

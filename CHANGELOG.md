@@ -2,6 +2,15 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.12.0](https://github.com/spuder/OpenThings/releases/tag/v0.12.0) - 2026-10-29
+
+### What's Changed
+
+* On Omarchy, the desktop app's tray icon follows the current theme and updates when the theme changes. By @spuder in https://github.com/spuder/OpenThings/pull/120 (https://github.com/spuder/OpenThings/issues/118)
+* Releases publish Arch Linux packages: a pacman repo now, and the AUR once a key is set up. By @spuder in https://github.com/spuder/OpenThings/pull/109
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.11.0...v0.12.0
+
 ## [v0.11.0](https://github.com/spuder/OpenThings/releases/tag/v0.11.0) - 2026-10-28
 
 ### What's Changed

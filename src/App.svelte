@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fade, fly } from 'svelte/transition';
   import { store } from './lib/store.svelte';
-  import { commands, handleKey, openListMenu } from './lib/commands';
+  import { commands, handleKey, openListMenu, trackModifier } from './lib/commands';
   import { formatDuration, longLabel } from './lib/dates';
   import Sidebar from './lib/ui/Sidebar.svelte';
   import TaskList from './lib/ui/TaskList.svelte';
@@ -111,7 +111,7 @@
   };
 </script>
 
-<svelte:window onkeydown={handleKey} ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={() => (touch = null)} onpointerdown={onPointerDown} onpointerup={onPointerUp} onpointercancel={() => (outside = null)} />
+<svelte:window onkeydown={handleKey} onkeydowncapture={trackModifier} onkeyupcapture={trackModifier} onblur={trackModifier} ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={() => (touch = null)} onpointerdown={onPointerDown} onpointerup={onPointerUp} onpointercancel={() => (outside = null)} />
 
 {#if store.ready}
   <div class="app">

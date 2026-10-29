@@ -121,7 +121,7 @@ The *Arch packages* workflow pushes `openthings` and `openthings-bin` to the AUR
 
 1. `ssh-keygen -t ed25519 -N '' -C openthings-aur -f aur_key`, and add `aur_key.pub` under My Account → SSH Public Key on [aur.archlinux.org](https://aur.archlinux.org).
 2. `gh secret set AUR_SSH_KEY --repo spuder/OpenThings < aur_key`, then delete `aur_key`.
-3. Publish the current release: Actions → *Arch packages* → Run workflow (from `main`) with its tag, e.g. `v0.10.0` (only the latest release is accepted). The first push creates both packages.
+3. Publish the current release: Actions → *Arch packages* → Run workflow (from `main`) with its tag, e.g. `v0.11.0` (only the latest release is accepted). The first push creates both packages.
 
 ## Releasing
 

@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag, e.g. v0.10.0
+        description: Release tag, e.g. v0.11.0
         required: true
       pkgrel:
         description: pkgrel (raise it to republish the same version)

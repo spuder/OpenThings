@@ -1,6 +1,5 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { addDays, parseYmd, relLabel } from '../dates';
   import { isMac } from '../commands';
@@ -161,8 +160,8 @@
 {/snippet}
 
 {#if task}
-  <div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
-  <div class="panel" bind:this={panel} transition:fly={{ y: 14, duration: 180 }} role="dialog" aria-modal="true" aria-labelledby="repeat-title">
+  <div class="scrim" onclick={close} onkeydown={() => {}} role="presentation"></div>
+  <div class="panel" bind:this={panel} role="dialog" aria-modal="true" aria-labelledby="repeat-title">
     <header>
       <span class="icon"><Icon name="repeat" size={18} /></span>
       <div class="head-text">

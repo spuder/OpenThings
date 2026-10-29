@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fade, scale } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { relLabel } from '../dates';
   import type { Task, ViewKey } from '../types';
@@ -171,8 +170,8 @@
   const isCurrent = (r: Result) => r.group === 'Recent' && r.key === results[0]?.key && store.recentViews.length > 0 && JSON.stringify(store.recentViews[0]) === JSON.stringify(store.view);
 </script>
 
-<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
-<div class="panel" transition:scale={{ start: 0.96, duration: 150 }} role="dialog" aria-modal="true" aria-label="Quick Find">
+<div class="scrim" onclick={close} onkeydown={() => {}} role="presentation"></div>
+<div class="panel" role="dialog" aria-modal="true" aria-label="Quick Find">
   <div class="search">
     <Icon name="search" size={18} />
     <input bind:this={input} bind:value={q} onkeydown={onKey} placeholder="Quick Find" spellcheck="false" autocomplete="off" aria-label="Quick Find" />

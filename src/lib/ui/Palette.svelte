@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { fade, fly } from 'svelte/transition';
   import { store } from '../store.svelte';
-  import { commands, keyLabel } from '../commands';
+  import { commands, eventKey, keyLabel } from '../commands';
   import { viewEnabled } from '../features.svelte';
   import { parseDateWord, parseReminder, reminderLabel } from '../parse';
   import { notifier } from '../reminders.svelte';
@@ -271,8 +270,10 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' || eventKey(e) === 'mod+k') {
+      // Stop the window handler from reopening the palette on the same Ctrl+K.
       e.preventDefault();
+      e.stopPropagation();
       close();
     } else if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) {
       e.preventDefault();
@@ -295,8 +296,8 @@
   }
 </script>
 
-<div class="scrim" transition:fade={{ duration: 120 }} onclick={close} onkeydown={() => {}} role="presentation"></div>
-<div class="panel" transition:fly={{ y: -10, duration: 160 }} role="dialog" aria-modal="true" aria-label={placeholder}>
+<div class="scrim" onclick={close} onkeydown={() => {}} role="presentation"></div>
+<div class="panel" role="dialog" aria-modal="true" aria-label={placeholder}>
   {#if mode.kind === 'prompt' || mode.kind === 'choose'}<div class="label">{mode.label}</div>{/if}
   <input bind:this={input} bind:value={q} onkeydown={onKey} {placeholder} spellcheck="false" aria-label={placeholder} />
   {#if items.length}

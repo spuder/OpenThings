@@ -352,7 +352,7 @@ export const commands: Command[] = [
   },
 
   // These act on every selected to-do (one undo step); the rest below are single to-do only.
-  { id: 'task.complete', title: 'Complete task', group: 'Task', keys: ['x', 'mod+enter'], when: hasTargets, run: () => store.completeMany(targets()) },
+  { id: 'task.complete', title: 'Complete task', group: 'Task', keys: ['c', 'mod+enter'], when: hasTargets, run: () => store.completeMany(targets()) },
   { id: 'task.today', title: 'Start today', group: 'Task', keys: ['t'], when: hasTargets, run: withTargets('date change', (id) => store.setToday(id), (ids) => store.announceWhenMany(ids)) },
   { id: 'task.evening', title: 'This evening', group: 'Task', keys: ['e'], when: hasTargets, run: withTargets('date change', (id) => store.setEvening(id), (ids) => store.announceWhenMany(ids)) },
   { id: 'task.tomorrow', title: 'Tomorrow', group: 'Task', keys: ['r'], when: hasTargets, run: withTargets('date change', (id) => store.setTomorrow(id), (ids) => store.announceWhenMany(ids)) },
@@ -445,6 +445,19 @@ export const commands: Command[] = [
 
 // ---------- key matching ----------
 
+/**
+ * Whether Ctrl (⌘ on macOS) is held, from its own key events. On Wayland, fcitx5 drops a held
+ * modifier from key events once a text field loses focus, so holding Ctrl and pressing K again
+ * would arrive as a plain K. The Ctrl key-up still arrives, so trust the key over the flag.
+ */
+let modHeld = false;
+
+/** Feed window keydown / keyup / blur here to keep `modHeld` current. */
+export function trackModifier(e: KeyboardEvent | FocusEvent) {
+  if (e.type === 'blur') modHeld = false;
+  else if ((e as KeyboardEvent).key === (isMac ? 'Meta' : 'Control')) modHeld = e.type === 'keydown';
+}
+
 /** Normalise a keyboard event to a key string like "mod+k", "alt+1", "shift+p", "?". */
 export function eventKey(e: KeyboardEvent): string {
   let key = e.key.toLowerCase();
@@ -453,7 +466,7 @@ export function eventKey(e: KeyboardEvent): string {
   if (e.altKey && /^Digit\d$/.test(e.code)) key = e.code.slice(5);
   if (e.altKey && /^Key[A-Z]$/.test(e.code)) key = e.code.slice(3).toLowerCase();
   const parts: string[] = [];
-  const mod = isMac ? e.metaKey : e.ctrlKey;
+  const mod = (isMac ? e.metaKey : e.ctrlKey) || modHeld;
   if (mod) parts.push('mod');
   if (isMac && e.ctrlKey) parts.push('ctrl');
   if (!isMac && e.metaKey) parts.push('meta');

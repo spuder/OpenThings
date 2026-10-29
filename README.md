@@ -118,7 +118,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `G W` | This Week (when turned on in Settings → Features) |
 | `J` / `K` | Move selection |
 | `Enter` | Open / close task |
-| `X` | Complete |
+| `C` | Complete |
 | `T` `E` `R` `S` | Today, This Evening, Tomorrow, Someday |
 | `W` / `D` / `A` | When… / Deadline… / Reminder… |
 | `⇧W` | Repeat… (also on right-click and in an open to-do) |

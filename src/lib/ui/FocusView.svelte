@@ -31,7 +31,7 @@
     else if (k === ' ' || k === 'enter') store.focusToggle();
     else if (k === 'r') store.focusReset();
     else if (k === 's') store.focusSkip();
-    else if (k === 'x') complete();
+    else if (k === 'c') complete();
     else if (k === '1' || k === '2' || k === '3') store.focusSetMinutes(presets[Number(k) - 1]);
     else return;
     e.preventDefault();
@@ -111,7 +111,7 @@
         <Icon name="logbook" size={16} /> Complete to-do
       </button>
 
-      <p class="keys"><kbd>Space</kbd> start/pause <kbd>R</kbd> reset <kbd>S</kbd> skip <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> length <kbd>X</kbd> complete <kbd>Esc</kbd> close</p>
+      <p class="keys"><kbd>Space</kbd> start/pause <kbd>R</kbd> reset <kbd>S</kbd> skip <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> length <kbd>C</kbd> complete <kbd>Esc</kbd> close</p>
     </div>
   </div>
 {/if}

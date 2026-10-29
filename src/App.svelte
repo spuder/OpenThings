@@ -23,6 +23,7 @@
   import { classifySwipe, swipeIgnored } from './lib/gesture';
   import { installKeyboardInset } from './lib/keyboard';
   import ThemePicker from './lib/ui/ThemePicker.svelte';
+  import { theme } from './lib/theme.svelte';
   import SelectionBar from './lib/ui/SelectionBar.svelte';
   import { drag } from './lib/ui/drag.svelte';
   import RepeatEditor from './lib/ui/RepeatEditor.svelte';
@@ -196,7 +197,7 @@
   {#if store.overlay === 'help'}<Help />{/if}
   {#if store.overlay === 'focus'}<FocusView />{/if}
   {#if store.overlay === 'find'}<QuickFind />{/if}
-  {#if store.overlay === 'themes'}<ThemePicker />{/if}
+  {#if store.overlay === 'themes' && !theme.following}<ThemePicker />{/if}
   {#if store.overlay === 'repeat'}<RepeatEditor />{/if}
   {#if store.overlay === 'swipe'}<SwipeSheet />{/if}
 

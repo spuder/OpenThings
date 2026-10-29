@@ -16,6 +16,7 @@ The desktop app is the same web app in a native window, plus what a browser can'
 | Native reminder notifications; clicking one opens the task | Notification Center | libnotify / D-Bus: mako, dunst, swaync |
 | Native menu bar (App, File, Edit, View, Window, Help) wired to the command registry | yes | — (keys go straight to the web app) |
 | Window size and position remembered; single instance; launch at login | yes | yes |
+| Colors follow the Omarchy desktop theme, live as it changes | — | Omarchy (below) |
 
 ## Architecture
 
@@ -81,6 +82,7 @@ windowrule {
 # windowrulev2 = pin, title:^(OpenThings Quick Add)$
 ```
 
+- **Theme:** on Omarchy the app takes its colors from the desktop theme, including themes you installed yourself, and changes with it (within a second of `omarchy-theme-set` or the theme menu). The shell reads `~/.local/state/omarchy/current/theme/colors.toml` (older Omarchy: `~/.config/omarchy/current/theme`) and sends it to both windows as `ot://omarchy-theme`. While it does, Settings → Appearance shows the theme instead of the choices, and ⇧T / ⇧D are off; your own choice comes back if Omarchy goes away.
 - **Tray:** the icon uses StatusNotifierItem (libayatana-appindicator). It appears only if something hosts a tray: Omarchy's Waybar has the `tray` module. Without one, OpenThings still runs hidden; `openthings` brings the window back.
 - **Notifications:** sent over D-Bus (`org.freedesktop.Notifications`), so mako (Omarchy's default), dunst and swaync all work; no libnotify library needed. Clicking a notification invokes its default action, which opens the task. In mako that's a left click by default (`on-button-left=invoke-default-action`).
 - **Launch at login** writes `~/.config/autostart/OpenThings.desktop`. Hyprland doesn't read XDG autostart unless something runs it (e.g. `dex -a`, or uwsm's autostart). The simpler alternative is `exec-once = openthings --hidden` in `~/.config/hypr/autostart.conf`.
@@ -180,6 +182,7 @@ Arch / Hyprland:
 - [ ] Waybar shows the tray icon and menu.
 - [ ] A reminder fires as a mako notification with the window closed; clicking it opens the task.
 - [ ] `xdg-open 'openthings://add?text=Hi'` opens quick add.
+- [ ] On Omarchy, the app opens in the desktop theme; switching themes (from the theme menu, or `omarchy-theme-set "Rose Pine"`) retints the main and quick-add windows within a second. Settings → Appearance says "Following your Omarchy theme"; ⇧T and ⇧D do nothing.
 
 ## Not done yet / follow-ups
 

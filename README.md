@@ -180,6 +180,14 @@ Recent Homebrew versions refuse to load casks from untrusted taps, so the `brew 
 
 The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebrew-openthings) and also puts the `openthings` CLI on your PATH. Update with `brew upgrade --cask openthings`.
 
+**Arch / Omarchy:** add the OpenThings pacman repo to `/etc/pacman.conf`, then `sudo pacman -Sy openthings-bin` (updates come with `pacman -Syu`). An AUR package is [on the way](https://github.com/spuder/OpenThings/issues/8).
+
+```ini
+[openthings]
+SigLevel = Optional TrustAll
+Server = https://github.com/spuder/OpenThings/releases/download/arch-repo
+```
+
 **Download:** tagged versions are on the [Releases](https://github.com/spuder/OpenThings/releases) page. For a build of the latest commit, open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).
 
 **macOS first launch:** releases are signed and notarized. Builds from pull requests aren't, so macOS blocks them the first time: open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).

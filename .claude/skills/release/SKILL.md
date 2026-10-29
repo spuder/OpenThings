@@ -26,3 +26,4 @@ If `git push` over SSH fails with `communication with agent failed` (the 1Passwo
 - The macOS build is notarized: download the `.dmg` and `.app.zip`, then `spctl -a -vv -t exec OpenThings.app` and `spctl -a -vv -t open --context context:primary-signature <dmg>` both say `source=Notarized Developer ID`.
 - `Casks/openthings.rb` in spuder/homebrew-openthings has `version "X.Y.Z"` (pushed by `github-actions[bot]`).
 - `ghcr.io/spuder/openthings:X.Y.Z` exists.
+- The *Arch packages* job (`arch-publish`, part of the Desktop run on the tag) succeeded, and the `arch-repo` pre-release (the pacman repo) lists `openthings-bin-X.Y.Z-1-x86_64.pkg.tar.zst`, `openthings.db` and `openthings.files`. If the `AUR_SSH_KEY` secret is set, https://aur.archlinux.org/packages/openthings-bin shows X.Y.Z; if not, the job logs a notice that it skipped the AUR.

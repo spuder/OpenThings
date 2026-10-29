@@ -1,0 +1,133 @@
+name: Arch packages
+
+# Publishes the Arch Linux packages of a release, from its published assets:
+#   - pacman repo: builds openthings-bin and puts it, with the repo database (openthings.db), on the
+#     "arch-repo" pre-release, so `Server = https://github.com/spuder/OpenThings/releases/download/arch-repo`
+#     serves the latest version (docs/desktop.md#install). That release only changes once a build
+#     succeeds, and the package goes up before the database, so `pacman -Syu` never sees a database
+#     without its package (unlike releases/latest, which moves before this runs).
+#   - AUR: pushes the openthings and openthings-bin PKGBUILDs with real checksums, when the
+#     AUR_SSH_KEY secret is set; skipped otherwise (docs/desktop.md#aur).
+# The PKGBUILDs in packaging/arch/ carry pkgver (kept in step by scripts/bump-version.sh) and SKIP
+# checksums; this fills the checksums in from the release.
+# The Desktop workflow calls this on v* tags, after its release job. Run it by hand from main to
+# republish the latest release (e.g. one made before this workflow existed); raise pkgrel when only
+# the packaging changed. Older tags are refused, so the repo and the AUR never go backwards.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.11.0
+        required: true
+      pkgrel:
+        description: pkgrel (raise it to republish the same version)
+        default: '1'
+
+permissions:
+  contents: write
+
+# Every run writes the same arch-repo release and AUR packages.
+concurrency: arch-publish
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    env:
+      TAG: ${{ inputs.tag }}
+      PKGREL: ${{ inputs.pkgrel || '1' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed base-devel git openssh pacman-contrib github-cli sudo
+      - uses: actions/checkout@v4
+      - name: Fill in version and checksums
+        run: |
+          set -eux
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Not a release tag: $TAG"; exit 1; }
+          [[ "$PKGREL" =~ ^[1-9][0-9]*$ ]] || { echo "::error::pkgrel must be a positive integer: $PKGREL"; exit 1; }
+          latest="$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+          [ "$TAG" = "$latest" ] || { echo "::error::$TAG isn't the latest release ($latest); only the latest is published."; exit 1; }
+          ver="${TAG#v}"
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          mkdir -p /home/builder/pkg
+          cp -r packaging/arch/openthings packaging/arch/openthings-bin /home/builder/pkg/
+          chown -R builder: /home/builder
+          for p in openthings openthings-bin; do
+            cd "/home/builder/pkg/$p"
+            # A no-op on the tag itself; sets the version when republishing an older tag from main.
+            sed -i "s/^pkgver=.*/pkgver=$ver/; s/^pkgrel=.*/pkgrel=$PKGREL/" PKGBUILD
+            # Downloads the release asset (openthings-bin) or tag tarball (openthings) and records its sha256.
+            sudo -u builder updpkgsums
+            if grep -q '^sha256sums.*SKIP' PKGBUILD; then echo "::error::$p still has SKIP checksums"; exit 1; fi
+            sudo -u builder makepkg --printsrcinfo > .SRCINFO
+            cat PKGBUILD
+          done
+
+      - name: Build openthings-bin and the pacman repo
+        run: |
+          set -eux
+          cd /home/builder/pkg/openthings-bin
+          sudo -u builder makepkg -s --noconfirm --cleanbuild
+          cd "$GITHUB_WORKSPACE"
+          mkdir repo
+          cp /home/builder/pkg/openthings-bin/*.pkg.tar.zst repo/
+          repo-add repo/openthings.db.tar.gz repo/*.pkg.tar.zst
+          # repo-add makes openthings.db and openthings.files symlinks; release assets must be files.
+          for f in repo/openthings.db repo/openthings.files; do
+            cp --remove-destination "$(readlink -f "$f")" "$f"
+          done
+          rm repo/*.tar.gz
+          ls -la repo
+
+      - name: Publish the pacman repo (arch-repo release)
+        run: |
+          set -eux
+          R=(-R "$GITHUB_REPOSITORY")
+          if ! gh release view arch-repo "${R[@]}" >/dev/null 2>&1; then
+            gh release create arch-repo "${R[@]}" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "Arch Linux pacman repo" \
+              --notes "The openthings-bin pacman repo, updated by each release. Setup: https://github.com/$GITHUB_REPOSITORY/blob/main/docs/desktop.md#install"
+          fi
+          pkg="$(basename repo/*.pkg.tar.zst)"
+          # Package first, then the database that points at it.
+          gh release upload arch-repo "${R[@]}" --clobber "repo/$pkg"
+          gh release upload arch-repo "${R[@]}" --clobber repo/openthings.db repo/openthings.files
+          for old in $(gh release view arch-repo "${R[@]}" --json assets -q '.assets[].name' | grep '\.pkg\.tar\.zst$' | grep -vxF "$pkg"); do
+            gh release delete-asset arch-repo "$old" "${R[@]}" --yes
+          done
+
+      - name: Push to the AUR
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          set -eu
+          if [ -z "$AUR_SSH_KEY" ]; then
+            echo "::notice::AUR_SSH_KEY isn't set; skipping the AUR (docs/desktop.md#aur)."
+            exit 0
+          fi
+          ver="${TAG#v}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$AUR_SSH_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for p in openthings openthings-bin; do
+            # Cloning a package that doesn't exist yet gives an empty repo; pushing to it creates it.
+            git clone "ssh://aur@aur.archlinux.org/$p.git" "aur-$p"
+            cp "/home/builder/pkg/$p/PKGBUILD" "/home/builder/pkg/$p/.SRCINFO" "aur-$p/"
+            git -C "aur-$p" add PKGBUILD .SRCINFO
+            if git -C "aur-$p" diff --cached --quiet; then
+              echo "$p is already at $ver-$PKGREL on the AUR."
+              continue
+            fi
+            git -C "aur-$p" commit -m "$p $ver-$PKGREL"
+            git -C "aur-$p" push origin HEAD:master
+          done

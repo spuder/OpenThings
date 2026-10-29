@@ -6,8 +6,8 @@ name: Desktop
 #     ad-hoc signed. See docs/desktop.md#signing-and-notarization.
 #   - Arch Linux (Omarchy): release binary tarball + AppImage, Rust unit tests, and checks both
 #     AUR PKGBUILDs build, in parallel jobs (arch, arch-test, arch-aur)
-# Bundles are uploaded as workflow artifacts. A v* tag also publishes them as a GitHub release and
-# bumps the Homebrew cask (see the release job).
+# Bundles are uploaded as workflow artifacts. A v* tag also publishes them as a GitHub release,
+# bumps the Homebrew cask (see the release job) and publishes the Arch packages (arch-publish).
 on:
   push:
     branches: [desktop-app]
@@ -195,7 +195,8 @@ jobs:
           cp "out/openthings-$ver-linux-x86_64.tar.gz" "$work/openthings-bin/"
           chown -R builder: /home/builder
           cd "$work/openthings-bin"
-          # .SRCINFO must match the PKGBUILD.
+          # pkgver must follow the app version (scripts/bump-version.sh), and .SRCINFO the PKGBUILD.
+          grep -qx "pkgver=$ver" PKGBUILD || { echo "::error::PKGBUILD pkgver isn't $ver; run scripts/bump-version.sh"; exit 1; }
           sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
           sudo -u builder makepkg -s --noconfirm --cleanbuild --skipchecksums
           namcap PKGBUILD *.pkg.tar.zst || true
@@ -238,7 +239,8 @@ jobs:
               --transform "s,^\.,OpenThings-$ver," -czf "$work/openthings/openthings-$ver.tar.gz" .
           chown -R builder: /home/builder
           cd "$work/openthings"
-          # .SRCINFO must match the PKGBUILD.
+          # pkgver must follow the app version (scripts/bump-version.sh), and .SRCINFO the PKGBUILD.
+          grep -qx "pkgver=$ver" PKGBUILD || { echo "::error::PKGBUILD pkgver isn't $ver; run scripts/bump-version.sh"; exit 1; }
           sudo -u builder makepkg --printsrcinfo | diff -u .SRCINFO -
           sudo -u builder makepkg -s --noconfirm --cleanbuild --skipchecksums
           namcap PKGBUILD *.pkg.tar.zst || true
@@ -324,3 +326,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "openthings $ver"
           git push origin HEAD:main
+
+  # After the release: publish the Arch packages from its assets (pacman repo on the release, and
+  # the AUR when AUR_SSH_KEY is set). See .github/workflows/arch-publish.yml.
+  arch-publish:
+    needs: release
+    permissions:
+      contents: write
+    uses: ./.github/workflows/arch-publish.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit

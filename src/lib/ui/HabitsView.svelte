@@ -103,7 +103,7 @@
   {/each}
 
   <button class="add" onclick={() => prompt('New habit', (n) => store.addHabit(n), 'Name, plus options: Gym 5x · Journal weekdays · Cold shower 75d')}>
-    <Icon name="plus" size={15} /> New habit <kbd>⇧N</kbd>
+    <Icon name="plus" size={15} /> New habit <kbd>⇧H</kbd>
   </button>
 </div>
 

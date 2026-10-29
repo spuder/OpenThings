@@ -26,3 +26,34 @@ export function swipeIgnored(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   return !!target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [data-no-swipe]');
 }
+
+/** How far a to-do row must be dragged sideways (px) before letting go opens its actions. */
+export const ROW_SWIPE_COMMIT = 90;
+
+export type RowSwipe = 'right' | 'left' | null;
+
+/** A to-do row swiped far enough: right offers Complete / Move, left offers Move to Trash. */
+export function classifyRowSwipe(dx: number): RowSwipe {
+  if (dx >= ROW_SWIPE_COMMIT) return 'right';
+  if (dx <= -ROW_SWIPE_COMMIT) return 'left';
+  return null;
+}
+
+/** Row swipes starting this close (px) to a screen edge are left alone: iOS Safari uses edge swipes for back / forward. */
+export const ROW_SWIPE_EDGE = 20;
+
+export function swipeFromEdge(x: number, width: number): boolean {
+  return x < ROW_SWIPE_EDGE || x > width - ROW_SWIPE_EDGE;
+}
+
+/**
+ * How far to draw the row for a finger offset `dx`: 1:1 up to the commit point, then a rubber band
+ * that starts at the same speed and eases off toward `max`, so there's no sudden change in feel.
+ */
+export function rowSwipeOffset(dx: number, max: number): number {
+  const a = Math.abs(dx);
+  const room = Math.max(max, ROW_SWIPE_COMMIT) - ROW_SWIPE_COMMIT;
+  if (a <= ROW_SWIPE_COMMIT || room === 0) return Math.sign(dx) * Math.min(a, ROW_SWIPE_COMMIT + room);
+  const over = a - ROW_SWIPE_COMMIT;
+  return Math.sign(dx) * (ROW_SWIPE_COMMIT + room * (1 - 1 / (over / room + 1)));
+}

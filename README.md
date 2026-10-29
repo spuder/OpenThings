@@ -75,8 +75,8 @@
 - **Sync** between your devices through your own server, with status on every screen. Works offline; changes merge per field when you reconnect. See [docs/sync.md](docs/sync.md).
 - **REST API** for scripts, Home Assistant, n8n and Shortcuts, and an **MCP endpoint** so AI assistants (Claude and other MCP clients) can read and manage your to-dos. Quick-add syntax works in both. Settings has ready-to-copy config; reference in [docs/api.md](docs/api.md).
 - **Import from Things 3** (macOS desktop app): Settings → Data finds your Things database automatically and brings across areas, projects, headings, to-dos, tags and checklists. Repeat rules and reminders are left behind, and nothing is uploaded. The web version explains that importing is desktop-only. See [docs/import.md](docs/import.md).
-- **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe right** for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
-- **Quick add** with short syntax (below), from anywhere with `Q`. It starts with the list you're in (`+Project` or `@today`) after the cursor, so you can change it. Once you type, the syntax keys appear as tappable chips, and `#important` / `#urgent` are one tap away. In Brain Dump it's a plain box: no syntax, just write.
+- **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe a to-do right** for Complete or Move, **left** for Move to Trash, **swipe right** elsewhere for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
+- **Quick add** with short syntax (below), from anywhere with `N`. It starts with the list you're in (`+Project` or `@today`) after the cursor, so you can change it. Once you type, the syntax keys appear as tappable chips, and `#important` / `#urgent` are one tap away. In Brain Dump it's a plain box: no syntax, just write.
 - **Quick Find** (`/` or `Ctrl/⌘ F`): recent lists with counts, then search lists, projects, areas, `#tags` and to-dos as you type.
 - **Bottom toolbar** on desktop with New to-do, When, Move and Quick Find; hide the sidebar with `Ctrl/⌘ /`.
 - **Command palette** (`Ctrl/⌘ K`) and a shortcut sheet (`?`).
@@ -109,8 +109,11 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 
 | Keys | Action |
 | --- | --- |
-| `Q` / `N` | Quick add |
+| `N` | Quick add |
 | `B` | Add to brain dump |
+| `Ctrl/⌘ ⇧N` | New project |
+| `⇧H` | New heading (project), section (Brain Dump) or habit (Habits) |
+| `⇧⌫` | Remove a Brain Dump section |
 | `Alt+1…9` or `G` then `I T U A S L D H M` | Inbox, Today, Upcoming, Anytime, Someday, Logbook, Dump, Habits, Matrix |
 | `G W` | This Week (when turned on in Settings → Features) |
 | `J` / `K` | Move selection |
@@ -124,7 +127,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `U` / `I` | Urgent / important |
 | `F` | Focus mode (Pomodoro on the selected to-do) |
 | `P` / `⇧P` | Timer / quick Pomodoro |
-| `⇧L` | Rename / move / delete the current area or project |
+| `⇧L` | Rename / move / delete the current area or project, or remove one of its headings. In that menu, each option's underlined letter runs it (`R` rename, `M` move, `H` new heading, `E` remove heading, `C` complete, `D` delete) |
 | `⇧D` | Toggle dark mode |
 | `⇧T` | Theme switcher (Omarchy themes, desktop) |
 | `Alt+↑` / `Alt+↓` | Reorder |
@@ -157,7 +160,7 @@ A fresh install starts empty — there is no demo data.
   <img src="docs/screenshots/desktop-today.png" alt="OpenThings desktop app on macOS, Today list" width="760">
 </p>
 
-| Quick add from anywhere (⌃⌥Space) | Settings → Desktop |
+| Quick add from anywhere (⌃Space) | Settings → Desktop |
 | --- | --- |
 | ![Floating quick-add window with a parsed date, tag and reminder](docs/screenshots/desktop-quickadd.png) | ![Desktop settings: global shortcut and launch at login](docs/screenshots/desktop-settings.png) |
 
@@ -179,23 +182,9 @@ The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebre
 
 **Download:** tagged versions are on the [Releases](https://github.com/spuder/OpenThings/releases) page. For a build of the latest commit, open the latest green [Desktop workflow run](https://github.com/spuder/OpenThings/actions/workflows/desktop.yml) and download the artifact (sign in to GitHub): `OpenThings-macos-universal` (`.dmg`, Apple silicon and Intel) or `OpenThings-arch-x86_64` (AppImage and the tarball for `packaging/arch/openthings-bin`).
 
-**Nix** (Linux and macOS, Intel and ARM): `nix run github:spuder/OpenThings`, or `nix profile install github:spuder/OpenThings`. Each release is also on [FlakeHub](https://flakehub.com/flake/spuder/OpenThings). See [docs/nix.md](docs/nix.md).
-
 **macOS first launch:** releases are signed and notarized. Builds from pull requests aren't, so macOS blocks them the first time: open it once, then System Settings → Privacy & Security → **Open Anyway** (on older macOS: right-click the app → Open).
 
-**Quick add from anywhere:** ⌃⌥Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Wayland apps can't grab global keys, so bind the CLI in Hyprland (Super+Space is Omarchy's launcher):
-
-```ini
-# ~/.config/hypr/bindings.conf
-bind = SUPER ALT, SPACE, exec, openthings --quick-add
-windowrule {
-  name = openthings-quick-add
-  match:title = ^(OpenThings Quick Add)$
-  float = on
-  center = on
-  pin = on
-}
-```
+**Quick add from anywhere:** ⌃Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Hyprland (Omarchy) apps can't grab global keys, so Settings → Desktop writes the bind into Hyprland's config for you: Super+Alt+Space by default, since Super+Space is Omarchy's launcher. On other Wayland compositors, bind `openthings --quick-add` yourself ([docs/desktop.md](docs/desktop.md#hyprland-omarchy)).
 
 `openthings --add "Buy milk #errand"` adds without a window; `openthings://add?title=…` links work too, from Automator, Shortcuts or scripts ([docs/url-scheme.md](docs/url-scheme.md)). The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
 
@@ -284,15 +273,13 @@ claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/m
 
 There's no login: anyone who can reach the server can read and change your to-dos, so keep it on your tailnet (as DockTail does) or another private network. Browsers on other websites are refused, so a page you visit can't reach it through your browser. Device tokens are planned before anything is exposed more widely.
 
-**Without Docker:** `nix run github:spuder/OpenThings#openthings-server`, or on NixOS `services.openthings.enable = true;` from the flake's module ([docs/nix.md](docs/nix.md)).
-
 Run the server locally with `npm run build && npm run server` (http://localhost:8080); `npm run dev` proxies `/api` and `/mcp` to it.
 
 ## Roadmap
 
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
 2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
-3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew and on Linux and macOS with Nix, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, nixpkgs, Ubuntu/Fedora packages.
+3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, Ubuntu/Fedora packages.
 4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Android app with widgets, share and app shortcuts in preview ([docs/android.md](docs/android.md), [testers wanted](https://github.com/spuder/OpenThings/issues/6)). Next: interactive widgets on both.
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).
 

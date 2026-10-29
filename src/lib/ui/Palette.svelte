@@ -7,11 +7,17 @@
   import { notifier } from '../reminders.svelte';
   import { parseSchedule, scheduleToString, type HabitSchedule } from '../views';
   import { addDays, longLabel, nextWeekday, relLabel } from '../dates';
+  import { optionForKey, splitMnemonic } from '../menu';
+  import Icon, { iconColor } from './Icon.svelte';
 
   interface Item {
     label: string;
     hint?: string;
     keys?: string;
+    /** Menu letter (choose mode): underlined in the label. */
+    key?: string;
+    icon?: string;
+    danger?: boolean;
     run: () => void;
   }
 
@@ -20,6 +26,7 @@
   $effect(() => {
     const m = store.paletteMode;
     q = m.kind === 'prompt' ? (m.initial ?? '') : '';
+    index = 0;
     input?.focus();
     if (m.kind === 'prompt' && m.initial) queueMicrotask(() => input?.select());
   });
@@ -214,7 +221,9 @@
         return out;
       }
       case 'choose':
-        return mode.options.filter((o) => fuzzy(`${o.label} ${o.hint ?? ''}`, q));
+        return mode.options
+          .filter((o) => fuzzy(`${o.label} ${o.hint ?? ''}`, q))
+          .map((o) => ({ ...o, keys: o.key?.toUpperCase() }));
       case 'prompt':
         return [];
     }
@@ -274,6 +283,14 @@
     } else if (e.key === 'Enter') {
       e.preventDefault();
       choose(index);
+    } else if (mode.kind === 'choose') {
+      // A menu letter runs its option while the filter is empty; after that, typing filters.
+      const option = optionForKey(mode.options, e, q);
+      if (option) {
+        e.preventDefault();
+        close();
+        option.run();
+      }
     }
   }
 </script>
@@ -285,11 +302,15 @@
   {#if items.length}
     <ul role="listbox">
       {#each items as item, i (item.label + i)}
+        {@const parts = splitMnemonic(item.label, item.key)}
         <li role="option" aria-selected={i === index}>
-          <button class:active={i === index} onmouseenter={() => (index = i)} onclick={() => choose(i)}>
-            <span class="l">{item.label}</span>
+          <button class:active={i === index} style:--c={item.icon ? iconColor(item.icon) : null} onmouseenter={() => (index = i)} onclick={() => choose(i)}>
+            {#if item.icon}<Icon name={item.icon} />{/if}
+            <span class="l" class:danger={item.danger}>
+              {#if parts}{parts[0]}<u>{parts[1]}</u>{parts[2]}{:else}{item.label}{/if}
+            </span>
             {#if item.hint}<span class="h">{item.hint}</span>{/if}
-            {#if item.keys}<kbd>{item.keys}</kbd>{/if}
+            {#if item.keys}<kbd class:tinted={!!item.key}>{item.keys}</kbd>{/if}
           </button>
         </li>
       {/each}
@@ -360,6 +381,17 @@
     flex: 1;
     font-weight: 500;
   }
+  .danger {
+    color: var(--deadline);
+  }
+  u {
+    text-decoration: none;
+    color: var(--c, var(--accent));
+    box-shadow: inset 0 -1.5px 0 var(--c, var(--accent));
+  }
+  kbd.tinted {
+    color: var(--c, var(--text-2));
+  }
   .h {
     font-size: 12px;
     color: var(--text-3);
@@ -373,6 +405,10 @@
     .panel {
       top: calc(8px + env(safe-area-inset-top));
       width: calc(100vw - 16px);
+    }
+    /* Menu letters need a keyboard; on a phone they only crowd the row. */
+    kbd.tinted {
+      display: none;
     }
   }
 </style>

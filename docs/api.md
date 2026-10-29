@@ -107,7 +107,7 @@ Clients that only run local commands can bridge with `npx -y mcp-remote https://
 | `delete_task` | Move to the Trash (`restore` to take it back) |
 | `brain_dump` | Capture into the Brain Dump |
 | `add_checklist_item`, `check_checklist_item` | Checklists |
-| `list_projects`, `add_project` | Areas, projects and tags |
+| `list_projects`, `add_project`, `add_area` | Areas, projects and tags (`add_area` returns an existing area with the same name) |
 | `list_habits`, `check_habit` | Habits and check-ins |
 | `start_timer`, `stop_timer`, `current_timer` | Time tracking |
 

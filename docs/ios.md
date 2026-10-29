@@ -182,7 +182,7 @@ CI (`.github/workflows/ios.yml`) builds the App scheme (which builds and embeds 
 - [ ] Settings → Sync → **Scan QR code**: iOS asks for camera access; scanning the code from desktop or web (Settings → Sync → Show QR code) fills in the server URL and the connection test passes. Cancel closes the camera without changes.
 - [ ] Scan that QR code with the Camera app instead: OpenThings opens on Settings with the server filled in.
 - [ ] Rotate / iPad: layout holds; safe areas respected (notch, home indicator).
-- [ ] External keyboard on iPad: shortcuts (`Q`, `J`/`K`, `X`) work.
+- [ ] External keyboard on iPad: shortcuts (`N`, `J`/`K`, `X`) work.
 
 ## Next
 

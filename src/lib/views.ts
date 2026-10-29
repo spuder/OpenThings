@@ -1,5 +1,5 @@
 /** Pure view filters over task rows, so they can be unit tested. */
-import type { Task } from './types';
+import type { DumpSection, Task } from './types';
 import { addDays, parseYmd, relLabel } from './dates';
 
 export const DUMP_TTL_MS = 48 * 60 * 60 * 1000;
@@ -18,6 +18,32 @@ export function dumpAgeFraction(t: Task, now: number): number {
 
 export function isDumpExpired(t: Task, now: number): boolean {
   return t.dump === 1 && t.completed_at === null && now - Date.parse(t.created_at) >= DUMP_TTL_MS;
+}
+
+/**
+ * Brain Dump groups: unsectioned to-dos, then one group per section. A to-do whose section no
+ * longer exists (removed here, or on another device before this one synced) counts as
+ * unsectioned, so it never disappears.
+ */
+export function dumpGroups(sections: DumpSection[], items: Task[]): { loose: Task[]; sections: { section: DumpSection; items: Task[] }[] } {
+  const known = new Set(sections.map((s) => s.id));
+  return {
+    loose: items.filter((t) => !t.dump_section_id || !known.has(t.dump_section_id)),
+    sections: sections.map((section) => ({ section, items: items.filter((t) => t.dump_section_id === section.id) })),
+  };
+}
+
+/**
+ * Dump sections that fall off: their last to-do would have expired. A section goes once no open
+ * to-do is left in it and every to-do still naming it (checked or in the Trash) is past the 48h
+ * limit, or when its last to-do just expired. A section that never had a to-do stays until removed.
+ */
+export function expiredDumpSections(sections: DumpSection[], tasks: Task[], justExpired: Set<string>, now: number): DumpSection[] {
+  return sections.filter((s) => {
+    const mine = tasks.filter((t) => t.dump_section_id === s.id);
+    if (!mine.length) return justExpired.has(s.id);
+    return mine.every((t) => (t.completed_at !== null || t.deleted_at !== null) && now - Date.parse(t.created_at) >= DUMP_TTL_MS);
+  });
 }
 
 export function inbox(tasks: Task[], keep: Set<string>): Task[] {

@@ -1,11 +1,14 @@
 <script lang="ts">
   /** "Desktop" section of Settings, shown only in the Tauri app. */
   import CodeBlock from '../ui/CodeBlock.svelte';
-  import { acceleratorFromEvent, acceleratorLabel, desktopInfo, setAutostart, setHotkey, type DesktopInfo } from './desktop';
+  import { acceleratorFromEvent, acceleratorLabel, desktopInfo, pauseHotkey, setAutostart, setHotkey, type DesktopInfo } from './desktop';
 
   let info = $state<DesktopInfo | null>(null);
   let recording = $state(false);
   let msg = $state<{ ok: boolean; text: string } | null>(null);
+
+  // On Hyprland the setting only counts once the bind is written to its config.
+  const current = $derived(info ? (info.hyprlandConfig && !info.hyprlandBound ? '' : info.hotkey) : '');
 
   async function refresh() {
     info = await desktopInfo();
@@ -23,13 +26,20 @@
     await refresh();
   }
 
+  /** While recording, the current shortcut is released so pressing it reaches the recorder. */
+  function record(on: boolean) {
+    if (on === recording) return;
+    recording = on;
+    void pauseHotkey(on).catch(() => {});
+  }
+
   function onRecordKey(e: KeyboardEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (e.key === 'Escape') return void (recording = false);
+    if (e.key === 'Escape') return record(false);
     const accel = acceleratorFromEvent(e);
     if (!accel) return;
-    recording = false;
+    recording = false; // set_hotkey registers the new shortcut, or restores the old one on error
     void save(accel);
   }
 
@@ -68,24 +78,27 @@ xdg-open 'openthings://add?text=Buy%20milk'       # deep link`;
   <p class="lead">Quick add from anywhere, even when OpenThings is in the background. Closing the window keeps OpenThings running in the {info?.platform === 'macos' ? 'menu bar' : 'tray'} so reminders still arrive.</p>
 
   {#if info}
-    {#if info.hotkeysAvailable}
+    {#if info.hotkeysAvailable || info.hyprlandConfig}
       <div class="hotkey">
         <span>Global quick-add shortcut</span>
         <button
           class="btn recorder"
           class:recording
-          onclick={() => (recording = !recording)}
+          onclick={() => record(!recording)}
           onkeydown={(e) => recording && onRecordKey(e)}
-          onblur={() => (recording = false)}
+          onblur={() => record(false)}
           aria-label="Change global quick-add shortcut"
         >
-          {recording ? 'Press keys… (Esc cancels)' : acceleratorLabel(info.hotkey)}
+          {recording ? 'Press keys… (Esc cancels)' : acceleratorLabel(current)}
         </button>
       </div>
       <div class="row-actions">
-        <button class="btn" onclick={() => save(info!.defaultHotkey)} disabled={info.hotkey === info.defaultHotkey}>Reset to {acceleratorLabel(info.defaultHotkey)}</button>
-        <button class="btn" onclick={() => save('')} disabled={!info.hotkey}>Turn off</button>
+        <button class="btn" onclick={() => save(info!.defaultHotkey)} disabled={current === info.defaultHotkey}>{info.hyprlandConfig && !info.hyprlandBound ? 'Use' : 'Reset to'} {acceleratorLabel(info.defaultHotkey)}</button>
+        <button class="btn" onclick={() => save('')} disabled={!current}>Turn off</button>
       </div>
+      {#if info.hyprlandConfig}
+        <p class="note">Hyprland binds the key: OpenThings writes it, with rules that float the quick-add window, to <code>{info.hyprlandConfig}</code> and sources that file from <code>hyprland.conf</code>.</p>
+      {/if}
       {#if info.hotkeyError}<p class="result">{info.hotkeyError}</p>{/if}
     {:else}
       <p class="note">This is a Wayland session, where apps can't register global shortcuts. Bind a key in your compositor to <code>openthings --quick-add</code> instead:</p>

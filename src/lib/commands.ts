@@ -65,6 +65,28 @@ export function prompt(label: string, onSubmit: (v: string) => void, placeholder
   store.overlay = 'palette';
 }
 
+/**
+ * Ask before a destructive action, in the palette. `window.confirm()` returns false at once in
+ * the macOS app (WKWebView shows no dialog), so it can't be used. Cancel comes first, so a
+ * second Enter doesn't delete anything.
+ */
+export function confirmAction(label: string, action: string, run: () => void, hint?: string) {
+  store.paletteMode = {
+    kind: 'choose',
+    label,
+    options: [
+      { label: 'Cancel', run: () => {} },
+      { label: action, hint, run },
+    ],
+  };
+  store.overlay = 'palette';
+}
+
+export function confirmEmptyTrash() {
+  const n = store.trashed.length;
+  confirmAction(`Permanently delete ${n} to-do${n === 1 ? '' : 's'}?`, 'Empty Trash', () => store.emptyTrash(), 'can’t be undone');
+}
+
 function moveSelection(delta: number) {
   const list = store.selectable;
   if (!list.length) return;
@@ -81,7 +103,7 @@ function setCursor(id: string | null) {
   if (store.expandedId && store.expandedId !== id) store.expandedId = null;
 }
 
-/** Rename / move / delete menu for an area or project, shown in the palette. */
+/** Rename / move / delete menu for an area or project, shown in the palette. Each option has a letter (see menu.ts). */
 export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
   if (target.kind === 'area') {
     const a = store.areas.find((x) => x.id === target.id);
@@ -90,12 +112,15 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
       kind: 'choose',
       label: a.name,
       options: [
-        { label: 'Rename…', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
-        { label: 'New project in this area…', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
+        { label: 'Rename…', key: 'r', icon: 'rename', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
+        { label: 'New project in this area…', key: 'n', icon: 'add', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
         {
           label: 'Delete area',
+          key: 'd',
+          icon: 'delete',
+          danger: true,
           hint: 'projects are kept, its to-dos go to the Inbox',
-          run: () => confirm(`Delete the area “${a.name}”? Its projects are kept and its to-dos move to the Inbox.`) && store.deleteArea(a.id),
+          run: () => confirmAction(`Delete the area “${a.name}”?`, 'Delete area', () => store.deleteArea(a.id), 'projects are kept, its to-dos go to the Inbox'),
         },
       ],
     };
@@ -106,9 +131,11 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
       kind: 'choose',
       label: p.name,
       options: [
-        { label: 'Rename…', run: () => prompt('Rename project', (n) => store.renameProject(p.id, n), p.name, p.name) },
+        { label: 'Rename…', key: 'r', icon: 'rename', run: () => prompt('Rename project', (n) => store.renameProject(p.id, n), p.name, p.name) },
         {
           label: 'Move to area…',
+          key: 'm',
+          icon: 'move',
           run: () => {
             store.paletteMode = {
               kind: 'choose',
@@ -121,12 +148,33 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
             store.overlay = 'palette';
           },
         },
-        { label: 'New heading…', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
-        { label: 'Complete project', run: () => store.completeProject(p.id) },
+        { label: 'New heading…', key: 'h', icon: 'heading', run: () => prompt('New heading', (n) => store.addHeading(p.id, n)) },
+        ...(store.headings.some((h) => h.project_id === p.id)
+          ? [
+              {
+                label: 'Remove heading…',
+                key: 'e',
+                icon: 'unheading',
+                hint: 'its to-dos stay in the project',
+                run: () => {
+                  store.paletteMode = {
+                    kind: 'choose',
+                    label: 'Remove heading',
+                    options: store.headings.filter((h) => h.project_id === p.id).map((h) => ({ label: h.name, run: () => store.deleteHeading(h.id) })),
+                  };
+                  store.overlay = 'palette';
+                },
+              },
+            ]
+          : []),
+        { label: 'Complete project', key: 'c', icon: 'complete', run: () => store.completeProject(p.id) },
         {
           label: 'Delete project',
+          key: 'd',
+          icon: 'delete',
+          danger: true,
           hint: 'its to-dos go to the Trash',
-          run: () => confirm(`Delete the project “${p.name}”? Its to-dos move to the Trash for 30 days.`) && store.deleteProject(p.id),
+          run: () => confirmAction(`Delete the project “${p.name}”?`, 'Delete project', () => store.deleteProject(p.id), 'its to-dos go to the Trash for 30 days'),
         },
       ],
     };
@@ -176,7 +224,7 @@ export const commands: Command[] = [
     id: 'create.quickadd',
     title: 'Quick add',
     group: 'Create',
-    keys: ['q', 'n', 'mod+n', 'ctrl+space'],
+    keys: ['n', 'mod+n', 'ctrl+space'],
     run: () => {
       store.quickAddPrefill = store.contextToken();
       store.overlay = 'quickadd';
@@ -197,7 +245,7 @@ export const commands: Command[] = [
     id: 'create.project',
     title: 'New project',
     group: 'Create',
-    keys: ['shift+n'],
+    keys: ['mod+shift+n'],
     when: () => !inHabits(),
     run: () =>
       prompt('New project', (name) => {
@@ -227,15 +275,32 @@ export const commands: Command[] = [
     id: 'create.section',
     title: 'New brain dump section',
     group: 'Brain dump',
-    keys: ['shift+s'],
+    // Shift+H, like a new heading in a project.
+    keys: ['shift+h', 'shift+s'],
     when: () => store.view.kind === 'dump',
     run: () => prompt('New section', (name) => store.addDumpSection(name)),
+  },
+  {
+    id: 'dump.removeSection',
+    title: 'Remove brain dump section…',
+    group: 'Brain dump',
+    keys: ['shift+backspace'],
+    when: () => store.view.kind === 'dump' && store.dumpSections.length > 0,
+    run: () => {
+      const current = sel()?.dump_section_id;
+      store.paletteMode = {
+        kind: 'choose',
+        label: 'Remove section (its to-dos are kept)',
+        options: store.dumpSections.map((s) => ({ label: s.name, hint: s.id === current ? 'current' : undefined, run: () => store.deleteDumpSection(s.id) })),
+      };
+      store.overlay = 'palette';
+    },
   },
   {
     id: 'create.habit',
     title: 'New habit',
     group: 'Habits',
-    keys: ['shift+n'],
+    keys: ['shift+h'],
     when: inHabits,
     run: () => prompt('New habit', (name) => store.addHabit(name)),
   },
@@ -327,7 +392,7 @@ export const commands: Command[] = [
 
   { id: 'trash.restore', title: 'Restore from Trash', group: 'Trash', keys: ['shift+r', 'enter'], when: () => inTrash() && !!store.selectedId, run: () => store.selectedId && store.restoreTask(store.selectedId) },
   { id: 'trash.purge', title: 'Delete permanently', group: 'Trash', keys: ['backspace', 'delete'], when: () => inTrash() && !!store.selectedId, run: () => store.selectedId && store.purgeTask(store.selectedId) },
-  { id: 'trash.empty', title: 'Empty Trash', group: 'Trash', keys: [], when: () => store.trashed.length > 0, run: () => confirm(`Permanently delete ${store.trashed.length} to-dos?`) && store.emptyTrash() },
+  { id: 'trash.empty', title: 'Empty Trash', group: 'Trash', keys: [], when: () => store.trashed.length > 0, run: confirmEmptyTrash },
 
   { id: 'time.track', title: 'Start / stop timer', group: 'Time', keys: ['p'], when: hasTask, run: withTask((id) => store.toggleTracking(id)) },
   {

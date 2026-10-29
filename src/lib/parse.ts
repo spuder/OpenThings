@@ -280,8 +280,14 @@ export function parseQuickAdd(input: string, ref: string = todayFn(), now: Date 
       continue;
     }
     if (sigil === '+' && body.length > 0 && /^[\p{L}\p{N}]/u.test(body)) {
-      out.project = body.replace(/[-_]/g, ' ');
-      out.tokens.push({ text: raw, kind: 'project', label: out.project });
+      // A to-do is in one project: a later +Project replaces an earlier one, and only it shows as a chip.
+      const project = body.replace(/[-_]/g, ' ');
+      if (out.project) {
+        out.tokens = out.tokens.filter((t) => t.kind !== 'project');
+        out.warnings.push(`One project per to-do: using "${project}"`);
+      }
+      out.project = project;
+      out.tokens.push({ text: raw, kind: 'project', label: project });
       continue;
     }
     if (sigil === '@' && body.length > 0) {
@@ -447,4 +453,43 @@ export function tagCompletion(text: string, caret: number, names: string[]): Tag
   if (sep >= 0) end = lower.length + sep + 1;
 
   return { start, typed, suggestion, ghost: suggestion.slice(typed.length), step: suggestion.slice(0, end) };
+}
+
+/** The `+project` being typed just before the caret, a bare `+` included. */
+export interface ProjectFragment {
+  /** Index of the `+`. */
+  start: number;
+  /** What's typed after the `+`. */
+  typed: string;
+}
+
+export function projectFragment(text: string, caret: number): ProjectFragment | null {
+  if (/^\S/.test(text.slice(caret))) return null;
+  const before = text.slice(0, caret);
+  if (before.includes('//')) return null;
+  const m = /(^|\s)\+([\p{L}\p{N}]\S*)?$/u.exec(before);
+  if (!m) return null;
+  const typed = m[2] ?? '';
+  return { start: caret - typed.length - 1, typed };
+}
+
+/** The quick-add token for a project or area name, as the parser reads it back (`+Garage-cleanout`). */
+export function projectToken(name: string): string {
+  return `+${name.trim().replace(/\s+/g, '-')}`;
+}
+
+/**
+ * Put project `name` where `frag` is and drop every other `+project` token, since a to-do has one
+ * project. Notes after `//` are left alone. Returns the new text and the caret, after the token.
+ */
+export function setProject(text: string, frag: ProjectFragment, name: string): { text: string; caret: number } {
+  const notesAt = text.indexOf('//');
+  const head = notesAt >= 0 ? text.slice(0, notesAt) : text;
+  const notes = notesAt >= 0 ? text.slice(notesAt) : '';
+  const strip = (s: string) => s.replace(/(^|\s)\+[\p{L}\p{N}]\S*/gu, '$1').replace(/\s{2,}/g, ' ');
+  const before = strip(head.slice(0, frag.start)).trim();
+  const after = strip(head.slice(frag.start + 1 + frag.typed.length)).trim();
+  const lead = `${before ? before + ' ' : ''}${projectToken(name)} `;
+  const rest = [after, notes.trim()].filter(Boolean).join(' ');
+  return { text: lead + rest, caret: lead.length };
 }

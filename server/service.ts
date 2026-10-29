@@ -396,6 +396,8 @@ export class Service {
     if (input.when !== undefined) {
       const { inbox, ...w } = this.when(input.when);
       Object.assign(fields, w, inbox ? { project_id: null, area_id: null, heading_id: null } : {});
+      // Scheduling a Brain Dump item moves it out, as in the app.
+      if (t.dump && (w.when_date || w.someday || inbox)) Object.assign(fields, { dump: 0, dump_section_id: null });
     }
     if (input.deadline !== undefined) fields.deadline = this.date(input.deadline, 'deadline');
     if (input.repeat !== undefined) {
@@ -544,6 +546,12 @@ export class Service {
     const areaId = area ? this.findArea(area).id : null;
     this.db.tx(() => this.db.insert('projects', { id, area_id: areaId, name: name.trim(), notes: '', sort: nextSort(), completed_at: null }));
     return this.db.one<Project>('SELECT * FROM projects WHERE id = ?', [id])!;
+  }
+
+  /** The area with exactly this name (ignoring case and spacing); no id or prefix matches. */
+  areaNamed(name: string): Area | undefined {
+    const n = norm(name);
+    return this.areas().find((a) => norm(a.name) === n);
   }
 
   addArea(name: string): Area {

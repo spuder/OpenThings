@@ -2,6 +2,65 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.10.0](https://github.com/spuder/OpenThings/releases/tag/v0.10.0) - 2026-10-27
+
+### What's Changed
+
+* Importing from Things no longer gives to-dos a deadline in 2009: Things' far-future "no date" value is now read as no date. By @spuder in https://github.com/spuder/OpenThings/pull/104 (https://github.com/spuder/OpenThings/issues/100)
+* Nix packages are gone: the flake, NixOS module, FlakeHub publishing and the Nix CI workflow are removed. Install with Homebrew, the release downloads or the container image instead. By @spuder in https://github.com/spuder/OpenThings/pull/105 (https://github.com/spuder/OpenThings/issues/102)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.9.0...v0.10.0
+
+## [v0.9.0](https://github.com/spuder/OpenThings/releases/tag/v0.9.0) - 2026-10-25
+
+### What's Changed
+
+* Quick add keeps one project per to-do, and typing `+` opens a list of projects and areas to pick from with ↑/↓ and ↵. By @spuder in https://github.com/spuder/OpenThings/pull/92 (https://github.com/spuder/OpenThings/issues/79)
+* Area and project menus have icons and letter shortcuts, such as R for Rename and H for New heading, while the filter box is empty. By @spuder in https://github.com/spuder/OpenThings/pull/95 (https://github.com/spuder/OpenThings/issues/93)
+* The MCP server has an `add_area` tool, so assistants can create an area and file projects and to-dos in it. A name that already exists returns that area instead of a duplicate. By @spuder in https://github.com/spuder/OpenThings/pull/97 (https://github.com/spuder/OpenThings/issues/96)
+* The global quick-add shortcut is ⌃Space on macOS, and on Omarchy and Hyprland, Settings → Desktop can write the binding for you. Quick add no longer jumps when it opens on macOS. By @spuder in https://github.com/spuder/OpenThings/pull/101 (https://github.com/spuder/OpenThings/issues/98)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.8.0...v0.9.0
+
+## [v0.8.0](https://github.com/spuder/OpenThings/releases/tag/v0.8.0) - 2026-10-25
+
+### What's Changed
+
+* Multi-selection reads as one selection: the blue bar runs along every selected to-do, and neighbouring selected rows join into one block. By @spuder in https://github.com/spuder/OpenThings/pull/89 (https://github.com/spuder/OpenThings/issues/88)
+* Giving a Brain Dump to-do a date, Someday or the Inbox (T, E, R, S or When…) moves it out of the Brain Dump, so it shows in Today and no longer expires after 48 hours. By @spuder in https://github.com/spuder/OpenThings/pull/90 (https://github.com/spuder/OpenThings/issues/87)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.7.0...v0.8.0
+
+## [v0.7.0](https://github.com/spuder/OpenThings/releases/tag/v0.7.0) - 2026-10-25
+
+### What's Changed
+
+* Swipe gestures on phones and tablets: swipe a to-do right for Complete or Move to…, or left for Move to Trash, from a small sheet that keeps the to-do outlined. Move to Trash shows Undo in the toast. By @Copilot and @spuder in https://github.com/spuder/OpenThings/pull/76 (https://github.com/spuder/OpenThings/issues/75)
+* Delete project, Delete area and Empty Trash now work in the macOS app: they confirm in the command palette instead of a browser dialog the app couldn't show. By @spuder in https://github.com/spuder/OpenThings/pull/83 (https://github.com/spuder/OpenThings/issues/78)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.6.0...v0.7.0
+
+## [v0.6.0](https://github.com/spuder/OpenThings/releases/tag/v0.6.0) - 2026-10-24
+
+### What's Changed
+
+* The desktop and web apps show the app version in small text at the bottom right. By @spuder in https://github.com/spuder/OpenThings/pull/82 (https://github.com/spuder/OpenThings/issues/81)
+* Settings has an About section with the version and platform, such as "OpenThings v0.6.0 · iOS app", on every platform. By @spuder in https://github.com/spuder/OpenThings/pull/84
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.5.0...v0.6.0
+
+## [v0.5.0](https://github.com/spuder/OpenThings/releases/tag/v0.5.0) - 2026-10-24
+
+### What's Changed
+
+* Android app: the Capacitor shell with reminders, links, QR pairing for sync, share to OpenThings, Today and Sync status widgets, the back button, dark mode and app shortcuts. Releases include signed APKs. Not yet tested on a real phone. By @spuder in https://github.com/spuder/OpenThings/pull/53 (https://github.com/spuder/OpenThings/issues/6)
+* Brain Dump sections can be removed with the × next to their heading or ⇧⌫, and ⌘Z brings one back. A section also falls off on its own 48 hours after its last to-do was added. Project headings can be removed the same way, or from the list menu (⇧L). By @Copilot and @spuder in https://github.com/spuder/OpenThings/pull/68 (https://github.com/spuder/OpenThings/issues/67)
+* Shortcuts: quick add is `N` (`Q` is gone), New project is ⌘⇧N, and ⇧H adds a heading in a project, a section in the Brain Dump or a habit in Habits. ⇧N is no longer used. By @spuder in https://github.com/spuder/OpenThings/pull/68
+* The macOS app icon no longer shows dark bars along its edges in the ⌘Tab switcher. By @spuder in https://github.com/spuder/OpenThings/pull/70 (https://github.com/spuder/OpenThings/issues/69)
+* A root-level `logo.PNG` for repository previews. By @Copilot in https://github.com/spuder/OpenThings/pull/73 (https://github.com/spuder/OpenThings/issues/71)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.4.2...v0.5.0
+
 ## [v0.4.2](https://github.com/spuder/OpenThings/releases/tag/v0.4.2) - 2026-10-23
 
 ### What's Changed

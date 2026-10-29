@@ -5,7 +5,8 @@
 //!
 //! - a global quick-add hotkey and a small floating quick-add window (`quickadd`);
 //! - `openthings://add?text=…` deep links and `openthings --quick-add` (single instance), for
-//!   compositors such as Hyprland where global key grabs from apps don't work;
+//!   Wayland compositors where global key grabs from apps don't work; on Hyprland the shortcut
+//!   from Settings is written into its config instead (`hyprland`);
 //! - a tray / menu-bar icon that shows sync status, and keeps the app running when the window closes;
 //! - native notifications for reminders (and a backstop timer, so they fire on time even if the
 //!   hidden webview is throttled);
@@ -37,11 +38,24 @@ use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_deep_link::DeepLinkExt as _;
 use tauri_plugin_notification::NotificationExt as _;
 
+mod hyprland;
+
 const MAIN: &str = "main";
 const QUICK_ADD: &str = "quickadd";
 /// Window title of the quick-add window. Hyprland/sway window rules match on it; keep it stable.
 const QUICK_ADD_TITLE: &str = "OpenThings Quick Add";
+/// ⌃Space on macOS, the usual quick-entry key there. Elsewhere Ctrl+Space is often taken by input
+/// methods and editors' autocomplete.
+#[cfg(target_os = "macos")]
+const DEFAULT_HOTKEY: &str = "Control+Space";
+#[cfg(not(target_os = "macos"))]
 const DEFAULT_HOTKEY: &str = "Control+Alt+Space";
+/// Super+Space is Omarchy's launcher.
+const HYPRLAND_DEFAULT_HOTKEY: &str = "Super+Alt+Space";
+
+fn default_hotkey() -> &'static str {
+    if hyprland::session() { HYPRLAND_DEFAULT_HOTKEY } else { DEFAULT_HOTKEY }
+}
 const TRAY_ID: &str = "openthings-tray";
 
 /// Tray icons, one per sync state (drawn for this project, see `scripts/make-tray-icons.py`).
@@ -62,7 +76,7 @@ struct DesktopSettings {
 
 impl Default for DesktopSettings {
     fn default() -> Self {
-        Self { hotkey: DEFAULT_HOTKEY.into() }
+        Self { hotkey: default_hotkey().into() }
     }
 }
 
@@ -549,6 +563,10 @@ struct DesktopInfo {
     default_hotkey: &'static str,
     hotkeys_available: bool,
     hotkey_error: Option<String>,
+    /// Hyprland session: the shortcut is a bind in this config file instead of a key grab.
+    hyprland_config: Option<String>,
+    /// Hyprland: whether that file is in place and sourced.
+    hyprland_bound: bool,
     autostart: bool,
     version: String,
 }
@@ -559,9 +577,14 @@ fn desktop_info(app: AppHandle, shell: tauri::State<Arc<Shell>>) -> DesktopInfo 
         platform: std::env::consts::OS,
         wayland: wayland_session(),
         hotkey: shell.settings.lock().unwrap().hotkey.clone(),
-        default_hotkey: DEFAULT_HOTKEY,
+        default_hotkey: default_hotkey(),
         hotkeys_available: shell.hotkeys_available.load(Ordering::SeqCst),
         hotkey_error: shell.hotkey_error.lock().unwrap().clone(),
+        hyprland_config: hyprland::session()
+            .then(hyprland::config_file)
+            .flatten()
+            .map(|p| p.display().to_string()),
+        hyprland_bound: hyprland::session() && hyprland::bound(),
         autostart: app.autolaunch().is_enabled().unwrap_or(false),
         version: app.package_info().version.to_string(),
     }
@@ -569,6 +592,15 @@ fn desktop_info(app: AppHandle, shell: tauri::State<Arc<Shell>>) -> DesktopInfo 
 
 #[tauri::command]
 fn set_hotkey(app: AppHandle, shell: tauri::State<Arc<Shell>>, hotkey: String) -> Result<(), String> {
+    if hyprland::session() {
+        if let Err(e) = hyprland::apply(&hotkey) {
+            hyprland::pause(&shell.settings.lock().unwrap().hotkey, false);
+            return Err(e);
+        }
+        let mut s = shell.settings.lock().unwrap();
+        s.hotkey = hotkey;
+        return save_settings(&app, &s);
+    }
     let previous = shell.settings.lock().unwrap().hotkey.clone();
     if let Err(e) = apply_hotkey(&app, &hotkey) {
         // Put the old one back so the user isn't left without a shortcut.
@@ -579,6 +611,21 @@ fn set_hotkey(app: AppHandle, shell: tauri::State<Arc<Shell>>, hotkey: String) -
     s.hotkey = hotkey;
     *shell.hotkey_error.lock().unwrap() = None;
     save_settings(&app, &s)
+}
+
+/// Settings is recording a shortcut: release the current one so its keys reach the recorder.
+/// `set_hotkey` turns it back on; this is for a cancelled recording.
+#[tauri::command]
+fn pause_hotkey(app: AppHandle, shell: tauri::State<Arc<Shell>>, paused: bool) -> Result<(), String> {
+    let current = shell.settings.lock().unwrap().hotkey.clone();
+    if hyprland::session() {
+        hyprland::pause(&current, paused);
+        return Ok(());
+    }
+    if !shell.hotkeys_available.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    apply_hotkey(&app, if paused { "" } else { &current })
 }
 
 #[tauri::command]
@@ -706,6 +753,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             desktop_info,
             set_hotkey,
+            pause_hotkey,
             set_autostart,
             set_sync_status,
             set_reminders,

@@ -12,12 +12,15 @@
   import { isDesktop, openSelfHostingDocs } from '../native/desktop';
   import DesktopSettings from '../native/DesktopSettings.svelte';
   import { theme, type ThemePref } from '../theme.svelte';
-  import { isNativeShell } from '../native/shell';
+  import { isNativeShell, nativePlatform } from '../native/shell';
   import { nativeStatus } from '../native/status.svelte';
   import { MAX_SCHEDULED } from '../native/snapshot';
   import { isTouch } from '../env';
   import { FEATURES, features } from '../features.svelte';
   import Icon from './Icon.svelte';
+
+  // Which build this is, for bug reports: the version is the same on every platform for a release.
+  const platformName = isDesktop ? 'desktop app' : isNativeShell() ? (nativePlatform() === 'ios' ? 'iOS app' : 'Android app') : 'web app';
   const native = isNativeShell();
   // In the iOS and desktop shells the page origin (capacitor://, tauri://) isn't a server address.
   const servedBySite = !native && !isDesktop;
@@ -191,7 +194,7 @@ curl '${base}/api/v1/tasks?view=today'`);
     ['delete_task', 'Move to the Trash (or restore)'],
     ['brain_dump', 'Capture something into the Brain Dump'],
     ['add_checklist_item / check_checklist_item', 'Checklists'],
-    ['list_projects / add_project', 'Areas, projects and tags'],
+    ['list_projects / add_project / add_area', 'Areas, projects and tags'],
     ['list_habits / check_habit', 'Habits and check-ins'],
     ['start_timer / stop_timer / current_timer', 'Time tracking'],
   ];
@@ -438,6 +441,11 @@ curl '${base}/api/v1/tasks?view=today'`);
       </p>
       <p class="note">The macOS app finds <code>main.sqlite</code> in the Things group container automatically and imports it without a file picker.</p>
     {/if}
+  </section>
+
+  <section>
+    <h2>About</h2>
+    <p class="lead">OpenThings <strong>v{__APP_VERSION__}</strong> · {platformName}</p>
   </section>
 </div>
 

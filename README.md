@@ -186,6 +186,16 @@ The cask lives in [spuder/homebrew-openthings](https://github.com/spuder/homebre
 
 **Quick add from anywhere:** ⌃Space on macOS (Ctrl+Alt+Space on X11), changeable in Settings → Desktop. On Hyprland (Omarchy) apps can't grab global keys, so Settings → Desktop writes the bind into Hyprland's config for you: Super+Alt+Space by default, since Super+Space is Omarchy's launcher. On other Wayland compositors, bind `openthings --quick-add` yourself ([docs/desktop.md](docs/desktop.md#hyprland-omarchy)).
 
+**Follows your Omarchy theme:** on an Omarchy desktop the app takes its colors from the current theme and changes with it within a second, light or dark, including themes you installed yourself. Pick a theme with Omarchy's theme menu (Super+Ctrl+Shift+Space); the in-app theme choices are hidden while it follows.
+
+<p align="center">
+  <img src="docs/screenshots/omarchy-theme-switch.gif" alt="Switching themes with Omarchy's theme menu: OpenThings changes from Tokyo Night to White, Retro 82 and Hackerman along with the desktop" width="760">
+</p>
+
+| Tokyo Night | Jade Horse | Catppuccin Latte |
+| --- | --- | --- |
+| ![OpenThings in the Tokyo Night Omarchy theme](docs/screenshots/omarchy-tokyo-night.png) | ![OpenThings in the Jade Horse Omarchy theme](docs/screenshots/omarchy-jade-horse.png) | ![OpenThings in the Catppuccin Latte Omarchy theme](docs/screenshots/omarchy-catppuccin-latte.png) |
+
 `openthings --add "Buy milk #errand"` adds without a window; `openthings://add?title=…` links work too, from Automator, Shortcuts or scripts ([docs/url-scheme.md](docs/url-scheme.md)). The tray icon needs a tray host such as Waybar's `tray` module; notifications go to mako / dunst / swaync. Data stays local to the desktop app (separate from your browser's copy). AUR-ready PKGBUILDs are in `packaging/arch/`.
 
 ## iOS app

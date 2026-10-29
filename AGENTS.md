@@ -48,7 +48,7 @@ When in doubt, write it from scratch and say so in the PR description.
 - `chrono-node` for natural-language date fallback in quick add
 - Vitest for unit tests, Playwright (dev only) for screenshots
 
-- Capacitor 8 for the iOS app (`ios/`, Swift Package Manager, no CocoaPods); see `docs/ios.md`
+- Capacitor 8 for the iOS app (`ios/`, Swift Package Manager, no CocoaPods); see `docs/ios.md`; release tags upload to TestFlight via `.github/workflows/testflight.yml` (`docs/testflight.md`)
 - Server: Bun + `bun:sqlite` (`server/`), one process in the Docker image serving the app, sync, REST API and MCP; see `docs/sync.md` and `docs/api.md`. Tested with `bun test`.
 
 Desktop: Tauri v2 shell in `src-tauri/` (Rust), see `docs/desktop.md`.

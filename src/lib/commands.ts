@@ -352,7 +352,7 @@ export const commands: Command[] = [
   },
 
   // These act on every selected to-do (one undo step); the rest below are single to-do only.
-  { id: 'task.complete', title: 'Complete task', group: 'Task', keys: ['x', 'mod+enter'], when: hasTargets, run: () => store.completeMany(targets()) },
+  { id: 'task.complete', title: 'Complete task', group: 'Task', keys: ['c', 'mod+enter'], when: hasTargets, run: () => store.completeMany(targets()) },
   { id: 'task.today', title: 'Start today', group: 'Task', keys: ['t'], when: hasTargets, run: withTargets('date change', (id) => store.setToday(id), (ids) => store.announceWhenMany(ids)) },
   { id: 'task.evening', title: 'This evening', group: 'Task', keys: ['e'], when: hasTargets, run: withTargets('date change', (id) => store.setEvening(id), (ids) => store.announceWhenMany(ids)) },
   { id: 'task.tomorrow', title: 'Tomorrow', group: 'Task', keys: ['r'], when: hasTargets, run: withTargets('date change', (id) => store.setTomorrow(id), (ids) => store.announceWhenMany(ids)) },

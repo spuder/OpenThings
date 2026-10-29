@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fly } from 'svelte/transition';
   import { store } from '../store.svelte';
   import { commands, keyLabel, type Command } from '../commands';
 
@@ -42,7 +41,7 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); close(); } }} />
 
 <div class="scrim" onclick={close} onkeydown={() => {}} role="presentation"></div>
-<div class="sheet" in:fly={{ y: 12, duration: 180, opacity: 1 }} role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+<div class="sheet" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
   <h1>Keyboard shortcuts</h1>
   <div class="cols">
     {#each order as group}

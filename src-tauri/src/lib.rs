@@ -426,7 +426,32 @@ fn spawn_reminder_thread<R: Runtime>(app: AppHandle<R>, shell: Arc<Shell>) {
 
 // ---------- tray ----------
 
+/// The last sync status shown in the tray, so a theme change can redraw the same icon.
+static TRAY_STATUS: Mutex<String> = Mutex::new(String::new());
+
+/// The tray icon for a status; on Omarchy, recolored to the current desktop theme.
 fn tray_image(status: &str) -> Option<Image<'static>> {
+    *TRAY_STATUS.lock().unwrap() = status.to_string();
+    let img = stock_tray_image(status)?;
+    match omarchy::current_tray_tint() {
+        Some(tint) => {
+            let mut rgba = img.rgba().to_vec();
+            omarchy::tint_rgba(&mut rgba, tint);
+            Some(Image::new_owned(rgba, img.width(), img.height()))
+        }
+        None => Some(img),
+    }
+}
+
+/// Redraw the tray icon after an Omarchy theme switch.
+fn retint_tray(app: &AppHandle) {
+    let status = TRAY_STATUS.lock().unwrap().clone();
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        let _ = tray.set_icon(tray_image(if status.is_empty() { "local" } else { &status }));
+    }
+}
+
+fn stock_tray_image(status: &str) -> Option<Image<'static>> {
     let bytes = match status {
         "idle" | "syncing" => TRAY_SYNCED,
         "pending" => TRAY_PENDING,
@@ -847,7 +872,7 @@ pub fn run() {
             }
 
             spawn_reminder_thread(handle.clone(), shell.clone());
-            omarchy::watch(handle.clone());
+            omarchy::watch(handle.clone(), retint_tray);
 
             // Deep links: register the scheme for AppImages (packages ship it in their .desktop file).
             #[cfg(target_os = "linux")]

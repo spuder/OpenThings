@@ -444,11 +444,23 @@ fn tray_image(status: &str) -> Option<Image<'static>> {
 }
 
 /// Redraw the tray icon after an Omarchy theme switch.
+///
+/// Only the icon changes: the tray keeps its id, and so its StatusNotifierItem `Id`
+/// ("tray-icon tray app openthings-tray"), which omarchy-bar pins tray items by. The bar restarts
+/// on a theme switch, so the icon is set once the new bar is likely up (and again later in case it
+/// was slow), rather than while the StatusNotifierWatcher is going away.
 fn retint_tray(app: &AppHandle) {
-    let status = TRAY_STATUS.lock().unwrap().clone();
-    if let Some(tray) = app.tray_by_id(TRAY_ID) {
-        let _ = tray.set_icon(tray_image(if status.is_empty() { "local" } else { &status }));
-    }
+    let app = app.clone();
+    let _ = std::thread::Builder::new().name("omarchy-tray".into()).spawn(move || {
+        for delay in [2, 4] {
+            std::thread::sleep(std::time::Duration::from_secs(delay));
+            let status = TRAY_STATUS.lock().unwrap().clone();
+            if let Some(tray) = app.tray_by_id(TRAY_ID) {
+                // TrayIcon::set_icon already runs on the main thread.
+                let _ = tray.set_icon(tray_image(if status.is_empty() { "local" } else { &status }));
+            }
+        }
+    });
 }
 
 fn stock_tray_image(status: &str) -> Option<Image<'static>> {

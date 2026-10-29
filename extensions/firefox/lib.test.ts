@@ -99,3 +99,20 @@ describe('Brain Dump switch', () => {
     expect(openLink('dump', true)).toBe('openthings://dump');
   });
 });
+
+describe('handoff', () => {
+  it('uses the web page tab, or the helper page where extensions cannot navigate', async () => {
+    // @ts-expect-error plain JS module without types
+    const { handoffPlan, handoffPage, isOpenThingsLink } = await import('./lib.js');
+    expect(handoffPlan('https://example.com/a')).toBe('tab');
+    expect(handoffPlan('http://localhost:8080/')).toBe('tab');
+    for (const u of ['about:newtab', 'about:home', 'about:debugging', 'moz-extension://x/options.html', 'file:///tmp/a', '', undefined]) expect(handoffPlan(u)).toBe('helper');
+    const link = addLink({ text: 'Buy milk #shop', target: 'dump' });
+    const page = handoffPage(link);
+    expect(page.startsWith('handoff.html?to=')).toBe(true);
+    expect(new URLSearchParams(page.split('?')[1]).get('to')).toBe(link);
+    expect(isOpenThingsLink(link)).toBe(true);
+    expect(isOpenThingsLink('javascript:alert(1)')).toBe(false);
+    expect(isOpenThingsLink('https://evil.test')).toBe(false);
+  });
+});

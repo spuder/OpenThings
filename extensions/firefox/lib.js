@@ -83,3 +83,22 @@ export function serverError(status, body, origin) {
   if (status === 403 && /origin/i.test(msg)) return `${msg}. Add ${origin} to OPENTHINGS_ALLOWED_ORIGINS on the server.`;
   return msg;
 }
+
+/** Only openthings:// links go through the handoff (the helper page refuses anything else). */
+export function isOpenThingsLink(link) {
+  return typeof link === 'string' && /^openthings:\/\//i.test(link);
+}
+
+/**
+ * Where to open an openthings:// link so Firefox's permission prompt shows full-size:
+ * 'tab': on the active web page (an external link doesn't navigate it away);
+ * 'helper': in handoff.html, for about:, the new tab page, extension pages and other pages extensions can't navigate.
+ */
+export function handoffPlan(tabUrl) {
+  return /^https?:\/\//i.test(tabUrl ?? '') ? 'tab' : 'helper';
+}
+
+/** The helper page's URL for a link. */
+export function handoffPage(link) {
+  return `handoff.html?to=${encodeURIComponent(link)}`;
+}

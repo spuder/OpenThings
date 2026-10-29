@@ -1,3 +1,5 @@
+import { handoffPage, handoffPlan, isOpenThingsLink } from './lib.js';
+
 // Context menu: "Add to OpenThings" with the selected text (or the link or page) prefilled.
 // It only fills the popup; nothing is added until you press Add.
 
@@ -19,3 +21,25 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     await browser.action.setBadgeText({ text: '1' });
   }
 });
+
+// openthings:// links from the popup open here, in a real tab, so Firefox's "allow this site to open
+// the link with OpenThings?" prompt appears full-size in the window instead of cut off in the popup.
+browser.runtime.onMessage.addListener((msg) => {
+  if (msg?.type !== 'openthings-handoff' || !isOpenThingsLink(msg.link)) return undefined;
+  return handoff(msg.link, msg.tabId);
+});
+
+async function handoff(link, tabId) {
+  const [active] = await browser.tabs.query({ active: true, currentWindow: true });
+  const tab = tabId != null ? await browser.tabs.get(tabId).catch(() => active) : active;
+  if (tab?.id != null && handoffPlan(tab.url) === 'tab') {
+    try {
+      await browser.tabs.update(tab.id, { url: link });
+      return { via: 'tab' };
+    } catch {
+      // Some pages can't be navigated by extensions (reader view, addons.mozilla.org): use the helper.
+    }
+  }
+  await browser.tabs.create({ url: browser.runtime.getURL(handoffPage(link)), active: true, index: tab ? tab.index + 1 : undefined, windowId: tab?.windowId });
+  return { via: 'helper' };
+}

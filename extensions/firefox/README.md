@@ -14,7 +14,7 @@ A toolbar button (and **Alt+Shift+T**) that opens a small quick-add popup. Type 
 | **App** (default) | Opens an `openthings://add?…&save=1` link ([url-scheme.md](../../docs/url-scheme.md)). Firefox asks once which app to use, then the desktop app adds it and shows "Added". | The OpenThings desktop app (macOS, Linux). |
 | **Server** | `POST /api/v1/tasks` to your server ([api.md](../../docs/api.md)). **Open OpenThings** opens the web app. | Your server URL, and the extension's origin (shown in Settings, `moz-extension://…`) in `OPENTHINGS_ALLOWED_ORIGINS` on the server. |
 
-In App mode Firefox can't tell the extension whether an app opened the link. If nothing happens, install the desktop app or switch to Server mode.
+The link opens in the current tab (a web page stays where it is), or in a small *Opening OpenThings…* tab on pages extensions can't use, such as about: pages and the new tab page. It never opens inside the popup, so Firefox's "open with OpenThings?" prompt has room to show. In App mode Firefox can't tell the extension whether an app opened the link. If nothing happens, install the desktop app or switch to Server mode.
 
 ## Try it (about:debugging)
 

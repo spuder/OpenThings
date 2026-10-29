@@ -15,17 +15,12 @@ function show(msg, kind = '') {
 
 const target = () => (settings.dump ? form.elements.target.value : 'inbox');
 
-/** Hand an openthings:// link to Firefox, which asks once, then opens the app. */
+/**
+ * Hand an openthings:// link to the background script, which opens it in a real tab. Never from this
+ * popup: Firefox's "open this link with…" prompt would be drawn inside the small popup and cut off.
+ */
 async function openScheme(link) {
-  try {
-    if (tab?.id != null && /^https?:/i.test(tab.url ?? '')) {
-      await browser.tabs.update(tab.id, { url: link });
-      return;
-    }
-  } catch {
-    // Fall through: some pages (about:, the new tab page) can't be navigated by extensions.
-  }
-  window.location.href = link;
+  await browser.runtime.sendMessage({ type: 'openthings-handoff', link, tabId: tab?.id ?? null });
 }
 
 async function add(e) {
@@ -56,9 +51,14 @@ async function add(e) {
     return;
   }
 
-  await openScheme(addLink({ text: value, notes, target: t }));
+  try {
+    await openScheme(addLink({ text: value, notes, target: t }));
+  } catch (err) {
+    return show(`Couldn't open the link: ${err?.message ?? err}`, 'error');
+  }
   text.value = '';
-  show('Sent to the OpenThings app. Nothing happened? Install the app, or use a server in Settings.', 'ok');
+  show('Sent. Allow OpenThings links if Firefox asks.', 'ok');
+  setTimeout(() => window.close(), 700);
 }
 
 async function openApp() {
@@ -67,6 +67,7 @@ async function openApp() {
     window.close();
   } else {
     await openScheme(openLink(target(), settings.dump));
+    window.close();
   }
 }
 

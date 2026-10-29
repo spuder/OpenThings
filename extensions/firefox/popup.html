@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenThings</title>
+  <link rel="stylesheet" href="popup.css" />
+  <script type="module" src="popup.js"></script>
+</head>
+<body>
+  <form id="form">
+    <header>
+      <img src="icons/icon-32.png" alt="" width="20" height="20" />
+      <span class="name">OpenThings</span>
+      <span id="mode" class="mode">App</span>
+    </header>
+    <textarea id="text" rows="2" placeholder="New to-do… @fri #errand +House" required autofocus></textarea>
+    <div class="target" role="radiogroup" aria-label="Add to">
+      <label><input type="radio" name="target" value="inbox" checked /><span>Inbox</span></label>
+      <label><input type="radio" name="target" value="dump" /><span>Brain Dump</span></label>
+    </div>
+    <label class="page"><input type="checkbox" id="includePage" /> Attach this page's link</label>
+    <div class="buttons">
+      <button type="button" id="open" class="secondary">Open OpenThings</button>
+      <button type="submit" id="add">Add</button>
+    </div>
+    <p id="status" role="status"></p>
+    <footer><a href="#" id="settings">Settings</a><span class="hint">Enter adds · Shift+Enter new line</span></footer>
+  </form>
+</body>
+</html>

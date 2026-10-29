@@ -1,10 +1,12 @@
 // Pure helpers shared by the popup, the options page and the tests. No browser APIs here.
 
 /** @typedef {'inbox' | 'dump'} Target */
-/** @typedef {{ mode: 'app' | 'server', serverUrl: string, target: Target, includePage: boolean }} Settings */
+/** @typedef {{ mode: 'app' | 'server', serverUrl: string, target: Target, includePage: boolean, dump: boolean }} Settings */
 
 /** @type {Settings} */
-export const DEFAULTS = { mode: 'app', serverUrl: '', target: 'inbox', includePage: false };
+// `dump` mirrors the app's Settings → Features → Brain Dump (src/lib/features.svelte.ts): on by default.
+// The app keeps it per device in localStorage, so the extension can't read it and has its own switch.
+export const DEFAULTS = { mode: 'app', serverUrl: '', target: 'inbox', includePage: false, dump: true };
 
 /** Merge stored values over the defaults, ignoring junk. */
 export function normalizeSettings(raw) {
@@ -12,7 +14,9 @@ export function normalizeSettings(raw) {
   return {
     mode: s.mode === 'server' ? 'server' : 'app',
     serverUrl: normalizeServerUrl(String(s.serverUrl ?? '')),
-    target: s.target === 'dump' ? 'dump' : 'inbox',
+    dump: s.dump !== false,
+    // With Brain Dump off, everything goes to the Inbox.
+    target: s.target === 'dump' && s.dump !== false ? 'dump' : 'inbox',
     includePage: s.includePage === true,
   };
 }
@@ -58,8 +62,8 @@ export function addLink({ text, notes = '', target = 'inbox', save = true }) {
 }
 
 /** The link that brings the app up: the main window on desktop, or the list on a phone. */
-export function openLink(target = 'inbox') {
-  return target === 'dump' ? 'openthings://dump' : 'openthings://show';
+export function openLink(target = 'inbox', dumpEnabled = true) {
+  return target === 'dump' && dumpEnabled ? 'openthings://dump' : 'openthings://show';
 }
 
 /** POST /api/v1/tasks request for server mode (docs/api.md). */

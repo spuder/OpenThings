@@ -13,7 +13,7 @@ function show(msg, kind = '') {
   status.className = kind;
 }
 
-const target = () => form.elements.target.value;
+const target = () => (settings.dump ? form.elements.target.value : 'inbox');
 
 /** Hand an openthings:// link to Firefox, which asks once, then opens the app. */
 async function openScheme(link) {
@@ -34,7 +34,7 @@ async function add(e) {
   if (!value) return text.focus();
   const notes = $('includePage').checked ? pageNotes(tab) : '';
   const t = target();
-  await browser.storage.local.set({ target: t, includePage: $('includePage').checked });
+  await browser.storage.local.set({ ...(settings.dump ? { target: t } : {}), includePage: $('includePage').checked });
   await browser.storage.session.remove('prefill');
 
   if (settings.mode === 'server') {
@@ -66,7 +66,7 @@ async function openApp() {
     await browser.tabs.create({ url: settings.serverUrl });
     window.close();
   } else {
-    await openScheme(openLink(target()));
+    await openScheme(openLink(target(), settings.dump));
   }
 }
 
@@ -77,6 +77,7 @@ async function init() {
   $('mode').textContent = settings.mode === 'server' ? 'Server' : 'App';
   $('mode').title = settings.mode === 'server' ? settings.serverUrl : 'openthings:// links to the desktop or phone app';
   form.elements.target.value = settings.target;
+  document.querySelector('.target').hidden = !settings.dump;
   $('includePage').checked = settings.includePage;
   [tab] = await browser.tabs.query({ active: true, currentWindow: true });
 

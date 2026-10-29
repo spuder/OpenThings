@@ -10,6 +10,7 @@ async function init() {
   const s = normalizeSettings(await browser.storage.local.get(null));
   form.elements.mode.value = s.mode;
   $('serverUrl').value = s.serverUrl;
+  $('dump').checked = s.dump;
 }
 
 /** Ask for access to the server's host (needs the click), so fetch from the popup is allowed. */
@@ -23,7 +24,8 @@ form.addEventListener('submit', async (e) => {
   const serverUrl = normalizeServerUrl($('serverUrl').value);
   if (mode === 'server' && !serverUrl) return show('Enter the server URL.', 'error');
   if (mode === 'server' && !(await grant(serverUrl))) return show('Firefox needs access to the server to add to-dos.', 'error');
-  await browser.storage.local.set({ mode, serverUrl });
+  const dump = $('dump').checked;
+  await browser.storage.local.set({ mode, serverUrl, dump, ...(dump ? {} : { target: 'inbox' }) });
   $('serverUrl').value = serverUrl;
   show('Saved.', 'ok');
 });

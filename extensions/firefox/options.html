@@ -14,6 +14,10 @@
       <label><input type="radio" name="mode" value="app" checked /> <b>The OpenThings app</b> (desktop or phone) with <code>openthings://</code> links. Firefox asks the first time.</label>
       <label><input type="radio" name="mode" value="server" /> <b>My OpenThings server</b> with the REST API. Works without the app installed.</label>
     </fieldset>
+    <fieldset>
+      <legend>Lists</legend>
+      <label><input type="checkbox" id="dump" checked /> <b>Brain Dump</b>: show the Inbox / Brain Dump switch in the popup. Turn it off if Brain Dump is off in OpenThings (Settings → Features); then everything goes to the Inbox.</label>
+    </fieldset>
     <label>Server URL
       <input type="url" id="serverUrl" placeholder="https://openthings.example.ts.net" />
     </label>

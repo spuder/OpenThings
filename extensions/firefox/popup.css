@@ -29,3 +29,4 @@ button:disabled { opacity: .6; cursor: default; }
 #status.error { color: #c0392b; }
 footer { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 footer a { color: var(--accent); }
+.target[hidden] { display: none; }

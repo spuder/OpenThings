@@ -74,11 +74,28 @@ describe('server mode', () => {
 
 describe('settings and page notes', () => {
   it('falls back to defaults', () => {
-    expect(normalizeSettings({ mode: 'weird', target: 'dump', serverUrl: 'h.test' })).toEqual({ mode: 'app', serverUrl: 'https://h.test', target: 'dump', includePage: false });
+    expect(normalizeSettings({ mode: 'weird', target: 'dump', serverUrl: 'h.test' })).toEqual({ mode: 'app', serverUrl: 'https://h.test', target: 'dump', includePage: false, dump: true });
     expect(normalizeSettings(null).mode).toBe('app');
   });
   it('page notes only for web pages', () => {
     expect(pageNotes({ url: 'https://a.test/', title: 'A' })).toBe('A\nhttps://a.test/');
     expect(pageNotes({ url: 'about:newtab', title: 'New Tab' })).toBe('');
+  });
+});
+
+describe('Brain Dump switch', () => {
+  it('is on by default, like the app', async () => {
+    const { FEATURES } = await import('../../src/lib/features.svelte');
+    expect(normalizeSettings({}).dump).toBe(FEATURES.find((f: { id: string }) => f.id === 'dump')?.default);
+    expect(normalizeSettings({}).dump).toBe(true);
+  });
+  it('off sends everything to the Inbox', () => {
+    const s = normalizeSettings({ dump: false, target: 'dump' });
+    expect(s).toMatchObject({ dump: false, target: 'inbox' });
+    expect(parseRoute(addLink({ text: 'x', target: s.target }))).toMatchObject({ text: 'x' });
+  });
+  it('off never opens the Brain Dump', () => {
+    expect(openLink('dump', false)).toBe('openthings://show');
+    expect(openLink('dump', true)).toBe('openthings://dump');
   });
 });

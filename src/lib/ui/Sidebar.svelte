@@ -166,7 +166,7 @@
   }
   ul {
     list-style: none;
-    margin: 0 0 18px;
+    margin: 0 0 12px;
     padding: 0;
   }
   .row {
@@ -174,7 +174,7 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    padding: 5px 8px;
+    padding: 4px 8px;
     border-radius: 6px;
     text-align: left;
     font-weight: 500;
@@ -211,7 +211,7 @@
     font-weight: 600;
   }
   .area {
-    margin-top: 6px;
+    margin-top: 2px;
   }
   ul.bottom {
     margin: 0;

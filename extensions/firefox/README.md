@@ -33,4 +33,5 @@ A temporary add-on is removed when Firefox quits. Its `moz-extension://` origin 
 - Lint: `cd extensions/firefox && npx web-ext lint --self-hosted`.
 - Run in a fresh profile: `npx web-ext run`.
 - Package: `npx web-ext build -s extensions/firefox --ignore-files '*.test.ts' README.md` (from the repo root) writes `web-ext-artifacts/openthings_quick_add-<version>.zip`.
-- Not published on addons.mozilla.org yet. Release Firefox and Zen only install signed add-ons for good, so an unsigned build has to be loaded as a temporary add-on (about:debugging).
+- Releases: the version follows the app's (`scripts/bump-version.sh`). On each `v*` tag, `.github/workflows/firefox.yml` submits it to the [AMO listing](https://addons.mozilla.org/firefox/addon/openthings-quick-add/) with `web-ext sign --channel listed`, using the `AMO_API_KEY` (JWT issuer) and `AMO_API_SECRET` (JWT secret) secrets. Mozilla reviews and signs it there; the workflow doesn't wait. Pull requests get a lint and an unsigned build as a workflow artifact.
+- Release Firefox and Zen only keep signed add-ons, so an unsigned build has to be loaded as a temporary add-on (about:debugging).

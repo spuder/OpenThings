@@ -74,7 +74,7 @@ npx cap sync android  # same for the Android project (open it in Android Studio,
 Releases are automatic once a version bump merges to `main`; never push a `v*` tag by hand. Steps, details and how to check the result: `.claude/skills/release/SKILL.md` and `docs/desktop.md#releasing`.
 
 1. `scripts/bump-version.sh X.Y.Z`, add a `CHANGELOG.md` entry, open a `Release vX.Y.Z` PR.
-2. Merge it after checks pass. The *Tag release* workflow tags it, then Desktop notarizes, publishes the GitHub release, bumps the Homebrew cask (spuder/homebrew-openthings) and publishes the Arch packages (pacman repo on the release; AUR when `AUR_SSH_KEY` is set); Container publishes the image.
+2. Merge it after checks pass. The *Tag release* workflow tags it, then Desktop notarizes, publishes the GitHub release, bumps the Homebrew cask (spuder/homebrew-openthings) and publishes the Arch packages (pacman repo on the release; AUR when `AUR_SSH_KEY` is set); Container publishes the image; Firefox submits the extension to its addons.mozilla.org listing (when `AMO_API_KEY` / `AMO_API_SECRET` are set), where Mozilla reviews it.
 
 Version numbers live in several files, including the Arch PKGBUILDs and the Firefox extension manifest; only change them with `scripts/bump-version.sh`, never by hand.
 
@@ -103,6 +103,7 @@ Version numbers live in several files, including the Arch PKGBUILDs and the Fire
 | `ios/App/OpenThingsWidgets/`, `ios/App/OpenThingsShare/` | Widget and Share Sheet extensions |
 | `ios/App/Config/OpenThings.xcconfig` | Bundle id, App Group, URL scheme, team: the one place to change them |
 | `android/app/src/main/java/io/github/spuder/openthings/` | Android app: `OpenThingsPlugin.java` (same JS `OpenThingsNative` plugin as iOS), `SharedQueue.java` (queued to-dos and widget snapshot, the App Group's counterpart), `ShareActivity.java`, `TodayWidget.java` / `SyncWidget.java` / `Widgets.java` |
+| `extensions/firefox/`, `.github/workflows/firefox.yml` | Firefox quick-add extension (also Zen); listed on addons.mozilla.org, submitted on each release; see `extensions/firefox/README.md` |
 | `.github/workflows/android.yml`, `scripts/android-keystore.sh` | Signed APKs for testers, the `android-preview` pre-release, APKs on releases; see `docs/android.md#signing` |
 | `src/lib/ui/*` | Svelte components |
 | `src/lib/native/` | Desktop (Tauri) bridge: `desktop.ts` (guarded by `isDesktop`), main-window wiring, quick-add window, Settings → Desktop — see `docs/desktop.md` |

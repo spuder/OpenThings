@@ -239,7 +239,7 @@ A toolbar button for Firefox and Firefox-based browsers such as Zen (version 140
 
 By default it sends an `openthings://` link to the [desktop app](#desktop-app), which saves the to-do without showing its window. Your browser asks once whether to allow OpenThings links; after you confirm, later adds go through without opening a tab. On macOS the app still takes focus for a moment, because macOS activates whichever app opens a link. Without the desktop app, choose **My OpenThings server** in the extension's Settings and it adds through your server's [REST API](docs/api.md). Add the `moz-extension://…` origin shown in Settings to `OPENTHINGS_ALLOWED_ORIGINS`.
 
-It isn't on addons.mozilla.org yet, and release Firefox and Zen only keep signed add-ons. For now, load it as a temporary add-on, which stays until the browser quits:
+It's listed on [addons.mozilla.org](https://addons.mozilla.org/firefox/addon/openthings-quick-add/), and every release is submitted there. The page goes live once Mozilla has reviewed the first version; after that, install it from there and it updates itself. Until then, load it as a temporary add-on, which stays until the browser quits (release Firefox and Zen only keep add-ons signed by Mozilla):
 
 ```sh
 npx web-ext build -s extensions/firefox --ignore-files '*.test.ts' README.md   # writes web-ext-artifacts/openthings_quick_add-<version>.zip

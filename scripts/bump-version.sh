@@ -12,7 +12,7 @@ if ! [[ "$new" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 old="$(node -p "require('./src-tauri/tauri.conf.json').version")"
 
-perl -pi -e "s/^  \"version\": \"\Q$old\E\",/  \"version\": \"$new\",/" package.json src-tauri/tauri.conf.json
+perl -pi -e "s/^  \"version\": \"\Q$old\E\",/  \"version\": \"$new\",/" package.json src-tauri/tauri.conf.json extensions/firefox/manifest.json
 perl -0pi -e "s/(\"name\": \"openthings\",\n  \"version\": )\"\Q$old\E\"/\$1\"$new\"/; s/(\"\": \{\n      \"name\": \"openthings\",\n      \"version\": )\"\Q$old\E\"/\$1\"$new\"/" package-lock.json
 perl -pi -e "s/^version = \"\Q$old\E\"/version = \"$new\"/" src-tauri/Cargo.toml
 perl -0pi -e "s/(name = \"openthings\"\nversion = )\"\Q$old\E\"/\$1\"$new\"/" src-tauri/Cargo.lock
@@ -26,7 +26,7 @@ perl -pi -e "s/\Q$old\E/$new/g if /^\t(pkgver|source)/; s/^\tpkgrel = .*/\tpkgre
 
 # Every file must now say $new; fail loudly if a pattern stopped matching.
 bad=0
-for f in package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock ios/App/Config/OpenThings.xcconfig "${arch[@]}"; do
+for f in package.json package-lock.json src-tauri/tauri.conf.json extensions/firefox/manifest.json src-tauri/Cargo.toml src-tauri/Cargo.lock ios/App/Config/OpenThings.xcconfig "${arch[@]}"; do
   git diff --quiet -- "$f" && { echo "Not updated: $f" >&2; bad=1; }
 done
 [ "$bad" = 0 ] || exit 1

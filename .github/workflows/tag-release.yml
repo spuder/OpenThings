@@ -46,6 +46,7 @@ jobs:
             fi
           }
           check package.json "$(node -p "require('./package.json').version")"
+          check extensions/firefox/manifest.json "$(node -p "require('./extensions/firefox/manifest.json').version")"
           check src-tauri/Cargo.toml "$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)"
           check ios/App/Config/OpenThings.xcconfig "$(sed -n 's/^MARKETING_VERSION = //p' ios/App/Config/OpenThings.xcconfig)"
           for f in packaging/arch/*/PKGBUILD; do check "$f" "$(sed -n 's/^pkgver=//p' "$f")"; done

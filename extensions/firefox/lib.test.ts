@@ -137,3 +137,11 @@ describe('addedLabel', () => {
     expect(addedLabel('inbox')).toBe('✓ Added to Inbox');
   });
 });
+
+describe('version', () => {
+  it('follows the app version (scripts/bump-version.sh)', async () => {
+    const manifest = (await import('./manifest.json')).default;
+    const pkg = (await import('../../package.json')).default;
+    expect(manifest.version).toBe(pkg.version);
+  });
+});

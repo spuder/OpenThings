@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenThings Quick Add",
-  "version": "0.1.0",
+  "version": "0.12.0",
   "description": "Add a to-do to the OpenThings Inbox or Brain Dump from the toolbar.",
   "icons": {
     "32": "icons/icon-32.png",

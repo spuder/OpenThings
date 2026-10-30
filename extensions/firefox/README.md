@@ -1,5 +1,7 @@
 # OpenThings Quick Add for Firefox
 
+**Install:** [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/openthings-quick-add/) (Firefox 140 or later, and browsers built on it such as Zen). The steps below load it from source, for development.
+
 A toolbar button (and **Alt+Shift+T**) that opens a small quick-add popup. Type a to-do, pick **Inbox** or **Brain Dump**, and press **Add** (or Enter). **Open OpenThings** brings up the app.
 
 - **Inbox:** the text is sent as quick add, so `@fri`, `%9am`, `#tag` and `+Project` work and can place it somewhere else (see the README's quick-add syntax).

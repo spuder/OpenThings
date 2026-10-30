@@ -230,6 +230,20 @@ In Xcode, check *Signing & Capabilities* on the **App**, **OpenThingsWidgets** a
 
 The same app for Android 7.0 and newer, from the same Capacitor setup: reminders as Android notifications (they arrive with the app closed), Today and Sync status widgets, share to OpenThings from any app, app shortcuts (press and hold the icon), `openthings://` links, the back gesture, and pairing with your server by scanning the QR code. Install the latest build from the [Android preview](https://github.com/spuder/OpenThings/releases/tag/android-preview) release; later builds install over it and keep your to-dos. It's tested in the Android emulator so far; if you'd like to try it on your phone, [sign up as a tester](https://docs.google.com/forms/d/e/1FAIpQLSf0Vke8v5YCE53KemDdbn5VFub2v2MIK32OaTM-B6Sf1psgVg/viewform). Details and how to build it: [docs/android.md](docs/android.md).
 
+## Firefox extension
+
+A toolbar button for Firefox and Firefox-based browsers such as Zen (version 140 or later). Press **Alt+Shift+T**, type a to-do, pick **Inbox** or **Brain Dump**, and press Enter. Quick-add syntax works in the Inbox (`@fri #reading`). Right-click selected text → **Add to OpenThings** to start from the selection, and tick **Attach this page's link** to put the page's title and URL in the notes.
+
+By default it sends an `openthings://` link to the [desktop app](#desktop-app), which saves the to-do without showing its window. Your browser asks once whether to allow OpenThings links; after you confirm, later adds go through without opening a tab. On macOS the app still takes focus for a moment, because macOS activates whichever app opens a link. Without the desktop app, choose **My OpenThings server** in the extension's Settings and it adds through your server's [REST API](docs/api.md). Add the `moz-extension://…` origin shown in Settings to `OPENTHINGS_ALLOWED_ORIGINS`.
+
+It isn't on addons.mozilla.org yet, and release Firefox and Zen only keep signed add-ons. For now, load it as a temporary add-on, which stays until the browser quits:
+
+```sh
+npx web-ext build -s extensions/firefox --ignore-files '*.test.ts' README.md   # writes web-ext-artifacts/openthings_quick_add-<version>.zip
+```
+
+Open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…** and choose that `.zip` (or `extensions/firefox/manifest.json`). Details: [extensions/firefox/README.md](extensions/firefox/README.md).
+
 ## Self-hosting
 
 Images are published to GHCR by GitHub Actions on every push to `main` (`latest`, `sha-<short>`) and on `v*` tags (`1.2.3`, `1.2`), for `linux/amd64` and `linux/arm64`.

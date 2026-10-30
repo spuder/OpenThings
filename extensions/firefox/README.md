@@ -18,8 +18,8 @@ The link opens in the current tab (a web page stays where it is), or in a small 
 
 ## Try it (about:debugging)
 
-1. In Firefox 140 or later, open `about:debugging#/runtime/this-firefox`.
-2. Click **Load Temporary Add-on…** and choose `extensions/firefox/manifest.json`.
+1. In Firefox 140 or later, or a browser built on it such as Zen, open `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on…** and choose `extensions/firefox/manifest.json`, or a `.zip` from `npx web-ext build` (see Development).
 3. Pin the OpenThings button: Extensions (puzzle piece) → gear icon → *Pin to Toolbar*.
 4. **App mode:** with the desktop app installed, click the button, type `Test from Firefox @today`, and press Add. Allow `openthings` links when Firefox asks. The to-do appears in Today. Then switch to Brain Dump, add `random thought`, and check that it's in the Brain Dump.
 5. **Server mode:** in the extension's Settings (the popup's footer, or about:addons → OpenThings Quick Add → Options), choose *My OpenThings server* and enter the URL. Allow access when Firefox asks. Add the `moz-extension://…` origin shown there to `OPENTHINGS_ALLOWED_ORIGINS` and restart the container, then click **Test connection**.
@@ -32,4 +32,5 @@ A temporary add-on is removed when Firefox quits. Its `moz-extension://` origin 
 - `lib.js` holds the link and request building. `lib.test.ts` checks it against the app's own link parser (`npx vitest run extensions`).
 - Lint: `cd extensions/firefox && npx web-ext lint --self-hosted`.
 - Run in a fresh profile: `npx web-ext run`.
-- Not published on addons.mozilla.org yet.
+- Package: `npx web-ext build -s extensions/firefox --ignore-files '*.test.ts' README.md` (from the repo root) writes `web-ext-artifacts/openthings_quick_add-<version>.zip`.
+- Not published on addons.mozilla.org yet. Release Firefox and Zen only install signed add-ons for good, so an unsigned build has to be loaded as a temporary add-on (about:debugging).

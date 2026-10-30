@@ -39,3 +39,4 @@ packaging/arch/*/*.tar.gz
 # Native shells
 ios/App/Config/OpenThings.local.xcconfig
 /data
+web-ext-artifacts/

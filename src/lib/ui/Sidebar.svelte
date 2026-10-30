@@ -3,7 +3,7 @@
   import type { ViewKey } from '../types';
   import Icon from './Icon.svelte';
   import ProgressPie from './ProgressPie.svelte';
-  import { keyLabel, openListMenu, prompt } from '../commands';
+  import { isMac, keyLabel, openListMenu, prompt } from '../commands';
   import { fly } from 'svelte/transition';
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
@@ -19,6 +19,12 @@
     e.preventDefault();
     e.stopPropagation();
     openListMenu({ kind, id });
+  };
+
+  // Alt/Option-click folds or unfolds every area to match, like a Finder outline.
+  const fold = (e: MouseEvent, id: string) => {
+    if (e.altKey) store.setAreasCollapsed(!store.collapsedAreas.has(id));
+    else store.toggleArea(id);
   };
 
   type NavItem = { v: ViewKey; label: string; icon: string; count?: boolean };
@@ -92,15 +98,22 @@
     {/if}
 
     {#each store.areas as a (a.id)}
+      {@const projects = projectsIn(a.id)}
+      {@const folded = store.collapsedAreas.has(a.id)}
       <ul class="area">
         <li class="has-menu">
+          {#if projects.length}
+            <button class="fold" class:folded onclick={(e) => fold(e, a.id)} aria-expanded={!folded} aria-label={`${folded ? 'Expand' : 'Collapse'} ${a.name}`} title={`${folded ? 'Expand' : 'Collapse'} (${isMac ? '⌥' : 'Alt'}-click: all areas)`}>
+              <Icon name="chevron" size={14} />
+            </button>
+          {/if}
           <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
             <Icon name="area" />
             <span class="label">{a.name}</span>
           </button>
           <button class="more" onclick={(e) => menu(e, 'area', a.id)} aria-label={`Actions for ${a.name}`} title="Rename, new project, delete">⋯</button>
         </li>
-        {#each projectsIn(a.id) as p (p.id)}
+        {#each folded ? [] : projects as p (p.id)}
           <li class="has-menu">
             <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
@@ -218,9 +231,34 @@
     padding: 6px 10px;
     border-top: 1px solid var(--line);
   }
+  /* Area rows leave room on the left for the fold chevron. */
+  .row.area-row {
+    padding-left: 26px;
+  }
   /* Projects inside an area sit a step in, so they read as belonging to it. */
   .row.in-area {
-    padding-left: 24px;
+    padding-left: 40px;
+  }
+  .fold {
+    position: absolute;
+    left: 2px;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+  }
+  .fold :global(svg) {
+    transform: rotate(90deg);
+    transition: transform 0.15s var(--ease);
+  }
+  .fold.folded :global(svg) {
+    transform: none;
+  }
+  .fold:hover {
+    background: var(--sidebar-active);
   }
   footer {
     display: flex;
@@ -375,8 +413,14 @@
       font-size: 15.5px;
       gap: 12px;
     }
+    .row.area-row {
+      padding-left: 36px;
+    }
     .row.in-area {
-      padding-left: 30px;
+      padding-left: 52px;
+    }
+    .fold {
+      width: 34px;
     }
     footer {
       padding-bottom: calc(10px + env(safe-area-inset-bottom));

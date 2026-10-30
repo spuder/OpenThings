@@ -70,6 +70,7 @@
 - **Completion chimes** and a paper crumple on Move to Trash and Empty Trash, synthesized in the browser (toggle with ⇧M).
 - **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. In the [iOS app](#ios-app) they are scheduled with the system and arrive even when the app is closed. Settings shows permission and upcoming reminders.
 - **Areas and projects** can be renamed, moved or deleted from the ⋯ button or right-click in the sidebar (or `⇧L`).
+- **Collapse areas** in the sidebar with the chevron beside each one; ⌥/Alt-click it, or pick *Collapse all areas* from an area's ⋯ menu, to fold them all.
 - **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle. On desktop, `⇧T` opens a theme switcher with all 23 [Omarchy](https://omarchy.org) themes (Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine…), previewed live as you move through them. On an Omarchy desktop the app follows the desktop's theme instead, and changes with it.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
 - **Sync** between your devices through your own server, with status on every screen. Works offline; changes merge per field when you reconnect. See [docs/sync.md](docs/sync.md).
@@ -137,6 +138,8 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `Ctrl/⌘ ,` | Settings |
 | `/` or `Ctrl/⌘ F` | Quick Find |
 | `Ctrl/⌘ /` | Show / hide sidebar |
+| `z a` | Collapse / expand the current area in the sidebar |
+| `z m` / `z r` | Collapse / expand all areas |
 | `Ctrl/⌘ K` | Command palette |
 | `?` | All shortcuts |
 

@@ -58,6 +58,14 @@ export interface DesktopInfo {
   version: string;
 }
 
+/** A native notification from the main window (no-op outside the desktop app). */
+export const notifyNative = (title: string, body: string) => {
+  if (isDesktop) void invoke('show_notification', { title, body, taskId: null }).catch(() => {});
+};
+
+/** Tell the shell the store is loaded; it hands over links that arrived before (a cold start by a link). */
+export const mainReady = () => (isDesktop ? invoke<string[]>('main_ready') : Promise.resolve([]));
+
 export const desktopInfo = () => invoke<DesktopInfo>('desktop_info');
 export const setHotkey = (hotkey: string) => invoke('set_hotkey', { hotkey });
 /** Release the global shortcut while Settings records a new one (false: restore it). */

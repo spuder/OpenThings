@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SyncState } from '../sync/protocol';
 import type { Task } from '../types';
-import { addLinkParsed, addLinkPrefill, buildSnapshot, notificationId, parseRoute, pendingToParsed, type PendingItem } from './snapshot';
+import { addedTo, addLinkParsed, addLinkPrefill, isBackgroundAdd, buildSnapshot, notificationId, parseRoute, pendingToParsed, type PendingItem } from './snapshot';
 
 function task(p: Partial<Task>): Task {
   return {
@@ -188,5 +188,19 @@ describe('add links', () => {
     expect(addLinkPrefill(link('title=Paint%20shed&tags=home,big%20job&list=Garage%20cleanup&when=next%20week&deadline=fri&notes=Two%20coats'))).toBe(
       'Paint shed #home #big-job +Garage-cleanup @next-week !fri // Two coats',
     );
+  });
+});
+
+describe('background add links', () => {
+  it('only save=1 add links are background adds', () => {
+    expect(isBackgroundAdd('openthings://add?title=Milk&save=1')).toBe(true);
+    expect(isBackgroundAdd('openthings://add?title=Milk')).toBe(false);
+    expect(isBackgroundAdd('openthings://today')).toBe(false);
+    expect(isBackgroundAdd('https://example.com/add?save=1')).toBe(false);
+  });
+  it('names where the to-do went', () => {
+    expect(addedTo({ dump: true, when: null, project: null })).toBe('Brain Dump');
+    expect(addedTo({ dump: false, when: null, project: null })).toBe('Inbox');
+    expect(addedTo({ dump: false, when: null, project: 'Garage' })).toBe('Garage');
   });
 });

@@ -15,6 +15,7 @@
   <a href="https://github.com/spuder/OpenThings/pkgs/container/openthings"><img alt="Docker: ghcr.io" src="https://img.shields.io/badge/docker-ghcr.io-2f6fed?style=for-the-badge&logo=docker&logoColor=white&labelColor=555"></a>
   <a href="#self-hosting"><img alt="Self-host: compose.yaml" src="https://img.shields.io/badge/self--host-compose.yaml-e3743b?style=for-the-badge&logo=tailscale&logoColor=white&labelColor=555"></a>
   <a href="#ios-app"><img alt="iOS: build from source" src="https://img.shields.io/badge/iOS-build%20from%20source-111111?style=for-the-badge&logo=apple&logoColor=white&labelColor=555"></a>
+  <a href="https://addons.mozilla.org/firefox/addon/openthings-quick-add/"><img alt="Firefox: add-on" src="https://img.shields.io/badge/firefox-add--on-ff7139?style=for-the-badge&logo=firefoxbrowser&logoColor=white&labelColor=555"></a>
   <a href="#desktop-app"><img alt="Desktop: macOS and Arch Linux" src="https://img.shields.io/badge/desktop-macOS%20%7C%20Arch-6b5bd6?style=for-the-badge&logo=tauri&logoColor=white&labelColor=555"></a>
 </p>
 
@@ -27,6 +28,7 @@
   <a href="docs/sync.md">Sync protocol</a> ·
   <a href="docs/api.md">REST &amp; MCP</a> ·
   <a href="docs/ios.md">iOS app</a> ·
+  <a href="https://addons.mozilla.org/firefox/addon/openthings-quick-add/">Firefox add-on</a> ·
   <a href="AGENTS.md">Contributing</a> ·
   <a href="https://github.com/spuder/OpenThings/issues">Issues</a>
 </p>
@@ -232,6 +234,14 @@ In Xcode, check *Signing & Capabilities* on the **App**, **OpenThingsWidgets** a
 ## Android app
 
 The same app for Android 7.0 and newer, from the same Capacitor setup: reminders as Android notifications (they arrive with the app closed), Today and Sync status widgets, share to OpenThings from any app, app shortcuts (press and hold the icon), `openthings://` links, the back gesture, and pairing with your server by scanning the QR code. Install the latest build from the [Android preview](https://github.com/spuder/OpenThings/releases/tag/android-preview) release; later builds install over it and keep your to-dos. It's tested in the Android emulator so far; if you'd like to try it on your phone, [sign up as a tester](https://docs.google.com/forms/d/e/1FAIpQLSf0Vke8v5YCE53KemDdbn5VFub2v2MIK32OaTM-B6Sf1psgVg/viewform). Details and how to build it: [docs/android.md](docs/android.md).
+
+## Firefox extension
+
+**[Get it on Firefox Add-ons](https://addons.mozilla.org/firefox/addon/openthings-quick-add/)**: a toolbar button for Firefox and Firefox-based browsers such as Zen (version 140 or later), which updates itself. Press **Alt+Shift+T**, type a to-do, pick **Inbox** or **Brain Dump**, and press Enter. Quick-add syntax works in the Inbox (`@fri #reading`). Right-click selected text → **Add to OpenThings** to start from the selection, and tick **Attach this page's link** to put the page's title and URL in the notes.
+
+By default it sends an `openthings://` link to the [desktop app](#desktop-app), which saves the to-do without showing its window. Your browser asks once whether to allow OpenThings links; after you confirm, later adds go through without opening a tab. On macOS the app still takes focus for a moment, because macOS activates whichever app opens a link. Without the desktop app, choose **My OpenThings server** in the extension's Settings and it adds through your server's [REST API](docs/api.md). Add the `moz-extension://…` origin shown in Settings to `OPENTHINGS_ALLOWED_ORIGINS`.
+
+Each OpenThings release is submitted to [addons.mozilla.org](https://addons.mozilla.org/firefox/addon/openthings-quick-add/) with the same version number. To try a change before it's released, load it from source as a temporary add-on: see [extensions/firefox/README.md](extensions/firefox/README.md).
 
 ## Self-hosting
 

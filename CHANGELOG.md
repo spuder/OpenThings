@@ -2,6 +2,17 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.13.0](https://github.com/spuder/OpenThings/releases/tag/v0.13.0) - 2026-10-30
+
+### What's Changed
+
+* Drag projects into, between, and out of areas in the sidebar, and reorder them. By @spuder in https://github.com/spuder/OpenThings/pull/127 (https://github.com/spuder/OpenThings/issues/126)
+* Areas in the sidebar can be collapsed and expanded, with an animation. By @spuder in https://github.com/spuder/OpenThings/pull/125
+* The quick add window has rounded corners on macOS, a colored syntax hint, and key hints. By @spuder in https://github.com/spuder/OpenThings/pull/124
+* Tighter vertical spacing in the sidebar. By @spuder in https://github.com/spuder/OpenThings/pull/123 (https://github.com/spuder/OpenThings/issues/122)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.12.0...v0.13.0
+
 ## [v0.12.0](https://github.com/spuder/OpenThings/releases/tag/v0.12.0) - 2026-10-29
 
 ### What's Changed

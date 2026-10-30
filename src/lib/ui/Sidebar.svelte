@@ -4,7 +4,8 @@
   import Icon from './Icon.svelte';
   import ProgressPie from './ProgressPie.svelte';
   import { isMac, keyLabel, openListMenu, prompt } from '../commands';
-  import { fly } from 'svelte/transition';
+  import { fly, slide, type TransitionConfig } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
 
@@ -20,6 +21,18 @@
     e.stopPropagation();
     openListMenu({ kind, id });
   };
+
+  const reduceMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /** An area's projects open like a drawer: the height slides while the rows fade and drop into place. */
+  function unfold(node: Element, { duration }: { duration: number }): TransitionConfig {
+    const s = slide(node, { duration, easing: cubicOut });
+    return {
+      duration: reduceMotion ? 0 : duration,
+      easing: cubicOut,
+      css: (t, u) => `${s.css?.(t, u) ?? ''}opacity: ${t}; transform: translateY(${-6 * u}px);`,
+    };
+  }
 
   // Alt/Option-click folds or unfolds every area to match, like a Finder outline.
   const fold = (e: MouseEvent, id: string) => {
@@ -113,15 +126,21 @@
           </button>
           <button class="more" onclick={(e) => menu(e, 'area', a.id)} aria-label={`Actions for ${a.name}`} title="Rename, new project, delete">⋯</button>
         </li>
-        {#each folded ? [] : projects as p (p.id)}
-          <li class="has-menu">
-            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
-              <ProgressPie value={store.projectProgress(p.id)} />
-              <span class="label">{p.name}</span>
-            </button>
-            <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
+        {#if projects.length && !folded}
+          <li class="projects" in:unfold={{ duration: 220 }} out:unfold={{ duration: 180 }}>
+            <ul>
+              {#each projects as p (p.id)}
+                <li class="has-menu">
+                  <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+                    <ProgressPie value={store.projectProgress(p.id)} />
+                    <span class="label">{p.name}</span>
+                  </button>
+                  <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
+                </li>
+              {/each}
+            </ul>
           </li>
-        {/each}
+        {/if}
       </ul>
     {/each}
 
@@ -250,9 +269,13 @@
     place-items: center;
     border-radius: 6px;
   }
+  /* The projects under an area, in one block so they open and close together. */
+  .projects ul {
+    margin: 0;
+  }
   .fold :global(svg) {
     transform: rotate(90deg);
-    transition: transform 0.15s var(--ease);
+    transition: transform 0.2s var(--ease);
   }
   .fold.folded :global(svg) {
     transform: none;

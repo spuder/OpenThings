@@ -364,6 +364,11 @@
     box-shadow: none;
     min-height: 100vh;
   }
+  /* macOS: the window is transparent, so the panel draws its own corners and edge. */
+  :global(html.transparent-window) .panel.native {
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
   .field {
     position: relative;
   }

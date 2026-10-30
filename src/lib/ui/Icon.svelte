@@ -132,6 +132,8 @@
   {:else if name === 'complete'}
     <circle cx="10" cy="10" r="7" />
     <path d="M7 10.2l2.2 2.2L13.4 8" />
+  {:else if name === 'chevron'}
+    <path d="M8 5.5l4.5 4.5L8 14.5" />
   {:else if name === 'search'}
     <circle cx="9" cy="9" r="5" />
     <path d="M13 13l3.5 3.5" />

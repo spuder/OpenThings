@@ -3,8 +3,9 @@
   import type { ViewKey } from '../types';
   import Icon from './Icon.svelte';
   import ProgressPie from './ProgressPie.svelte';
-  import { keyLabel, openListMenu, prompt } from '../commands';
-  import { fly } from 'svelte/transition';
+  import { isMac, keyLabel, openListMenu, prompt } from '../commands';
+  import { fly, slide, type TransitionConfig } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
   import { projectDrag, projectDraggable, projectDropLine } from './projectDrag.svelte';
@@ -20,6 +21,24 @@
     e.preventDefault();
     e.stopPropagation();
     openListMenu({ kind, id });
+  };
+
+  const reduceMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /** An area's projects open like a drawer: the height slides while the rows fade and drop into place. */
+  function unfold(node: Element, { duration }: { duration: number }): TransitionConfig {
+    const s = slide(node, { duration, easing: cubicOut });
+    return {
+      duration: reduceMotion ? 0 : duration,
+      easing: cubicOut,
+      css: (t, u) => `${s.css?.(t, u) ?? ''}opacity: ${t}; transform: translateY(${-6 * u}px);`,
+    };
+  }
+
+  // Alt/Option-click folds or unfolds every area to match, like a Finder outline.
+  const fold = (e: MouseEvent, id: string) => {
+    if (e.altKey) store.setAreasCollapsed(!store.collapsedAreas.has(id));
+    else store.toggleArea(id);
   };
 
   type NavItem = { v: ViewKey; label: string; icon: string; count?: boolean };
@@ -96,24 +115,36 @@
     {/if}
 
     {#each store.areas as a (a.id)}
-      {@const inArea = projectsIn(a.id)}
-      <ul class="area" data-project-list={a.id} class:drop-end={projectDropLine(a.id, null) && !inArea.length}>
+      {@const projects = projectsIn(a.id)}
+      {@const folded = store.collapsedAreas.has(a.id)}
+      <ul class="area" data-project-list={a.id} class:drop-end={projectDropLine(a.id, null) && (!projects.length || folded)}>
         <li class="has-menu" data-area-head>
+          {#if projects.length}
+            <button class="fold" class:folded onclick={(e) => fold(e, a.id)} aria-expanded={!folded} aria-label={`${folded ? 'Expand' : 'Collapse'} ${a.name}`} title={`${folded ? 'Expand' : 'Collapse'} (${isMac ? '⌥' : 'Alt'}-click: all areas)`}>
+              <Icon name="chevron" size={14} />
+            </button>
+          {/if}
           <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
             <Icon name="area" />
             <span class="label">{a.name}</span>
           </button>
           <button class="more" onclick={(e) => menu(e, 'area', a.id)} aria-label={`Actions for ${a.name}`} title="Rename, new project, delete">⋯</button>
         </li>
-        {#each inArea as p (p.id)}
-          <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(a.id, p.id)} class:drop-after={projectDropLine(a.id, null) && p === inArea[inArea.length - 1]} class:dragged={projectDrag.id === p.id}>
-            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
-              <ProgressPie value={store.projectProgress(p.id)} />
-              <span class="label">{p.name}</span>
-            </button>
-            <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
+        {#if projects.length && !folded}
+          <li class="projects" in:unfold={{ duration: 220 }} out:unfold={{ duration: 180 }}>
+            <ul>
+              {#each projects as p (p.id)}
+                <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(a.id, p.id)} class:drop-after={projectDropLine(a.id, null) && p === projects[projects.length - 1]} class:dragged={projectDrag.id === p.id}>
+                  <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
+                    <ProgressPie value={store.projectProgress(p.id)} />
+                    <span class="label">{p.name}</span>
+                  </button>
+                  <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
+                </li>
+              {/each}
+            </ul>
           </li>
-        {/each}
+        {/if}
       </ul>
     {/each}
 
@@ -264,9 +295,38 @@
     padding: 6px 10px;
     border-top: 1px solid var(--line);
   }
+  /* Area rows leave room on the left for the fold chevron. */
+  .row.area-row {
+    padding-left: 26px;
+  }
   /* Projects inside an area sit a step in, so they read as belonging to it. */
   .row.in-area {
-    padding-left: 24px;
+    padding-left: 40px;
+  }
+  .fold {
+    position: absolute;
+    left: 2px;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+  }
+  /* The projects under an area, in one block so they open and close together. */
+  .projects ul {
+    margin: 0;
+  }
+  .fold :global(svg) {
+    transform: rotate(90deg);
+    transition: transform 0.2s var(--ease);
+  }
+  .fold.folded :global(svg) {
+    transform: none;
+  }
+  .fold:hover {
+    background: var(--sidebar-active);
   }
   footer {
     display: flex;
@@ -421,8 +481,14 @@
       font-size: 15.5px;
       gap: 12px;
     }
+    .row.area-row {
+      padding-left: 36px;
+    }
     .row.in-area {
-      padding-left: 30px;
+      padding-left: 52px;
+    }
+    .fold {
+      width: 34px;
     }
     footer {
       padding-bottom: calc(10px + env(safe-area-inset-bottom));

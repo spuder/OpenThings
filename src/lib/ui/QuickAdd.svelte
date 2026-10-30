@@ -105,6 +105,9 @@
     placeCursor(caret);
   }
 
+  /** ↵ would add a to-do (with the project list open it picks a project instead). */
+  const ready = $derived(!!parsed.title && !picker.length);
+
   const contextLabel = $derived.by(() => {
     if (parsed.project || parsed.when || parsed.dump) return null;
     if (native) return 'Inbox';
@@ -146,16 +149,17 @@
     else close();
   }
 
-  // Syntax keys: shown in the placeholder while empty, then as tappable chips below the input once you type.
-  const keys: { label: string; insert: string }[] = [
-    { label: '#tag', insert: '#' },
-    { label: '+Project', insert: '+' },
-    { label: '@tomorrow', insert: '@' },
-    { label: '%9am', insert: '%' },
-    { label: '!fri', insert: '!' },
-    { label: '~30m', insert: '~' },
-    { label: '*weekly', insert: '*' },
-    { label: '@dump', insert: '@dump ' },
+  // Syntax keys: shown in the hint line while empty, each in the color of the chip it makes, then as
+  // tappable chips below the input once you type.
+  const keys: { label: string; insert: string; kind: TokenKind }[] = [
+    { label: '#tag', insert: '#', kind: 'tag' },
+    { label: '+Project', insert: '+', kind: 'project' },
+    { label: '@tomorrow', insert: '@', kind: 'when' },
+    { label: '%9am', insert: '%', kind: 'reminder' },
+    { label: '!fri', insert: '!', kind: 'deadline' },
+    { label: '~30m', insert: '~', kind: 'estimate' },
+    { label: '*weekly', insert: '*', kind: 'repeat' },
+    { label: '@dump', insert: '@dump ', kind: 'dump' },
   ];
 
   /** #urgent / #important: tap to add, tap again to remove. */
@@ -252,7 +256,7 @@
       onfocus={syncCaret}
       onblur={() => (caret = null)}
       onscroll={syncCaret}
-      placeholder={simple ? 'Write anything…' : `New to-do   ${keys.map((k) => k.label).join('  ')}`}
+      placeholder={simple ? 'Write anything…' : 'New to-do'}
       spellcheck="false"
       autocomplete="off"
       aria-label="New to-do"
@@ -314,7 +318,8 @@
     {#if parsed.title}
       <span class="title">{parsed.title}</span>
     {:else}
-      <span class="hint">Type a to-do. Prefixes set its list, dates and tags.</span>
+      <span class="hint">Prefixes</span>
+      {#each keys as k (k.label)}<span class="hint-key" style:color={tokenColor[k.kind]}>{k.label}</span>{/each}
     {/if}
     {#each parsed.tokens as t, i (i)}
       <span class="tok" style:--c={tokenColor[t.kind]} in:fly={{ y: 4, duration: 120 }}>{tokenPrefix[t.kind]}{label(t.kind, t.label)}</span>
@@ -324,14 +329,17 @@
   </div>
   {/if}
   <div class="foot">
-    {#if picker.length}<span class="kb"><kbd>↑↓</kbd> project <kbd>↵</kbd> pick</span>{/if}
-    {#if completion}<span class="kb"><kbd>⇥</kbd> #{completion.step}</span>{/if}
-    <span class="kb"><kbd>↵</kbd> add</span>
-    <span class="kb"><kbd>⇧↵</kbd> add another</span>
-    <span class="kb"><kbd>Esc</kbd> close</span>
     <button type="button" class="touch-btn" onclick={close}>Cancel</button>
     {#if parsed.notes}<span class="notes">Notes: {parsed.notes}</span>{/if}
     {#if added}<span class="added" in:fade>{added} added</span>{/if}
+    <!-- Keyboard hints sit bottom right, ↵ last; they light up once there's a to-do to add. -->
+    <span class="kbs">
+      {#if picker.length}<span class="kb"><kbd>↑↓</kbd> project <kbd>↵</kbd> pick</span>{/if}
+      {#if completion}<span class="kb"><kbd>⇥</kbd> #{completion.step}</span>{/if}
+      <span class="kb"><kbd>Esc</kbd> close</span>
+      <span class="kb another" class:ready><kbd>⇧↵</kbd> add another</span>
+      <span class="kb go" class:ready><kbd>↵</kbd> add</span>
+    </span>
     <button type="button" class="touch-btn add-btn" disabled={!parsed.title} onclick={() => submit(false)}>Add</button>
   </div>
 </div>
@@ -364,6 +372,11 @@
     box-shadow: none;
     min-height: 100vh;
   }
+  /* macOS: the window is transparent, so the panel draws its own corners and edge. */
+  :global(html.transparent-window) .panel.native {
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
   .field {
     position: relative;
   }
@@ -392,9 +405,11 @@
   .ghost .text {
     color: var(--text);
   }
+  input {
+    caret-color: var(--accent);
+  }
   input.ghosted {
     color: transparent;
-    caret-color: var(--text);
   }
   input::placeholder {
     color: var(--text-3);
@@ -418,6 +433,9 @@
   .hint,
   .ctx {
     color: var(--text-3);
+  }
+  .hint-key {
+    font-weight: 500;
   }
   .tok {
     color: var(--c);
@@ -520,9 +538,47 @@
     display: none;
   }
   .added {
-    margin-left: auto;
     color: var(--logbook);
     font-weight: 600;
+  }
+  .kbs {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .kb {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: color 0.15s;
+  }
+  .kb kbd {
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .kb.another.ready {
+    color: var(--accent);
+  }
+  .kb.another.ready kbd {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .kb.go {
+    padding: 3px 10px 3px 4px;
+    border-radius: 8px;
+    background: var(--chip);
+    transition: background 0.15s, color 0.15s;
+  }
+  .kb.go.ready {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .kb.go.ready kbd {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.3);
   }
   @media (max-width: 760px) {
     .panel {
@@ -548,8 +604,11 @@
       align-items: center;
     }
     /* No Esc or Enter keys to point at: real buttons instead. */
-    .kb {
+    .kbs {
       display: none;
+    }
+    .added {
+      margin-left: auto;
     }
     .touch-btn {
       display: block;
@@ -568,12 +627,15 @@
     .add-btn:disabled {
       opacity: 0.4;
     }
-    .added + .add-btn {
+    .added ~ .add-btn {
       margin-left: 0;
     }
     /* The desktop quick-add window is narrow but isn't a phone: keep the keyboard hints. */
-    .native .kb {
-      display: inline;
+    .native .kbs {
+      display: flex;
+    }
+    .native .added {
+      margin-left: 0;
     }
     .native .touch-btn {
       display: none;

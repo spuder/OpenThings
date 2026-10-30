@@ -103,6 +103,16 @@ function setCursor(id: string | null) {
   if (store.expandedId && store.expandedId !== id) store.expandedId = null;
 }
 
+/** The area the current view is, or the area its project is in. */
+function currentArea(): string | null {
+  const v = store.view;
+  if (v.kind === 'area') return v.id;
+  if (v.kind === 'project') return store.projects.find((p) => p.id === v.id)?.area_id ?? null;
+  return null;
+}
+const anyAreaOpen = () => store.foldableAreas.some((a) => !store.collapsedAreas.has(a.id));
+const anyAreaFolded = () => store.foldableAreas.some((a) => store.collapsedAreas.has(a.id));
+
 /** Rename / move / delete menu for an area or project, shown in the palette. Each option has a letter (see menu.ts). */
 export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
   if (target.kind === 'area') {
@@ -114,6 +124,9 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
       options: [
         { label: 'Rename…', key: 'r', icon: 'rename', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
         { label: 'New project in this area…', key: 'n', icon: 'add', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
+        anyAreaOpen()
+          ? { label: 'Collapse all areas', key: 'c', icon: 'chevron', run: () => store.setAreasCollapsed(true) }
+          : { label: 'Expand all areas', key: 'e', icon: 'chevron', run: () => store.setAreasCollapsed(false) },
         {
           label: 'Delete area',
           key: 'd',
@@ -426,6 +439,20 @@ export const commands: Command[] = [
   { id: 'app.undo', title: 'Undo', group: 'App', keys: ['mod+z'], when: () => !typingNow(), run: () => store.undo() },
   { id: 'app.find', title: 'Quick Find', group: 'App', keys: ['mod+f', '/'], run: () => (store.overlay = 'find') },
   { id: 'app.sidebar', title: 'Show / hide sidebar', group: 'App', keys: ['mod+/'], run: () => store.toggleSidebar() },
+  // Folds, like an outline: z a this one, z m all closed, z r all open.
+  {
+    id: 'area.fold',
+    title: 'Collapse / expand this area in the sidebar',
+    group: 'App',
+    keys: ['z a'],
+    when: () => !!currentArea(),
+    run: () => {
+      const id = currentArea();
+      if (id) store.toggleArea(id);
+    },
+  },
+  { id: 'area.collapseAll', title: 'Collapse all areas', group: 'App', keys: ['z m'], when: anyAreaOpen, run: () => store.setAreasCollapsed(true) },
+  { id: 'area.expandAll', title: 'Expand all areas', group: 'App', keys: ['z r'], when: anyAreaFolded, run: () => store.setAreasCollapsed(false) },
   { id: 'app.palette', title: 'Command palette', group: 'App', keys: ['mod+k', 'mod+shift+p', ':'], run: () => openPalette('commands'), hidden: true },
   { id: 'app.help', title: 'Keyboard shortcuts', group: 'App', keys: ['?'], run: () => (store.overlay = store.overlay === 'help' ? null : 'help') },
   {

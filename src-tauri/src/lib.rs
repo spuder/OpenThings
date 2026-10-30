@@ -149,7 +149,7 @@ fn quick_add_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWind
     if let Some(w) = app.get_webview_window(QUICK_ADD) {
         return Ok(w);
     }
-    let w = WebviewWindowBuilder::new(app, QUICK_ADD, WebviewUrl::App("index.html".into()))
+    let b = WebviewWindowBuilder::new(app, QUICK_ADD, WebviewUrl::App("index.html".into()))
         .title(QUICK_ADD_TITLE)
         .inner_size(640.0, 132.0)
         .resizable(false)
@@ -157,8 +157,13 @@ fn quick_add_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWind
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
-        .center()
-        .build()?;
+        .center();
+    // A frameless window on macOS has square corners; a transparent one lets the page draw a rounded
+    // panel (QuickAddWindow.svelte), and the system shadow follows its shape. Needs the
+    // `macos-private-api` feature. Linux compositors such as Hyprland round windows themselves.
+    #[cfg(target_os = "macos")]
+    let b = b.transparent(true);
+    let w = b.build()?;
     let handle = app.clone();
     w.on_window_event(move |e| match e {
         // Behaves like a launcher: clicking elsewhere dismisses it.

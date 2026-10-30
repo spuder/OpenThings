@@ -189,7 +189,7 @@ fn quick_add_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWind
     if let Some(w) = app.get_webview_window(QUICK_ADD) {
         return Ok(w);
     }
-    let w = WebviewWindowBuilder::new(app, QUICK_ADD, WebviewUrl::App("index.html".into()))
+    let b = WebviewWindowBuilder::new(app, QUICK_ADD, WebviewUrl::App("index.html".into()))
         .title(QUICK_ADD_TITLE)
         .inner_size(640.0, 132.0)
         .resizable(false)
@@ -197,8 +197,13 @@ fn quick_add_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWind
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
-        .center()
-        .build()?;
+        .center();
+    // A frameless window on macOS has square corners; a transparent one lets the page draw a rounded
+    // panel (QuickAddWindow.svelte), and the system shadow follows its shape. Needs the
+    // `macos-private-api` feature. Linux compositors such as Hyprland round windows themselves.
+    #[cfg(target_os = "macos")]
+    let b = b.transparent(true);
+    let w = b.build()?;
     let handle = app.clone();
     w.on_window_event(move |e| match e {
         // Behaves like a launcher: clicking elsewhere dismisses it.
@@ -465,7 +470,44 @@ fn spawn_reminder_thread<R: Runtime>(app: AppHandle<R>, shell: Arc<Shell>) {
 
 // ---------- tray ----------
 
+/// The last sync status shown in the tray, so a theme change can redraw the same icon.
+static TRAY_STATUS: Mutex<String> = Mutex::new(String::new());
+
+/// The tray icon for a status; on Omarchy, recolored to the current desktop theme.
 fn tray_image(status: &str) -> Option<Image<'static>> {
+    *TRAY_STATUS.lock().unwrap() = status.to_string();
+    let img = stock_tray_image(status)?;
+    match omarchy::current_tray_tint() {
+        Some(tint) => {
+            let mut rgba = img.rgba().to_vec();
+            omarchy::tint_rgba(&mut rgba, tint);
+            Some(Image::new_owned(rgba, img.width(), img.height()))
+        }
+        None => Some(img),
+    }
+}
+
+/// Redraw the tray icon after an Omarchy theme switch.
+///
+/// Only the icon changes: the tray keeps its id, and so its StatusNotifierItem `Id`
+/// ("tray-icon tray app openthings-tray"), which omarchy-bar pins tray items by. The bar restarts
+/// on a theme switch, so the icon is set once the new bar is likely up (and again later in case it
+/// was slow), rather than while the StatusNotifierWatcher is going away.
+fn retint_tray(app: &AppHandle) {
+    let app = app.clone();
+    let _ = std::thread::Builder::new().name("omarchy-tray".into()).spawn(move || {
+        for delay in [2, 4] {
+            std::thread::sleep(std::time::Duration::from_secs(delay));
+            let status = TRAY_STATUS.lock().unwrap().clone();
+            if let Some(tray) = app.tray_by_id(TRAY_ID) {
+                // TrayIcon::set_icon already runs on the main thread.
+                let _ = tray.set_icon(tray_image(if status.is_empty() { "local" } else { &status }));
+            }
+        }
+    });
+}
+
+fn stock_tray_image(status: &str) -> Option<Image<'static>> {
     let bytes = match status {
         "idle" | "syncing" => TRAY_SYNCED,
         "pending" => TRAY_PENDING,
@@ -887,7 +929,7 @@ pub fn run() {
             }
 
             spawn_reminder_thread(handle.clone(), shell.clone());
-            omarchy::watch(handle.clone());
+            omarchy::watch(handle.clone(), retint_tray);
 
             // Deep links: register the scheme for AppImages (packages ship it in their .desktop file).
             #[cfg(target_os = "linux")]

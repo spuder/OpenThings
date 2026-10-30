@@ -7,8 +7,11 @@
   import { store } from '../store.svelte';
   import { today } from '../dates';
   import QuickAdd from '../ui/QuickAdd.svelte';
-  import { invoke, listen } from './desktop';
+  import { invoke, isMacDesktop, listen } from './desktop';
   import { addLinkPrefill, parseRoute } from './snapshot';
+
+  // On macOS the window is transparent (src-tauri/src/lib.rs) so the panel can have round corners.
+  if (isMacDesktop) document.documentElement.classList.add('transparent-window');
 
   let opened = $state(0);
   /** No typing since the last reset, so the window can be shown as it is. */
@@ -52,3 +55,9 @@
 {#key opened}
   <QuickAdd {native} />
 {/key}
+
+<style>
+  :global(html.transparent-window) {
+    background: transparent;
+  }
+</style>

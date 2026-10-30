@@ -74,7 +74,8 @@ fn fingerprint() -> Option<(SystemTime, u64, String)> {
 }
 
 /// Emit `ot://omarchy-theme` to every window whenever the desktop theme changes.
-pub fn watch<R: Runtime>(app: AppHandle<R>) {
+/// `on_change` runs on the watcher thread after each switch (the tray retints there).
+pub fn watch<R: Runtime>(app: AppHandle<R>, on_change: impl Fn(&AppHandle<R>) + Send + 'static) {
     if !active() {
         return;
     }
@@ -90,7 +91,146 @@ pub fn watch<R: Runtime>(app: AppHandle<R>) {
             if let Some(cur) = read() {
                 last = now;
                 let _ = app.emit("ot://omarchy-theme", cur);
+                on_change(&app);
             }
         }
     });
+}
+
+// ---------- tray icon tint ----------
+
+/// The colors the tray icon is drawn in: the badge takes the theme's accent, the glyph its background,
+/// so the icon reads like the rest of Waybar on light and dark themes alike.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct TrayTint {
+    pub badge: [u8; 3],
+    pub glyph: [u8; 3],
+}
+
+fn hex(s: &str) -> Option<[u8; 3]> {
+    let h = s.trim().trim_matches(|c| c == '"' || c == '\'').trim_start_matches('#');
+    if h.len() != 6 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    let p = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok();
+    Some([p(0)?, p(2)?, p(4)?])
+}
+
+/// Read `key = "#rrggbb"` lines from a colors.toml (the flat format Omarchy themes use).
+pub fn color(toml: &str, key: &str) -> Option<[u8; 3]> {
+    toml.lines().find_map(|line| {
+        if line.trim_start().starts_with('#') {
+            return None;
+        }
+        let (k, v) = line.split_once('=')?;
+        if k.trim() != key {
+            return None;
+        }
+        // Strip a trailing comment after the quoted value.
+        let v = v.trim();
+        let v = match v.strip_prefix('"') {
+            Some(rest) => rest.split('"').next()?,
+            None => v.split_whitespace().next()?,
+        };
+        hex(v)
+    })
+}
+
+/// The tray tint for a theme, or None when it lacks a background and foreground (like the web app).
+pub fn tray_tint(toml: &str) -> Option<TrayTint> {
+    let background = color(toml, "background")?;
+    let foreground = color(toml, "foreground")?;
+    let badge = color(toml, "accent").or_else(|| color(toml, "blue")).unwrap_or(foreground);
+    // A badge too close to the background would vanish into the bar; fall back to the foreground.
+    let badge = if distance(badge, background) < 60.0 { foreground } else { badge };
+    Some(TrayTint { badge, glyph: background })
+}
+
+/// The tint for the current desktop theme, if this is Omarchy.
+pub fn current_tray_tint() -> Option<TrayTint> {
+    read().and_then(|c| tray_tint(&c.colors))
+}
+
+fn distance(a: [u8; 3], b: [u8; 3]) -> f32 {
+    (0..3).map(|i| (a[i] as f32 - b[i] as f32).powi(2)).sum::<f32>().sqrt()
+}
+
+/// The stock tray icons: a blue badge with a white glyph (antialiased between them), plus a status dot.
+const BRAND: [f32; 3] = [47.0, 111.0, 237.0];
+const WHITE: [f32; 3] = [255.0, 255.0, 255.0];
+
+/// Recolor RGBA pixels of a stock tray icon: brand blue → badge, white → glyph, blends in between.
+/// Status-dot colors (red, amber, grey) sit far from the blue–white line and are left alone.
+pub fn tint_rgba(rgba: &mut [u8], tint: TrayTint) {
+    let d: [f32; 3] = [WHITE[0] - BRAND[0], WHITE[1] - BRAND[1], WHITE[2] - BRAND[2]];
+    let dd: f32 = d.iter().map(|x| x * x).sum();
+    for px in rgba.chunks_exact_mut(4) {
+        if px[3] == 0 {
+            continue;
+        }
+        let v = [px[0] as f32 - BRAND[0], px[1] as f32 - BRAND[1], px[2] as f32 - BRAND[2]];
+        let t = ((v[0] * d[0] + v[1] * d[1] + v[2] * d[2]) / dd).clamp(0.0, 1.0);
+        let off: f32 = (0..3).map(|i| (v[i] - t * d[i]).powi(2)).sum::<f32>().sqrt();
+        if off > 40.0 {
+            continue;
+        }
+        for i in 0..3 {
+            px[i] = (tint.badge[i] as f32 * (1.0 - t) + tint.glyph[i] as f32 * t).round() as u8;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DARK: &str = "accent = \"#7aa2f7\"\nbackground = \"#1a1b26\" # bg\nforeground = \"#a9b1d6\"\n# accent = \"#000000\"\n";
+    const LIGHT: &str = "background = '#eff1f5'\nforeground = \"#4c4f69\"\naccent = \"#1e66f5\"\n";
+
+    #[test]
+    fn parses_colors() {
+        assert_eq!(color(DARK, "accent"), Some([0x7a, 0xa2, 0xf7]));
+        assert_eq!(color(DARK, "background"), Some([0x1a, 0x1b, 0x26]));
+        assert_eq!(color(LIGHT, "background"), Some([0xef, 0xf1, 0xf5]));
+        assert_eq!(color(DARK, "red"), None);
+        assert_eq!(color("accent = \"#zzzzzz\"", "accent"), None);
+    }
+
+    #[test]
+    fn tint_follows_light_and_dark() {
+        let d = tray_tint(DARK).unwrap();
+        assert_eq!(d, TrayTint { badge: [0x7a, 0xa2, 0xf7], glyph: [0x1a, 0x1b, 0x26] });
+        let l = tray_tint(LIGHT).unwrap();
+        assert_eq!(l.glyph, [0xef, 0xf1, 0xf5]);
+        assert_eq!(tray_tint("accent = \"#ffffff\""), None);
+    }
+
+    #[test]
+    fn badge_falls_back_when_invisible() {
+        let t = tray_tint("background = \"#111111\"\nforeground = \"#eeeeee\"\naccent = \"#121212\"").unwrap();
+        assert_eq!(t.badge, [0xee, 0xee, 0xee]);
+    }
+
+    #[test]
+    fn recolors_brand_and_glyph_but_not_status_dot() {
+        let tint = TrayTint { badge: [10, 20, 30], glyph: [200, 210, 220] };
+        let mut px = vec![47, 111, 237, 255, 255, 255, 255, 255, 224, 69, 60, 255, 140, 140, 148, 255, 0, 0, 0, 0];
+        tint_rgba(&mut px, tint);
+        assert_eq!(&px[0..4], &[10, 20, 30, 255]);
+        assert_eq!(&px[4..8], &[200, 210, 220, 255]);
+        assert_eq!(&px[8..12], &[224, 69, 60, 255]);
+        assert_eq!(&px[12..16], &[140, 140, 148, 255]);
+        assert_eq!(&px[16..20], &[0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn tints_real_icons() {
+        let tint = TrayTint { badge: [10, 20, 30], glyph: [200, 210, 220] };
+        for bytes in [&include_bytes!("../icons/tray/error.png")[..], &include_bytes!("../icons/tray/local.png")[..]] {
+            let img = tauri::image::Image::from_bytes(bytes).unwrap();
+            let mut rgba = img.rgba().to_vec();
+            tint_rgba(&mut rgba, tint);
+            assert!(!rgba.chunks_exact(4).any(|p| p[3] == 255 && p[..3] == [47, 111, 237]));
+        }
+    }
 }

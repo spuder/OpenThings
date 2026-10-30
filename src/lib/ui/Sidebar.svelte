@@ -3,10 +3,12 @@
   import type { ViewKey } from '../types';
   import Icon from './Icon.svelte';
   import ProgressPie from './ProgressPie.svelte';
-  import { keyLabel, openListMenu, prompt } from '../commands';
-  import { fly } from 'svelte/transition';
+  import { isMac, keyLabel, openListMenu, prompt } from '../commands';
+  import { fly, slide, type TransitionConfig } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
+  import { projectDrag, projectDraggable, projectDropLine } from './projectDrag.svelte';
 
   let newListOpen = $state(false);
   function newList(kind: 'project' | 'area') {
@@ -19,6 +21,24 @@
     e.preventDefault();
     e.stopPropagation();
     openListMenu({ kind, id });
+  };
+
+  const reduceMotion = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /** An area's projects open like a drawer: the height slides while the rows fade and drop into place. */
+  function unfold(node: Element, { duration }: { duration: number }): TransitionConfig {
+    const s = slide(node, { duration, easing: cubicOut });
+    return {
+      duration: reduceMotion ? 0 : duration,
+      easing: cubicOut,
+      css: (t, u) => `${s.css?.(t, u) ?? ''}opacity: ${t}; transform: translateY(${-6 * u}px);`,
+    };
+  }
+
+  // Alt/Option-click folds or unfolds every area to match, like a Finder outline.
+  const fold = (e: MouseEvent, id: string) => {
+    if (e.altKey) store.setAreasCollapsed(!store.collapsedAreas.has(id));
+    else store.toggleArea(id);
   };
 
   type NavItem = { v: ViewKey; label: string; icon: string; count?: boolean };
@@ -77,38 +97,54 @@
       {@render section(items)}
     {/each}
 
-    {#if looseProjects.length}
-      <ul>
+    {#if looseProjects.length || projectDrag.active}
+      <!-- While a project is dragged this list shows even when empty, so it can leave its area. -->
+      <ul data-project-list="" class:drop-end={projectDropLine(null, null)} class:drop-zone={!looseProjects.length}>
         {#each looseProjects as p (p.id)}
-          <li class="has-menu">
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+          <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(null, p.id)} class:dragged={projectDrag.id === p.id}>
+            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
             <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
           </li>
+        {:else}
+          <li class="drop-hint">No area</li>
         {/each}
       </ul>
     {/if}
 
     {#each store.areas as a (a.id)}
-      <ul class="area">
-        <li class="has-menu">
-          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
+      {@const projects = projectsIn(a.id)}
+      {@const folded = store.collapsedAreas.has(a.id)}
+      <ul class="area" data-project-list={a.id} class:drop-end={projectDropLine(a.id, null) && (!projects.length || folded)}>
+        <li class="has-menu" data-area-head>
+          {#if projects.length}
+            <button class="fold" class:folded onclick={(e) => fold(e, a.id)} aria-expanded={!folded} aria-label={`${folded ? 'Expand' : 'Collapse'} ${a.name}`} title={`${folded ? 'Expand' : 'Collapse'} (${isMac ? '⌥' : 'Alt'}-click: all areas)`}>
+              <Icon name="chevron" size={14} />
+            </button>
+          {/if}
+          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
             <Icon name="area" />
             <span class="label">{a.name}</span>
           </button>
           <button class="more" onclick={(e) => menu(e, 'area', a.id)} aria-label={`Actions for ${a.name}`} title="Rename, new project, delete">⋯</button>
         </li>
-        {#each projectsIn(a.id) as p (p.id)}
-          <li class="has-menu">
-            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
-              <ProgressPie value={store.projectProgress(p.id)} />
-              <span class="label">{p.name}</span>
-            </button>
-            <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
+        {#if projects.length && !folded}
+          <li class="projects" in:unfold={{ duration: 220 }} out:unfold={{ duration: 180 }}>
+            <ul>
+              {#each projects as p (p.id)}
+                <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(a.id, p.id)} class:drop-after={projectDropLine(a.id, null) && p === projects[projects.length - 1]} class:dragged={projectDrag.id === p.id}>
+                  <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
+                    <ProgressPie value={store.projectProgress(p.id)} />
+                    <span class="label">{p.name}</span>
+                  </button>
+                  <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
+                </li>
+              {/each}
+            </ul>
           </li>
-        {/each}
+        {/if}
       </ul>
     {/each}
 
@@ -166,7 +202,7 @@
   }
   ul {
     list-style: none;
-    margin: 0 0 18px;
+    margin: 0 0 12px;
     padding: 0;
   }
   .row {
@@ -174,7 +210,7 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    padding: 5px 8px;
+    padding: 4px 8px;
     border-radius: 6px;
     text-align: left;
     font-weight: 500;
@@ -191,6 +227,47 @@
   .row.drop-ok {
     background: var(--accent-soft);
     box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  /* Project drag (#126): a line where the project will land, and the project being moved dimmed. */
+  li[data-project-id],
+  ul.drop-end > li {
+    position: relative;
+  }
+  li.drop-before::before,
+  li.drop-after::after,
+  ul.drop-end > li:last-child::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+  li.drop-before::before {
+    top: -1px;
+  }
+  li.drop-after::after,
+  ul.drop-end > li:last-child::after {
+    bottom: -1px;
+  }
+  li.dragged {
+    opacity: 0.45;
+  }
+  ul.drop-zone {
+    border: 1.5px dashed var(--line);
+    border-radius: 6px;
+  }
+  ul.drop-zone.drop-end {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .drop-hint {
+    position: relative;
+    padding: 4px 10px;
+    font-size: 12.5px;
+    color: var(--text-3);
   }
   .label {
     flex: 1;
@@ -211,16 +288,45 @@
     font-weight: 600;
   }
   .area {
-    margin-top: 6px;
+    margin-top: 2px;
   }
   ul.bottom {
     margin: 0;
     padding: 6px 10px;
     border-top: 1px solid var(--line);
   }
+  /* Area rows leave room on the left for the fold chevron. */
+  .row.area-row {
+    padding-left: 26px;
+  }
   /* Projects inside an area sit a step in, so they read as belonging to it. */
   .row.in-area {
-    padding-left: 24px;
+    padding-left: 40px;
+  }
+  .fold {
+    position: absolute;
+    left: 2px;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+  }
+  /* The projects under an area, in one block so they open and close together. */
+  .projects ul {
+    margin: 0;
+  }
+  .fold :global(svg) {
+    transform: rotate(90deg);
+    transition: transform 0.2s var(--ease);
+  }
+  .fold.folded :global(svg) {
+    transform: none;
+  }
+  .fold:hover {
+    background: var(--sidebar-active);
   }
   footer {
     display: flex;
@@ -375,8 +481,14 @@
       font-size: 15.5px;
       gap: 12px;
     }
+    .row.area-row {
+      padding-left: 36px;
+    }
     .row.in-area {
-      padding-left: 30px;
+      padding-left: 52px;
+    }
+    .fold {
+      width: 34px;
     }
     footer {
       padding-bottom: calc(10px + env(safe-area-inset-bottom));

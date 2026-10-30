@@ -27,6 +27,7 @@ import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
+import { projectDrop, type ProjectSlot } from './projectMove';
 import * as Sel from './selection';
 import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
@@ -69,6 +70,15 @@ function loadRecent(): ViewKey[] {
   try {
     const v = JSON.parse(localStorage.getItem('openthings.recent') ?? '[]');
     return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadCollapsedAreas(): ID[] {
+  try {
+    const v = JSON.parse(localStorage.getItem('openthings.collapsedAreas') ?? '[]');
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
   } catch {
     return [];
   }
@@ -139,6 +149,36 @@ class Store {
       /* ignore */
     }
   }
+  /** Areas folded in the sidebar, their projects hidden. Per device. */
+  collapsedAreas = new SvelteSet<ID>(loadCollapsedAreas());
+
+  /** Fold or unfold one area in the sidebar. */
+  toggleArea(id: ID) {
+    if (this.collapsedAreas.has(id)) this.collapsedAreas.delete(id);
+    else this.collapsedAreas.add(id);
+    this.saveCollapsedAreas();
+  }
+
+  /** Fold or unfold every area in the sidebar. */
+  setAreasCollapsed(collapsed: boolean) {
+    this.collapsedAreas.clear();
+    if (collapsed) for (const a of this.areas) this.collapsedAreas.add(a.id);
+    this.saveCollapsedAreas();
+  }
+
+  /** Areas with open projects to show or hide; folding an empty area does nothing. */
+  get foldableAreas(): Area[] {
+    return this.areas.filter((a) => this.projects.some((p) => p.area_id === a.id && !p.completed_at));
+  }
+
+  private saveCollapsedAreas() {
+    try {
+      localStorage.setItem('openthings.collapsedAreas', JSON.stringify([...this.collapsedAreas]));
+    } catch {
+      /* ignore */
+    }
+  }
+
   paletteMode = $state<PaletteMode>({ kind: 'commands' });
   quickAddPrefill = $state('');
   /** The to-do a touch swipe opened actions for (overlay 'swipe'), and which way it was swiped. */
@@ -1260,6 +1300,14 @@ class Store {
   renameProject(id: ID, name: string) {
     db.update('projects', id, { name });
     this.load();
+  }
+
+  /** Sidebar drag and drop (#126): put a project in an area (or none), before another project. */
+  dropProject(id: ID, slot: ProjectSlot): boolean {
+    const fields = projectDrop(this.projects, this.areas.map((a) => a.id), id, slot);
+    if (!fields) return false;
+    this.bulk('Move project', () => db.update('projects', id, fields));
+    return true;
   }
 
   moveProject(id: ID, areaId: ID | null) {

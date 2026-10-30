@@ -27,6 +27,7 @@ import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
+import { projectDrop, type ProjectSlot } from './projectMove';
 import * as Sel from './selection';
 import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
@@ -1260,6 +1261,14 @@ class Store {
   renameProject(id: ID, name: string) {
     db.update('projects', id, { name });
     this.load();
+  }
+
+  /** Sidebar drag and drop (#126): put a project in an area (or none), before another project. */
+  dropProject(id: ID, slot: ProjectSlot): boolean {
+    const fields = projectDrop(this.projects, this.areas.map((a) => a.id), id, slot);
+    if (!fields) return false;
+    this.bulk('Move project', () => db.update('projects', id, fields));
+    return true;
   }
 
   moveProject(id: ID, areaId: ID | null) {

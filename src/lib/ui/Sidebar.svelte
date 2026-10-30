@@ -7,6 +7,7 @@
   import { fly } from 'svelte/transition';
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
+  import { projectDrag, projectDraggable, projectDropLine } from './projectDrag.svelte';
 
   let newListOpen = $state(false);
   function newList(kind: 'project' | 'area') {
@@ -77,32 +78,36 @@
       {@render section(items)}
     {/each}
 
-    {#if looseProjects.length}
-      <ul>
+    {#if looseProjects.length || projectDrag.active}
+      <!-- While a project is dragged this list shows even when empty, so it can leave its area. -->
+      <ul data-project-list="" class:drop-end={projectDropLine(null, null)} class:drop-zone={!looseProjects.length}>
         {#each looseProjects as p (p.id)}
-          <li class="has-menu">
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+          <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(null, p.id)} class:dragged={projectDrag.id === p.id}>
+            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
             <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
           </li>
+        {:else}
+          <li class="drop-hint">No area</li>
         {/each}
       </ul>
     {/if}
 
     {#each store.areas as a (a.id)}
-      <ul class="area">
-        <li class="has-menu">
-          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
+      {@const inArea = projectsIn(a.id)}
+      <ul class="area" data-project-list={a.id} class:drop-end={projectDropLine(a.id, null) && !inArea.length}>
+        <li class="has-menu" data-area-head>
+          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
             <Icon name="area" />
             <span class="label">{a.name}</span>
           </button>
           <button class="more" onclick={(e) => menu(e, 'area', a.id)} aria-label={`Actions for ${a.name}`} title="Rename, new project, delete">⋯</button>
         </li>
-        {#each projectsIn(a.id) as p (p.id)}
-          <li class="has-menu">
-            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)}>
+        {#each inArea as p (p.id)}
+          <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(a.id, p.id)} class:drop-after={projectDropLine(a.id, null) && p === inArea[inArea.length - 1]} class:dragged={projectDrag.id === p.id}>
+            <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
@@ -191,6 +196,47 @@
   .row.drop-ok {
     background: var(--accent-soft);
     box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  /* Project drag (#126): a line where the project will land, and the project being moved dimmed. */
+  li[data-project-id],
+  ul.drop-end > li {
+    position: relative;
+  }
+  li.drop-before::before,
+  li.drop-after::after,
+  ul.drop-end > li:last-child::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+  li.drop-before::before {
+    top: -1px;
+  }
+  li.drop-after::after,
+  ul.drop-end > li:last-child::after {
+    bottom: -1px;
+  }
+  li.dragged {
+    opacity: 0.45;
+  }
+  ul.drop-zone {
+    border: 1.5px dashed var(--line);
+    border-radius: 6px;
+  }
+  ul.drop-zone.drop-end {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .drop-hint {
+    position: relative;
+    padding: 4px 10px;
+    font-size: 12.5px;
+    color: var(--text-3);
   }
   .label {
     flex: 1;

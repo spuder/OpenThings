@@ -4,6 +4,7 @@ The OpenThings server (the Docker image) offers a JSON API for scripts, Home Ass
 
 - **Base URL:** `https://openthings.<tailnet>.ts.net` (or wherever you run the container)
 - **Auth:** none yet. Keep the server on your tailnet or another private network. Browser requests from other websites are refused (see [sync.md](sync.md#endpoints)).
+- **Calendar:** time blocks as an iCalendar feed and a read-only CalDAV calendar, see [Calendar subscription](#calendar-subscription).
 - **Dates:** "today" follows the container's `TZ`. Days are `YYYY-MM-DD`; reminders are ISO timestamps (UTC).
 
 Settings → REST API / MCP in the app shows these with your server's address filled in.
@@ -112,3 +113,47 @@ Clients that only run local commands can bridge with `npx -y mcp-remote https://
 | `start_timer`, `stop_timer`, `current_timer` | Time tracking |
 
 Tool results are compact JSON: empty fields are left out.
+
+## Calendar subscription
+
+The server publishes your [time blocks](../README.md#features) read only, so other calendar apps can show them. Blocks reach the server when a device syncs, and changes show up in subscribed calendars on their next refresh. Edit blocks in OpenThings: the calendars refuse writes.
+
+![Settings → Calendar subscription](screenshots/calendar-subscription.png)
+
+| | URL | Use it in |
+| --- | --- | --- |
+| CalDAV account | `https://<server>/dav/` | Apple Calendar (Add Account → Other CalDAV Account → Manual), Thunderbird, DAVx5 on Android. Any user name and password works: there's no login yet. |
+| Discovery | `https://<server>/.well-known/caldav` | Redirects to `/dav/`, so clients that only ask for the server find it. |
+| Everything | `https://<server>/cal/openthings.ics` (or `webcal://…`) | Apple Calendar (File → New Calendar Subscription), Google Calendar (Other calendars → From URL), Outlook (Add calendar → Subscribe from web) |
+| One area | `https://<server>/cal/area/<area id>.ics` | The same apps, when you only want some areas. Settings lists each area's URL. |
+| No area | `https://<server>/cal/other.ics` | Blocks that aren't in an area |
+
+**Calendars and names.**
+- **The CalDAV account holds one calendar per area,** named "OpenThings · Work", "OpenThings · Family" and so on, plus "OpenThings · Other" for blocks with no area. Turn areas on or off with the calendar app's checkboxes.
+- **The account doesn't include the combined calendar,** so no block shows twice.
+- **The combined feed is named OpenThings.** `OPENTHINGS_CALENDAR_NAME` changes it, and the start of each area's name too.
+- **Calendars follow your areas.** A new area appears as a calendar on the next sync, renaming an area renames its calendar, and deleting an area moves its blocks to Other.
+- **Addresses use the area's id, not its name,** so renaming doesn't break a subscription.
+
+**Colors.**
+- **Each area has a color,** automatic by its place in the sidebar, or one you pick with `⇧L` → Color… in the area.
+- **CalDAV calendars carry it as `calendar-color`.** Apple Calendar, Thunderbird and DAVx5 start each calendar in its area's color, and you can still recolor it in the app; that stays on your device.
+- **Per-area feeds carry `X-APPLE-CALENDAR-COLOR` and `COLOR`.** Apple Calendar may use it when you subscribe.
+- **Google Calendar and Outlook ignore these and pick their own,** so set those once by hand.
+- **Events carry `COLOR` (RFC 7986)** for the few clients that color single events.
+- **Changes may lag.** Changing an area's color in OpenThings updates `calendar-color` for CalDAV apps on their next sync, unless you've recolored that calendar there. Feeds usually keep the color they started with.
+
+**Events.**
+- **Each block is one event,** titled like the block on the calendar, such as "Change oil". Its description is the full path, such as "Vehicles › Truck maintenance › Change oil", followed by the to-dos inside the block (☐ open, ☑ done). The area is its category.
+- **Its UID is `<block id>@openthings`,** so edits update the same event instead of adding new ones.
+- **Times are floating local times,** as in the app, so a 9:00 block shows at 9:00. The feeds also name the server's `TZ` (`X-WR-TIMEZONE`), which Google Calendar uses.
+- **The feeds ask subscribers to refresh every 15 minutes.** Apple Calendar mostly honors that. Google Calendar decides for itself and can take up to a day.
+
+**Google Calendar needs a public URL.** Google fetches subscribed feeds from its own servers, so it can't reach a server that's only on your tailnet. Apple Calendar, Outlook on the desktop, Thunderbird and DAVx5 fetch from your device, so a tailnet address works for them.
+
+**The CalDAV support is a read-only subset** (RFC 4791):
+- `PROPFIND` on the principal, calendar home and calendars at depth 0 or 1.
+- `REPORT` with `calendar-multiget` and `calendar-query`, including `time-range`.
+- `GET` of one event.
+- ETags and `getctag` for change detection.
+- `PUT`, `DELETE` and `PROPPATCH` return 403.

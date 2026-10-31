@@ -204,3 +204,25 @@ describe('SyncEngine', () => {
     expect(normalizeUrl('http://10.0.0.5:8080')).toBe('http://10.0.0.5:8080');
   });
 });
+
+describe('time blocks (#99)', () => {
+  const blockRow = (id: string) => ({
+    id, start_at: '2026-10-31T09:00', end_at: '2026-10-31T10:00', title: null, area_id: 'a1', project_id: null, task_id: null,
+    calendar_id: null, created_at: new Date().toISOString(), deleted_at: null,
+  });
+
+  it('records local block writes in the op log for sync', () => {
+    db.insert('time_blocks', blockRow('b1'));
+    db.update('time_blocks', 'b1', { end_at: '2026-10-31T11:00' });
+    expect(db.pendingOps().filter((o) => o.tbl === 'time_blocks').map((o) => o.kind)).toEqual(['insert', 'update']);
+  });
+
+  it('applies blocks from another device', () => {
+    const applied = db.applyRemoteOps([
+      { hlc: hlcAt(1000), device: 'otherdevice1', tbl: 'time_blocks', row_id: 'b2', kind: 'insert', payload: blockRow('b2') },
+      { hlc: hlcAt(2000), device: 'otherdevice1', tbl: 'time_blocks', row_id: 'b2', kind: 'update', payload: { title: 'Taxes', area_id: null } },
+    ]);
+    expect(applied).toBe(2);
+    expect(db.one('SELECT title, area_id FROM time_blocks WHERE id = ?', ['b2'])).toEqual({ title: 'Taxes', area_id: null });
+  });
+});

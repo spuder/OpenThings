@@ -13,6 +13,8 @@ export interface MenuOption {
   icon?: string;
   /** Destructive: the label is red. */
   danger?: boolean;
+  /** A color dot before the label (CSS color), e.g. in the area color menu. */
+  swatch?: string;
   run: () => void;
 }
 

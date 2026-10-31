@@ -4,6 +4,8 @@ export interface Area {
   id: ID;
   name: string;
   sort: number;
+  /** Color picked for it (an id from colors.ts); null = automatic. */
+  color?: string | null;
 }
 
 export interface Project {
@@ -104,6 +106,31 @@ export interface DumpSection {
   sort: number;
 }
 
+/** A span of time on the Time Blocking calendar (#99). Times are local `YYYY-MM-DDTHH:MM`. */
+export interface TimeBlock {
+  id: ID;
+  start_at: string;
+  end_at: string;
+  /** Plain label for a block with no area, e.g. "Taxes". */
+  title: string | null;
+  /** Assignment: none, area, area + project, or area + project + to-do (see timeblocks.ts). */
+  area_id: ID | null;
+  project_id: ID | null;
+  task_id: ID | null;
+  /** Reserved for external calendars; null = OpenThings' own. */
+  calendar_id: ID | null;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+/** A to-do planned inside a time block (a block can hold several). */
+export interface BlockTask {
+  id: ID;
+  block_id: ID;
+  task_id: ID;
+  sort: number;
+}
+
 export type ViewKey =
   | { kind: 'inbox' }
   | { kind: 'today' }
@@ -115,6 +142,7 @@ export type ViewKey =
   | { kind: 'dump' }
   | { kind: 'habits' }
   | { kind: 'matrix' }
+  | { kind: 'timeblock' }
   | { kind: 'trash' }
   | { kind: 'tag'; id: ID }
   | { kind: 'settings' }

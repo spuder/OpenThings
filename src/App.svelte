@@ -8,6 +8,7 @@
   import DumpView from './lib/ui/DumpView.svelte';
   import HabitsView from './lib/ui/HabitsView.svelte';
   import MatrixView from './lib/ui/MatrixView.svelte';
+  import TimeBlockView from './lib/ui/TimeBlockView.svelte';
   import QuickAdd from './lib/ui/QuickAdd.svelte';
   import Palette from './lib/ui/Palette.svelte';
   import Help from './lib/ui/Help.svelte';
@@ -28,6 +29,7 @@
   import { drag } from './lib/ui/drag.svelte';
   import RepeatEditor from './lib/ui/RepeatEditor.svelte';
   import SwipeSheet from './lib/ui/SwipeSheet.svelte';
+  import { colorChoice } from './lib/colors';
 
   store.init().then(() => store.start());
   installKeyboardInset();
@@ -96,6 +98,10 @@
   const v = $derived(store.view);
   const iconName = $derived(v.kind === 'project' ? '' : v.kind);
   const project = $derived(v.kind === 'project' ? store.projects.find((p) => p.id === v.id) : undefined);
+  const areaTint = $derived.by(() => {
+    const c = v.kind === 'area' ? colorChoice(store.areas.find((a) => a.id === v.id)?.color) : undefined;
+    return c ? `var(${c.token})` : undefined;
+  });
   const trackedTask = $derived(store.task(store.tracking?.taskId ?? null));
 
   const empty: Record<string, string> = {
@@ -147,13 +153,13 @@
       </div>
 
       <div class="scroll">
-        <div class="content" class:wide={v.kind === 'matrix' || v.kind === 'habits'}>
+        <div class="content" class:wide={v.kind === 'matrix' || v.kind === 'habits'} class:full={v.kind === 'timeblock'}>
           {#key store.view}
             <header class="view-head" in:fly={{ y: 6, duration: 200 }}>
               {#if project}
                 <ProgressPie value={store.projectProgress(project.id)} size={26} />
               {:else}
-                <Icon name={iconName} size={28} />
+                <Icon name={iconName} size={28} color={areaTint} />
               {/if}
               <h1>{store.viewTitle}</h1>
               {#if v.kind === 'today'}<span class="date">{longLabel(store.day)}</span>{/if}
@@ -170,6 +176,8 @@
                 <HabitsView />
               {:else if v.kind === 'matrix'}
                 <MatrixView />
+              {:else if v.kind === 'timeblock'}
+                <TimeBlockView />
               {:else if v.kind === 'trash'}
                 <TrashView />
               {:else if v.kind === 'settings'}
@@ -309,6 +317,13 @@
   }
   .content.wide {
     max-width: 1080px;
+  }
+  .content.full {
+    max-width: 1400px;
+    padding: 0 28px 24px;
+  }
+  .content.full .view-head {
+    margin: 8px 0 12px;
   }
   .view-head {
     display: flex;

@@ -15,6 +15,8 @@ import type {
   Tag,
   Task,
   TaskTag,
+  BlockTask,
+  TimeBlock,
   TimeEntry,
   ViewKey,
 } from './types';
@@ -32,6 +34,7 @@ import * as Sel from './selection';
 import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
 import { mergeImportedTags, type ThingsImport } from './import/things';
+import * as TB from './timeblocks';
 
 export interface Group {
   key: string;
@@ -84,6 +87,15 @@ function loadCollapsedAreas(): ID[] {
   }
 }
 
+function loadCalRange(): TB.CalendarRange {
+  try {
+    const v = localStorage.getItem('openthings.calRange');
+    return TB.RANGES.some((r) => r.id === v) ? (v as TB.CalendarRange) : 'week';
+  } catch {
+    return 'week';
+  }
+}
+
 function norm(s: string) {
   return s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
 }
@@ -106,6 +118,8 @@ class Store {
   habitChecks = $state<HabitCheck[]>([]);
   timeEntries = $state<TimeEntry[]>([]);
   dumpSections = $state<DumpSection[]>([]);
+  timeBlocks = $state<TimeBlock[]>([]);
+  blockTasks = $state<BlockTask[]>([]);
   opCount = $state(0);
 
   view = $state<ViewKey>({ kind: 'today' });
@@ -272,6 +286,8 @@ class Store {
     const open = this.timeEntries.filter((e) => e.end_at === null).sort((a, b) => b.start_at.localeCompare(a.start_at))[0];
     this.tracking = open ? { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) } : null;
     this.dumpSections = db.all<DumpSection>('SELECT * FROM dump_sections ORDER BY sort');
+    this.timeBlocks = db.all<TimeBlock>('SELECT * FROM time_blocks WHERE deleted_at IS NULL ORDER BY start_at');
+    this.blockTasks = db.all<BlockTask>('SELECT * FROM block_tasks ORDER BY sort');
     this.opCount = db.opCount();
     this.announceReminders();
   }
@@ -307,7 +323,13 @@ class Store {
     const cutoff = new Date(Date.now() - TRASH_DAYS * 86_400_000).toISOString();
     const old = db.all<{ id: string }>('SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
     for (const t of old) this.hardDelete(t.id);
-    return old.length > 0;
+    // Deleted time blocks are kept for undo and sync, then go with the Trash.
+    const blocks = db.all<{ id: string }>('SELECT id FROM time_blocks WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
+    for (const b of blocks) {
+      for (const l of db.all<{ id: string }>('SELECT id FROM block_tasks WHERE block_id = ?', [b.id])) db.remove('block_tasks', l.id);
+      db.remove('time_blocks', b.id);
+    }
+    return old.length > 0 || blocks.length > 0;
   }
 
   /** Show a short message. With `undo`, it carries an Undo button and stays up longer (no ⌘Z on a phone). */
@@ -383,6 +405,7 @@ class Store {
       case 'dump': return 'Brain Dump';
       case 'habits': return 'Habits';
       case 'matrix': return 'Matrix';
+      case 'timeblock': return 'Time Blocking';
       case 'trash': return 'Trash';
       case 'tag': return `#${this.tags.find((t) => t.id === v.id)?.name ?? 'tag'}`;
       case 'settings': return 'Settings';
@@ -420,7 +443,7 @@ class Store {
 
   /** Multi-selection lists only to-dos; Habits, Trash and Brain Dump keep single selection. */
   get canMulti(): boolean {
-    return !['habits', 'trash', 'dump', 'settings'].includes(this.view.kind);
+    return !['habits', 'trash', 'dump', 'settings', 'timeblock'].includes(this.view.kind);
   }
 
   /** The current selection as a Selection, whether or not it's multi. */
@@ -598,6 +621,7 @@ class Store {
       }
       case 'habits':
       case 'settings':
+      case 'timeblock':
         return [];
       case 'trash':
         return [];
@@ -1008,6 +1032,7 @@ class Store {
   private hardDelete(id: ID) {
     for (const tt of db.all<TaskTag>('SELECT * FROM task_tags WHERE task_id = ?', [id])) db.remove('task_tags', tt.id);
     for (const c of db.all<ChecklistItem>('SELECT * FROM checklist WHERE task_id = ?', [id])) db.remove('checklist', c.id);
+    for (const l of db.all<{ id: string }>('SELECT id FROM block_tasks WHERE task_id = ?', [id])) db.remove('block_tasks', l.id);
     db.remove('tasks', id);
   }
 
@@ -1230,6 +1255,295 @@ class Store {
     this.load();
   }
 
+  // ---------- time blocking (#99) ----------
+
+  /** Calendar range and the first day it shows (7 days and 4 weeks start on that week's Sunday). Range is per device. */
+  calRange = $state<TB.CalendarRange>(loadCalRange());
+  calAnchor = $state(todayFn());
+  /** The block the keyboard acts on, and the one whose inline assignment box is open. */
+  blockSelectedId = $state<ID | null>(null);
+  blockEditingId = $state<ID | null>(null);
+
+  /** The calendar's To-dos panel. Per device; open by default on wide screens. */
+  calPanel = $state((() => {
+    try {
+      const v = localStorage.getItem('openthings.calPanel');
+      if (v !== null) return v === '1';
+    } catch {
+      /* ignore */
+    }
+    return typeof matchMedia !== 'undefined' && matchMedia('(min-width: 1100px)').matches;
+  })());
+
+  toggleCalPanel() {
+    this.calPanel = !this.calPanel;
+    try {
+      localStorage.setItem('openthings.calPanel', this.calPanel ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  setCalRange(range: TB.CalendarRange) {
+    this.calRange = range;
+    try {
+      localStorage.setItem('openthings.calRange', range);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  stepCalendar(dir: -1 | 1) {
+    this.calAnchor = TB.stepAnchor(this.calRange, this.calAnchor, dir);
+  }
+
+  calendarToday() {
+    this.calAnchor = this.day;
+  }
+
+  block(id: ID | null): TimeBlock | undefined {
+    return id ? this.timeBlocks.find((b) => b.id === id) : undefined;
+  }
+
+  /**
+   * Create a block on `day` from minute `start` to `end` (snapped) and select it. A plain new block
+   * opens its inline box; one made from a drop (`link`) is already assigned and doesn't.
+   */
+  addBlock(day: string, start: number, end: number, link?: { assignment: TB.Assignment; title: string | null }): ID | null {
+    if (link) {
+      const err = TB.assignmentError(link.assignment, this.projects, this.tasks);
+      if (err) {
+        this.notify(err);
+        return null;
+      }
+    }
+    const span = TB.fitSpan(start, end);
+    const id = db.uuid7();
+    db.insert('time_blocks', {
+      id,
+      start_at: TB.atTime(day, span.start),
+      end_at: TB.atTime(day, span.end),
+      title: link?.title ?? null,
+      area_id: link?.assignment.area_id ?? null,
+      project_id: link?.assignment.project_id ?? null,
+      task_id: link?.assignment.task_id ?? null,
+      calendar_id: null,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+    });
+    this.undoStack.push('new block', () => db.update('time_blocks', id, { deleted_at: new Date().toISOString() }));
+    this.load();
+    this.blockSelectedId = id;
+    this.blockEditingId = link ? null : id;
+    return id;
+  }
+
+  /** Where a block made from the keyboard goes: the next quarter hour today if it's shown, else 9:00 on the first day. */
+  private nextSlot(): { day: string; start: number } {
+    const days = TB.rangeDays(this.calRange, this.calAnchor);
+    const day = days.includes(this.day) ? this.day : days[0];
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    return { day, start: day === this.day ? Math.ceil(nowMin / TB.SNAP_MIN) * TB.SNAP_MIN : 9 * 60 };
+  }
+
+  /** New block from the keyboard: the next hour (see nextSlot). */
+  addBlockNow() {
+    const { day, start } = this.nextSlot();
+    const span = TB.dropSpan(start, 60);
+    this.addBlock(day, span.start, span.end);
+  }
+
+  /**
+   * An area or project from the sidebar, or a to-do, dropped on the calendar at minute `at` of `day`:
+   * a new block. A to-do dragged out of a block also leaves that block, in the same undo step.
+   */
+  dropOnCalendar(src: TB.BlockSource, day: string, at: number): ID | null {
+    const link = TB.sourceBlock(src, this.areas, this.projects, this.tasks);
+    if (!link) return null;
+    const span = TB.dropSpan(at, TB.sourceMinutes(src, this.tasks));
+    let id: ID | null = null;
+    this.bulk('plan to-do', () => {
+      id = this.addBlock(day, span.start, span.end, link);
+      if (id && src.fromBlock) this.unplanLink(src.fromBlock, src.id);
+    });
+    if (id) this.blockSelectedId = id;
+    return id;
+  }
+
+  // ---------- to-dos inside blocks ----------
+
+  /** The to-dos planned inside a block, in order (completed ones stay, checked). */
+  tasksInBlock(blockId: ID): Task[] {
+    return this.blockTasks
+      .filter((l) => l.block_id === blockId)
+      .map((l) => this.task(l.task_id))
+      .filter((t): t is Task => !!t);
+  }
+
+  private planLink(blockId: ID, taskId: ID): boolean {
+    if (this.blockTasks.some((l) => l.block_id === blockId && l.task_id === taskId)) return false;
+    const id = db.uuid7();
+    const sort = Math.max(0, ...this.blockTasks.filter((l) => l.block_id === blockId).map((l) => l.sort)) + 1;
+    db.insert('block_tasks', { id, block_id: blockId, task_id: taskId, sort });
+    this.undoStack.push('plan to-do', () => db.remove('block_tasks', id));
+    this.blockTasks = [...this.blockTasks, { id, block_id: blockId, task_id: taskId, sort }];
+    return true;
+  }
+
+  private unplanLink(blockId: ID, taskId: ID) {
+    for (const l of this.blockTasks.filter((x) => x.block_id === blockId && x.task_id === taskId)) {
+      db.remove('block_tasks', l.id);
+      // A synced delete is final: undo links it again under a new id.
+      this.undoStack.push('take out of block', () => db.insert('block_tasks', { id: db.uuid7(), block_id: l.block_id, task_id: l.task_id, sort: l.sort }));
+    }
+    this.blockTasks = this.blockTasks.filter((x) => !(x.block_id === blockId && x.task_id === taskId));
+  }
+
+  /** Can to-do `taskId` go inside block `blockId` (same area / project, see acceptsTask)? */
+  blockAccepts(blockId: ID, taskId: ID): boolean {
+    const b = this.block(blockId);
+    const t = this.task(taskId);
+    return !!b && !!t && TB.acceptsTask(b, t, this.projects);
+  }
+
+  /** Put a to-do inside a block (dropped on it). From another block, it moves. One undo step. */
+  addTaskToBlock(blockId: ID, taskId: ID, fromBlock?: ID): boolean {
+    if (!this.blockAccepts(blockId, taskId)) return false;
+    if (this.blockTasks.some((l) => l.block_id === blockId && l.task_id === taskId)) {
+      this.notify('Already in this block');
+      return false;
+    }
+    this.bulk('plan to-do', () => {
+      this.planLink(blockId, taskId);
+      if (fromBlock && fromBlock !== blockId) this.unplanLink(fromBlock, taskId);
+    });
+    this.blockSelectedId = blockId;
+    const b = this.block(blockId);
+    this.notify(`Added to ${b ? TB.blockLabel(b, this.areas, this.projects, this.tasks).title : 'block'}`, { undo: true });
+    return true;
+  }
+
+  /** Take a to-do out of a block (the block stays). */
+  removeTaskFromBlock(blockId: ID, taskId: ID) {
+    this.bulk('take out of block', () => this.unplanLink(blockId, taskId));
+  }
+
+  /**
+   * Merge a single-to-do block into a block of its area or project, like dropping the to-do there:
+   * the to-do goes inside, the dragged block goes away. One undo step.
+   */
+  mergeBlockInto(fromId: ID, intoId: ID): boolean {
+    const from = this.block(fromId);
+    if (!from?.task_id || fromId === intoId || !this.blockAccepts(intoId, from.task_id)) return false;
+    const taskId = from.task_id;
+    const now = new Date().toISOString();
+    this.bulk('merge blocks', () => {
+      this.planLink(intoId, taskId);
+      db.update('time_blocks', fromId, { deleted_at: now });
+      this.undoStack.push('merge blocks', () => db.update('time_blocks', fromId, { deleted_at: null }));
+    });
+    if (this.blockEditingId === fromId) this.blockEditingId = null;
+    this.blockSelectedId = intoId;
+    const into = this.block(intoId);
+    this.notify(`Merged into ${into ? TB.blockLabel(into, this.areas, this.projects, this.tasks).title : 'block'}`, { undo: true });
+    return true;
+  }
+
+  /**
+   * Block time for a to-do, area or project from the keyboard (⇧C): the next free slot, then the
+   * calendar opens on it with the block selected, ready for ⇧J / ⇧K and ⌥⇧↓.
+   */
+  blockTimeFor(src: TB.BlockSource) {
+    if (!viewEnabled('timeblock')) return this.notify('Turn on Time Blocking in Settings → Features');
+    if (this.view.kind !== 'timeblock') {
+      this.go({ kind: 'timeblock' });
+      if (!TB.rangeDays(this.calRange, this.calAnchor).includes(this.day)) this.calAnchor = this.day;
+    }
+    const { day, start } = this.nextSlot();
+    const id = this.dropOnCalendar(src, day, start);
+    const b = this.block(id);
+    if (b) {
+      const s = TB.blockSpan(b);
+      this.notify(`Blocked ${TB.spanLabel(s.start, s.end)}`);
+    }
+  }
+
+  private updateBlock(id: ID, fields: Partial<TimeBlock>, label: string) {
+    const b = this.block(id);
+    if (!b) return;
+    const changed = Object.fromEntries(Object.entries(fields).filter(([k, v]) => b[k as keyof TimeBlock] !== v)) as Partial<TimeBlock>;
+    if (!Object.keys(changed).length) return;
+    const prev = previousValues(b, changed);
+    this.undoStack.push(label, () => db.update('time_blocks', id, prev as db.Row));
+    db.update('time_blocks', id, changed as db.Row);
+    this.load();
+  }
+
+  /** Move or resize a block: it lands on `day` from `start` to `end` minutes (snapped). */
+  setBlockSpan(id: ID, day: string, start: number, end: number) {
+    const span = TB.fitSpan(start, end);
+    this.updateBlock(id, { start_at: TB.atTime(day, span.start), end_at: TB.atTime(day, span.end) }, 'move block');
+  }
+
+  /** Keyboard nudge: move the block by `delta` minutes, or (resize) move only its end. */
+  nudgeBlock(id: ID, delta: number, resize = false) {
+    const b = this.block(id);
+    if (!b) return;
+    const s = TB.blockSpan(b);
+    const next = resize ? { start: s.start, end: TB.clamp(s.end + delta, s.start + TB.MIN_BLOCK, TB.DAY_MIN) } : TB.shiftSpan(s.start, s.end, delta);
+    this.setBlockSpan(id, s.day, next.start, next.end);
+  }
+
+  /** Move a block to another day at the same time. */
+  moveBlockDay(id: ID, dir: -1 | 1) {
+    const b = this.block(id);
+    if (!b) return;
+    const s = TB.blockSpan(b);
+    const day = addDays(s.day, dir);
+    this.setBlockSpan(id, day, s.start, s.end);
+    // Keep it in view.
+    if (!TB.rangeDays(this.calRange, this.calAnchor).includes(day)) this.stepCalendar(dir);
+  }
+
+  /**
+   * Assign a block to nothing, an area, area + project, or area + project + to-do. The rules
+   * (no level without the one above it) are checked here, not only in the inline box.
+   */
+  assignBlock(id: ID, a: TB.Assignment, title: string | null = null): boolean {
+    const err = TB.assignmentError(a, this.projects, this.tasks);
+    if (err) {
+      this.notify(err);
+      return false;
+    }
+    // A block named after an area, project or to-do takes its title from it.
+    this.updateBlock(id, { ...a, title: a.area_id ? null : title?.trim() || null }, 'block change');
+    return true;
+  }
+
+  /** Delete a block. It's kept (deleted_at) so undo can bring it back, and purged with the Trash. */
+  deleteBlock(id: ID) {
+    if (!this.block(id)) return;
+    db.update('time_blocks', id, { deleted_at: new Date().toISOString() });
+    this.undoStack.push('delete block', () => db.update('time_blocks', id, { deleted_at: null }));
+    if (this.blockSelectedId === id) this.blockSelectedId = null;
+    if (this.blockEditingId === id) this.blockEditingId = null;
+    this.load();
+    this.notify('Block deleted', { undo: true });
+  }
+
+  /** Blocks in the range shown, in time order: what J / K step through. */
+  get visibleBlocks(): TimeBlock[] {
+    return TB.rangeDays(this.calRange, this.calAnchor).flatMap((d) => TB.blocksOn(this.timeBlocks, d));
+  }
+
+  selectBlock(delta: 1 | -1) {
+    const list = this.visibleBlocks;
+    if (!list.length) return;
+    const i = list.findIndex((b) => b.id === this.blockSelectedId);
+    const next = i < 0 ? (delta > 0 ? 0 : list.length - 1) : TB.clamp(i + delta, 0, list.length - 1);
+    this.blockSelectedId = list[next].id;
+  }
+
   // ---------- projects / areas / sections ----------
 
   addProject(name: string, areaId: ID | null = null): ID {
@@ -1292,6 +1606,16 @@ class Store {
     this.load();
     this.notify(`Removed “${s.name}”; its to-dos are unsectioned`);
   }
+  /** Pick an area's color (an id from colors.ts), or null for automatic. One undo step. */
+  setAreaColor(id: ID, color: string | null) {
+    const a = this.areas.find((x) => x.id === id);
+    if (!a || (a.color ?? null) === color) return;
+    const prev = a.color ?? null;
+    db.update('areas', id, { color });
+    this.undoStack.push('area color', () => db.update('areas', id, { color: prev }));
+    this.load();
+  }
+
   renameArea(id: ID, name: string) {
     db.update('areas', id, { name });
     this.load();

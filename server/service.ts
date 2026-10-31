@@ -19,7 +19,9 @@ import {
 } from '../src/lib/parse';
 import { formatRule, parseRule } from '../src/lib/rrule';
 import { mergeTags, uuid7, type Row } from '../src/lib/schema';
-import type { Area, ChecklistItem, Habit, Project, Tag, Task, TaskTag, TimeEntry } from '../src/lib/types';
+import { blockEvents, type CalEvent } from '../src/lib/ical';
+import { areaColor } from '../src/lib/colors';
+import type { Area, ChecklistItem, Habit, Project, Tag, Task, TaskTag, TimeBlock, TimeEntry } from '../src/lib/types';
 import * as V from '../src/lib/views';
 import type { ServerDb } from './db';
 
@@ -219,6 +221,26 @@ export class Service {
     return this.db
       .all<Project>('SELECT * FROM projects ORDER BY sort')
       .map((p) => ({ ...p, area: p.area_id ? (areas.get(p.area_id) ?? null) : null, open: counts.get(p.id) ?? 0 }));
+  }
+
+  /** Time blocks as calendar events, for the .ics feed and CalDAV (server/dav.ts). */
+  calendarEvents(): CalEvent[] {
+    return blockEvents(
+      this.db.all<TimeBlock>('SELECT * FROM time_blocks WHERE deleted_at IS NULL'),
+      this.areas(),
+      this.db.all<Project>('SELECT * FROM projects'),
+      this.db.all<Task>('SELECT * FROM tasks'),
+      this.db.all<{ block_id: string; task_id: string; sort: number }>('SELECT block_id, task_id, sort FROM block_tasks'),
+    );
+  }
+
+  /** Areas as calendars: name and color (picked, or automatic by sidebar order). */
+  calendarAreas(): { id: string; name: string; color: { hex: string; css: string } }[] {
+    const areas = this.areas();
+    return areas.map((a) => {
+      const c = areaColor(a.id, areas)!;
+      return { id: a.id, name: a.name, color: { hex: c.hex, css: c.css } };
+    });
   }
 
   areas(): Area[] {

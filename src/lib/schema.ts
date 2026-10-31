@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS habits (id TEXT PRIMARY KEY, name TEXT NOT NULL, sort
 CREATE TABLE IF NOT EXISTS habit_checks (id TEXT PRIMARY KEY, habit_id TEXT NOT NULL, day TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS time_entries (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, start_at TEXT NOT NULL, end_at TEXT);
 CREATE TABLE IF NOT EXISTS dump_sections (id TEXT PRIMARY KEY, name TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS time_blocks (id TEXT PRIMARY KEY, start_at TEXT NOT NULL, end_at TEXT NOT NULL, title TEXT,
+  area_id TEXT, project_id TEXT, task_id TEXT, calendar_id TEXT, created_at TEXT NOT NULL, deleted_at TEXT);
+CREATE TABLE IF NOT EXISTS block_tasks (id TEXT PRIMARY KEY, block_id TEXT NOT NULL, task_id TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS ops (seq INTEGER PRIMARY KEY AUTOINCREMENT, hlc TEXT NOT NULL, device TEXT NOT NULL,
   tbl TEXT NOT NULL, row_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
@@ -42,6 +45,8 @@ export const ADDED_COLUMNS: [string, string, string][] = [
   ['habits', 'start_date', 'TEXT'],
   // Habit schedule: daily | days:1,2,3,4,5 | times:5 (see views.ts).
   ['habits', 'schedule', 'TEXT'],
+  // Area color picked by the user (an id from colors.ts); null = automatic.
+  ['areas', 'color', 'TEXT'],
 ];
 
 /**
@@ -79,7 +84,7 @@ export function mergeTags<T extends { id: string; name: string }, L extends { ta
 }
 
 /** Tables that sync. `ops` and `meta` never leave the device. */
-export const SYNC_TABLES = ['areas', 'projects', 'headings', 'tasks', 'checklist', 'tags', 'task_tags', 'habits', 'habit_checks', 'time_entries', 'dump_sections'] as const;
+export const SYNC_TABLES = ['areas', 'projects', 'headings', 'tasks', 'checklist', 'tags', 'task_tags', 'habits', 'habit_checks', 'time_entries', 'dump_sections', 'time_blocks', 'block_tasks'] as const;
 
 export type SqlValue = string | number | null | Uint8Array;
 export type Row = Record<string, SqlValue>;

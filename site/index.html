@@ -69,7 +69,7 @@
       <div class="wrap chips">
         <span>Today &amp; This Evening</span><span>Upcoming</span><span>Areas &amp; Projects</span><span>Quick add</span>
         <span>Brain dump</span><span>Focus mode</span><span>Habits</span><span>Reminders</span>
-        <span>Eisenhower matrix</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span><span>iPhone app</span><span>Mac &amp; Linux app</span>
+        <span>Eisenhower matrix</span><span>Time blocking</span><span>Calendar subscription</span><span>Time tracking</span><span>Trash</span><span>Dark mode</span><span>iPhone app</span><span>Mac &amp; Linux app</span>
         <span>Sync</span><span>REST API</span><span>MCP</span>
       </div>
     </section>
@@ -165,6 +165,27 @@
 
     <section class="feature">
       <div class="wrap row">
+        <div class="copy reveal">
+          <p class="kicker" style="--k: var(--blue)">Plan</p>
+          <h2>Give your week a shape</h2>
+          <p>Drag across the calendar to block out time, then type a few letters to give it an area, a project or a single to-do: <code>veh</code>, Enter, and it's Vehicles. Move blocks between days, stretch them, or look four weeks ahead. Each area keeps its own color.</p>
+          <ul class="ticks">
+            <li>Day, 3 days, 7 days or 4 weeks</li>
+            <li>Keyboard first, with long-press on touch</li>
+            <li>Subscribe from Apple Calendar, Google Calendar, Outlook or any CalDAV app</li>
+          </ul>
+        </div>
+        <figure class="shot reveal">
+          <picture>
+            <source srcset="img/timeblock-dark.webp" media="(prefers-color-scheme: dark)">
+            <img src="img/timeblock-light.webp" alt="A week of time blocks for Work, Family, Health, Vehicles and Home, each in its own color" width="1280" height="820" loading="lazy">
+          </picture>
+        </figure>
+      </div>
+    </section>
+
+    <section class="feature alt">
+      <div class="wrap row flip">
         <div class="copy reveal">
           <p class="kicker" style="--k: var(--green)">Connect</p>
           <h2>Every device in step, and your assistant too</h2>
@@ -292,7 +313,7 @@ volumes:
         <p class="center muted reveal">OpenThings is a working proof of concept. These are being built in the open.</p>
         <div class="cards">
           <article class="card reveal"><span class="tag">Next</span><h3>Reminders from the server</h3><p>Notifications pushed by your server, so they arrive in the browser even with the app closed. Plus device tokens for the API.</p></article>
-          <article class="card reveal"><span class="tag">Planned</span><h3>Calendar time-blocking</h3><p>Drag to-dos onto your day and sync blocks to any CalDAV calendar.</p></article>
+          <article class="card reveal"><span class="tag">Next</span><h3>To-dos in your blocks</h3><p>Time blocking is here, and other calendars can subscribe to it. Next: drag to-dos into blocks and see your other calendars' events beside them.</p></article>
           <article class="card reveal"><span class="tag">Testing</span><h3>iPhone &amp; Android</h3><p>The <a href="https://github.com/spuder/OpenThings/blob/main/docs/ios.md">iPhone app</a> runs today; App Store next. Android is coming and <a href="https://github.com/spuder/OpenThings/issues/6">needs testers</a>.</p></article>
           <article class="card reveal"><span class="tag">Preview</span><h3>Desktop app</h3><p>The <a href="#desktop">Mac and Arch Linux app</a> works today; the AUR is next.</p></article>
         </div>

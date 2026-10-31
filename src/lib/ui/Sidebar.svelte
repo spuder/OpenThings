@@ -9,6 +9,11 @@
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
   import { projectDrag, projectDraggable, projectDropLine } from './projectDrag.svelte';
+  import { calendarDraggable } from './calendarDrop.svelte';
+  import { colorChoice } from '../colors';
+
+  // With the calendar open, areas drag onto it to block time (projects always drag, see projectDrag).
+  const onCalendar = () => store.view.kind === 'timeblock';
 
   let newListOpen = $state(false);
   function newList(kind: 'project' | 'area') {
@@ -55,6 +60,7 @@
       { v: { kind: 'dump' }, label: 'Brain Dump', icon: 'dump', count: true },
       { v: { kind: 'habits' }, label: 'Habits', icon: 'habits' },
       { v: { kind: 'matrix' }, label: 'Matrix', icon: 'matrix' },
+      { v: { kind: 'timeblock' }, label: 'Time Blocking', icon: 'timeblock' },
     ],
   ];
   // Pinned under the scrolling lists, just above the footer.
@@ -124,8 +130,9 @@
               <Icon name="chevron" size={14} />
             </button>
           {/if}
-          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
-            <Icon name="area" />
+          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)} {@attach calendarDraggable({ kind: 'area', id: a.id }, onCalendar)}>
+            <!-- A picked color shows on the area's icon; automatic colors only show on the calendar. -->
+            <Icon name="area" color={colorChoice(a.color) ? `var(${colorChoice(a.color)?.token})` : undefined} />
             <span class="label">{a.name}</span>
           </button>
           <button class="more" onclick={(e) => menu(e, 'area', a.id)} aria-label={`Actions for ${a.name}`} title="Rename, new project, delete">⋯</button>

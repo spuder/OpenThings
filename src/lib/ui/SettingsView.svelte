@@ -18,6 +18,7 @@
   import { isTouch } from '../env';
   import { FEATURES, features } from '../features.svelte';
   import Icon from './Icon.svelte';
+  import { areaColor, NO_AREA } from '../colors';
 
   // Which build this is, for bug reports: the version is the same on every platform for a release.
   const platformName = isDesktop ? 'desktop app' : isNativeShell() ? (nativePlatform() === 'ios' ? 'iOS app' : 'Android app') : 'web app';
@@ -162,6 +163,24 @@
 
   const mcpHttp = $derived(JSON.stringify({ mcpServers: { openthings: { type: 'http', url: `${base}/mcp` } } }, null, 2));
   const mcpStdio = $derived(JSON.stringify({ mcpServers: { openthings: { command: 'npx', args: ['-y', 'mcp-remote', `${base}/mcp`] } } }, null, 2));
+  // Calendar subscriptions (#99): the server publishes time blocks as an .ics feed and read-only CalDAV.
+  const feedUrl = $derived(`${base}/cal/openthings.ics`);
+  const webcalUrl = $derived(feedUrl.replace(/^https?:/, 'webcal:'));
+  /** One feed per area, plus Other (blocks with no area); same paths as server/dav.ts. */
+  const areaFeeds = $derived([
+    ...store.areas.map((a) => ({ key: a.id, name: a.name, color: `var(${areaColor(a.id, store.areas)?.token ?? NO_AREA.token})`, url: `${base}/cal/area/${encodeURIComponent(a.id)}.ics` })),
+    { key: 'other', name: 'Other (no area)', color: `var(${NO_AREA.token})`, url: `${base}/cal/other.ics` },
+  ]);
+  let copiedFeed = $state<string | null>(null);
+  async function copyFeed(key: string, url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      copiedFeed = key;
+      setTimeout(() => (copiedFeed = copiedFeed === key ? null : copiedFeed), 1500);
+    } catch {
+      store.notify('Couldn’t copy; select the address instead');
+    }
+  }
   const mcpCli = $derived(`claude mcp add --transport http openthings ${base}/mcp`);
   const curl = $derived(`# Add a to-do with quick-add syntax
 curl -X POST ${base}/api/v1/tasks \\
@@ -388,6 +407,38 @@ curl '${base}/api/v1/tasks?view=today'`);
     </table>
   </section>
 
+  {#if features.enabled('timeblock')}
+    <section>
+      <header>
+        <h2>Calendar subscription</h2>
+      </header>
+      <p class="lead">
+        Show your time blocks in Apple Calendar, Google Calendar, Outlook, Thunderbird or DAVx5. The server publishes them read only, as one calendar named <strong>OpenThings</strong> and as one calendar per area in the area's color (set <code>OPENTHINGS_CALENDAR_NAME</code> to rename them). Blocks reach it when sync is on; edit them here.
+      </p>
+      <dl>
+        <dt>CalDAV account</dt>
+        <dd><code>{base}/dav/</code> · any user name and password. Adds a calendar per area, plus Other, each in its area's color.</dd>
+        <dt>Everything</dt>
+        <dd><code>{webcalUrl}</code></dd>
+      </dl>
+      <CodeBlock label="All blocks in one calendar — Apple Calendar: File → New Calendar Subscription; Google Calendar: Other calendars → From URL (use https://)" code={feedUrl} />
+      <h3>One area at a time</h3>
+      <table class="endpoints feeds">
+        <tbody>
+          {#each areaFeeds as f (f.key)}
+            <tr>
+              <td class="swatch-cell"><span class="swatch" style:background={f.color} aria-hidden="true"></span></td>
+              <td class="feed-name">{f.name}</td>
+              <td><code>{f.url}</code></td>
+              <td class="copy-cell"><button class="copy" onclick={() => copyFeed(f.key, f.url)}>{copiedFeed === f.key ? 'Copied' : 'Copy'}</button></td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+      <p class="note">Change an area's color with <kbd>⇧L</kbd> → Color… in the area (or its ⋯ menu). Apple Calendar, Thunderbird and DAVx5 start with that color and you can still change it there; Google Calendar and Outlook pick their own. Subscriptions refresh on their own schedule: about every 15 minutes in Apple Calendar, up to a day in Google Calendar. A CalDAV account updates on its next sync.</p>
+    </section>
+  {/if}
+
   <section>
     <header>
       <h2>Appearance</h2>
@@ -604,6 +655,43 @@ curl '${base}/api/v1/tasks?view=today'`);
   .endpoints code {
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 12px;
+  }
+  .feeds .swatch-cell {
+    width: 18px;
+  }
+  .swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 4px;
+  }
+  .feed-name {
+    white-space: nowrap;
+    padding-right: 12px;
+  }
+  .feeds code {
+    overflow-wrap: anywhere;
+  }
+  .copy-cell {
+    text-align: right;
+    width: 1%;
+  }
+  .copy {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .copy:hover {
+    background: var(--chip);
+  }
+  @media (pointer: coarse) {
+    .copy {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
   .endpoints {
     width: 100%;

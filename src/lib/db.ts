@@ -317,8 +317,7 @@ export async function saveNow() {
 }
 
 export function exportJson(): string {
-  const tables = ['areas', 'projects', 'headings', 'tasks', 'checklist', 'tags', 'task_tags', 'habits', 'habit_checks', 'time_entries', 'dump_sections'];
   const out: Record<string, Row[]> = {};
-  for (const t of tables) out[t] = all(`SELECT * FROM ${t}`);
+  for (const t of SYNC_TABLES) out[t] = all(`SELECT * FROM ${t}`);
   return JSON.stringify({ version: 1, exported_at: new Date().toISOString(), ...out }, null, 2);
 }

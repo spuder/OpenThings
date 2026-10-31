@@ -2,7 +2,7 @@
   import { store } from '../store.svelte';
   import { commands, keyLabel, type Command } from '../commands';
 
-  const order: Command['group'][] = ['Navigate', 'Create', 'Selection', 'Task', 'Brain dump', 'Habits', 'Trash', 'Time', 'App'];
+  const order: Command['group'][] = ['Navigate', 'Create', 'Selection', 'Task', 'Brain dump', 'Habits', 'Calendar', 'Trash', 'Time', 'App'];
   const extra: Partial<Record<Command['group'], [string, string][]>> = {
     Selection: [
       ['Next / previous', 'J / K'],

@@ -40,6 +40,7 @@
     { v: { kind: 'dump' }, label: 'Brain Dump', icon: 'dump' },
     { v: { kind: 'habits' }, label: 'Habits', icon: 'habits' },
     { v: { kind: 'matrix' }, label: 'Matrix', icon: 'matrix' },
+    { v: { kind: 'timeblock' }, label: 'Time Blocking', icon: 'timeblock' },
     { v: { kind: 'settings' }, label: 'Settings', icon: 'settings' },
   ];
 

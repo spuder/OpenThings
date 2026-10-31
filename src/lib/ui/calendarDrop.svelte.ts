@@ -3,6 +3,8 @@
  * approach as `drag.svelte.ts` (mouse: press and move; touch: long-press, then move; Escape
  * cancels). While something is over the calendar, `calDrop.slot` is where its block would land;
  * the calendar draws that as a preview. What the block becomes is `sourceBlock` in timeblocks.ts.
+ * A to-do over a block of its area or project (`acceptsTask`) goes inside that block instead
+ * (`calDrop.merge`), and a to-do dragged out of a block onto the To-dos panel leaves it (`unplan`).
  *
  * Sources: area rows in the sidebar (`calendarDraggable`), the calendar's To-dos panel
  * (`calendarDraggable`), and project rows, whose existing sidebar drag (`projectDrag.svelte.ts`)
@@ -24,6 +26,10 @@ export const calDrop = $state({
   y: 0,
   /** Where the block lands if dropped now; null when not over the calendar. */
   slot: null as { day: string; start: number; end: number } | null,
+  /** The block a to-do would go inside, when it's over one that takes it. */
+  merge: null as string | null,
+  /** A to-do from a block is over the To-dos panel: dropping takes it out of the block. */
+  unplan: false,
 });
 
 const DRAG_PX = 5;
@@ -52,6 +58,21 @@ export function trackCalendar(src: TB.BlockSource, x: number, y: number): boolea
   calDrop.y = y;
   // Phone: the list drawer covers the calendar; leaving it closes it so the drop can land.
   if (isNarrow() && store.sidebarOpen && x > 260) store.sidebarOpen = false;
+  const el = document.elementFromPoint(x, y);
+  const over = el?.closest<HTMLElement>('.cal [data-block]')?.dataset.block ?? null;
+  calDrop.merge = null;
+  calDrop.unplan = false;
+  calDrop.slot = null;
+  if (src.kind === 'task' && over && over !== src.fromBlock && store.blockAccepts(over, src.id)) {
+    calDrop.merge = over;
+    return true;
+  }
+  // Over the block it came from: dropping there changes nothing.
+  if (src.fromBlock && over === src.fromBlock) return true;
+  if (src.fromBlock && el?.closest('.cal .todos')) {
+    calDrop.unplan = true;
+    return true;
+  }
   const p = pointAt(x, y);
   calDrop.slot = p ? { day: p.day, ...TB.dropSpan(p.at, TB.sourceMinutes(src, store.tasks)) } : null;
   return !!calDrop.slot;
@@ -59,9 +80,15 @@ export function trackCalendar(src: TB.BlockSource, x: number, y: number): boolea
 
 /** End a drag: makes the block if it was over the calendar. Returns true when it did. */
 export function dropOnCalendar(): boolean {
-  const { source, slot } = calDrop;
+  const { source, slot, merge, unplan } = calDrop;
   resetCalendar();
-  if (!source || !slot) return false;
+  if (!source) return false;
+  if (merge) return store.addTaskToBlock(merge, source.id, source.fromBlock);
+  if (unplan && source.fromBlock) {
+    store.removeTaskFromBlock(source.fromBlock, source.id);
+    return true;
+  }
+  if (!slot) return false;
   return !!store.dropOnCalendar(source, slot.day, slot.start);
 }
 
@@ -69,6 +96,8 @@ export function resetCalendar() {
   calDrop.active = false;
   calDrop.source = null;
   calDrop.slot = null;
+  calDrop.merge = null;
+  calDrop.unplan = false;
   cancelAnimationFrame(raf);
 }
 

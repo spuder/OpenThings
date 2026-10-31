@@ -115,20 +115,37 @@ export function calendar(events: CalEvent[], opts: { name?: string; timezone?: s
   return lines.map(fold).join('\r\n') + '\r\n';
 }
 
-/** Time blocks as events: titled like on the calendar, with the area › project path as description. */
-export function blockEvents(blocks: TimeBlock[], areas: Area[], projects: Project[], tasks: Task[]): CalEvent[] {
+/**
+ * Time blocks as events: titled like on the calendar, with the area › project path and the to-dos
+ * planned inside the block (☐ open, ☑ done) as description.
+ */
+export function blockEvents(
+  blocks: TimeBlock[],
+  areas: Area[],
+  projects: Project[],
+  tasks: Task[],
+  inside: { block_id: string; task_id: string; sort?: number }[] = [],
+): CalEvent[] {
   return blocks
     .filter((b) => !b.deleted_at)
     .sort((a, b) => a.start_at.localeCompare(b.start_at))
     .map((b) => {
       const l = blockLabel(b, areas, projects, tasks);
       const area = b.area_id ? areas.find((a) => a.id === b.area_id) : undefined;
+      const todos = inside
+        .filter((l) => l.block_id === b.id)
+        .sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0))
+        .map((l) => tasks.find((t) => t.id === l.task_id && !t.deleted_at))
+        .filter((t): t is Task => !!t)
+        .map((t) => `${t.completed_at ? '☑' : '☐'} ${t.title}`);
+      const path = l.crumbs.length ? [...l.crumbs, l.title].join(' › ') : '';
+      const description = [path, todos.join('\n')].filter(Boolean).join('\n\n') || undefined;
       return {
         uid: `${b.id}@openthings`,
         start: b.start_at,
         end: b.end_at,
         summary: l.title || 'Time block',
-        description: l.crumbs.length ? [...l.crumbs, l.title].join(' › ') : undefined,
+        description,
         categories: area?.name,
         created: b.created_at,
         areaId: area?.id ?? null,

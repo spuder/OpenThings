@@ -15,6 +15,7 @@ import {
   rangeDays,
   shiftSpan,
   sourceBlock,
+  acceptsTask,
   sourceMinutes,
   dropSpan,
   splitTime,
@@ -212,5 +213,26 @@ describe('area colors', () => {
     expect(areaColor('gone', as)).toBeUndefined();
     expect(areaCss(null, as)).toBe('var(--text-3)');
     expect(blockColor('b', as)).toBe('var(--upcoming)');
+  });
+});
+
+describe('to-dos inside blocks', () => {
+  const t = (id: string, p: Partial<Task>) => ({ id, area_id: null, project_id: null, ...p }) as Task;
+  const area = block('area', 'x', 'y', { area_id: 'a-veh' });
+  const project = block('proj', 'x', 'y', { area_id: 'a-veh', project_id: 'p-truck' });
+
+  it('takes a to-do of its area, directly or through a project', () => {
+    expect(acceptsTask(area, t('1', { project_id: 'p-truck' }), projects)).toBe(true);
+    expect(acceptsTask(area, t('2', { area_id: 'a-veh' }), projects)).toBe(true);
+    expect(acceptsTask(project, t('3', { project_id: 'p-truck' }), projects)).toBe(true);
+  });
+
+  it('refuses other areas and projects, plain blocks, and single-to-do blocks', () => {
+    expect(acceptsTask(area, t('4', { area_id: 'a-fam' }), projects)).toBe(false);
+    expect(acceptsTask(project, t('5', { area_id: 'a-veh' }), projects)).toBe(false);
+    expect(acceptsTask(project, t('6', { project_id: 'p-old' }), projects)).toBe(false);
+    expect(acceptsTask(block('plain', 'x', 'y', { title: 'Deep work' }), t('7', { area_id: 'a-veh' }), projects)).toBe(false);
+    expect(acceptsTask({ ...project, task_id: 't-oil' }, t('8', { project_id: 'p-truck' }), projects)).toBe(false);
+    expect(acceptsTask(area, t('9', {}), projects)).toBe(false);
   });
 });

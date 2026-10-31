@@ -144,7 +144,7 @@ The server publishes your [time blocks](../README.md#features) read only, so oth
 - **Changes may lag.** Changing an area's color in OpenThings updates `calendar-color` for CalDAV apps on their next sync, unless you've recolored that calendar there. Feeds usually keep the color they started with.
 
 **Events.**
-- **Each block is one event,** titled like the block on the calendar, such as "Change oil". Its description is the full path, such as "Vehicles › Truck maintenance › Change oil", and the area is its category.
+- **Each block is one event,** titled like the block on the calendar, such as "Change oil". Its description is the full path, such as "Vehicles › Truck maintenance › Change oil", followed by the to-dos inside the block (☐ open, ☑ done). The area is its category.
 - **Its UID is `<block id>@openthings`,** so edits update the same event instead of adding new ones.
 - **Times are floating local times,** as in the app, so a 9:00 block shows at 9:00. The feeds also name the server's `TZ` (`X-WR-TIMEZONE`), which Google Calendar uses.
 - **The feeds ask subscribers to refresh every 15 minutes.** Apple Calendar mostly honors that. Google Calendar decides for itself and can take up to a day.

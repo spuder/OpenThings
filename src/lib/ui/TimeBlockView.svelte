@@ -16,7 +16,7 @@
   import BlockAssign from './BlockAssign.svelte';
   import CalendarTodos from './CalendarTodos.svelte';
   import { LONG_PRESS_MS } from './drag.svelte';
-  import { calDrop, HOUR_PX } from './calendarDrop.svelte';
+  import { calDrop, calendarDraggable, HOUR_PX } from './calendarDrop.svelte';
 
   /** Pixels per hour. */
   const HOUR = HOUR_PX;
@@ -77,14 +77,16 @@
     end: number;
     armed: boolean;
     active: boolean;
+    /** Moving a single-to-do block over a block of its area or project: merge into it on drop. */
+    mergeInto: ID | null;
     timer?: ReturnType<typeof setTimeout>;
   }
 
   let g = $state<Gesture | null>(null);
   let scroller: HTMLElement | undefined = $state();
   let body: HTMLElement | undefined = $state();
-  let lastY = 0;
-  let lastX = 0;
+  let lastY = $state(0);
+  let lastX = $state(0);
   let endedAt = 0;
 
   function minuteAt(clientY: number): number {
@@ -103,7 +105,8 @@
 
   function down(e: PointerEvent, kind: Kind, day: string, b?: TimeBlock) {
     if (e.button !== 0 || !e.isPrimary || g) return;
-    if (e.target instanceof Element && e.target.closest('input, [data-no-drag]')) return;
+    // The inline box, and a block's to-do lines (they have their own drag and buttons).
+    if (e.target instanceof Element && e.target.closest('input, button, [data-no-drag], [data-own-drag]')) return;
     if (kind !== 'create') e.stopPropagation();
     // Pressing anywhere else closes an open assignment box, as Escape does.
     if (store.blockEditingId && store.blockEditingId !== b?.id) store.blockEditingId = null;
@@ -125,6 +128,7 @@
       end: span0.end,
       armed: mouse,
       active: false,
+      mergeInto: null,
     };
     if (!mouse) {
       g.timer = setTimeout(() => {
@@ -158,6 +162,9 @@
       const s = TB.shiftSpan(g.span0.start, g.span0.end, m - g.min0);
       g.start = s.start;
       g.end = s.end;
+      const moved = g.blockId ? store.block(g.blockId) : undefined;
+      const over = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-block]')?.dataset.block;
+      g.mergeInto = moved?.task_id && over && over !== moved.id && store.blockAccepts(over, moved.task_id) ? over : null;
       g.day = dayAt(x, g.day);
     } else if (g.kind === 'start') {
       g.start = TB.clamp(TB.snap(m), 0, g.span0.end - TB.MIN_BLOCK);
@@ -200,6 +207,7 @@
     // Touch: a long-press that doesn't move makes a one-hour block where the finger is.
     if (done.kind === 'create' && !done.mouse && Math.abs(lastY - done.y0) < TOUCH_SLOP) store.addBlock(done.day, done.start, done.start + 60);
     else if (done.kind === 'create') store.addBlock(done.day, done.start, done.end);
+    else if (done.blockId && done.mergeInto) store.mergeBlockInto(done.blockId, done.mergeInto);
     else if (done.blockId) {
       store.blockSelectedId = done.blockId;
       store.setBlockSpan(done.blockId, done.day, done.start, done.end);
@@ -350,6 +358,7 @@
               {@const moving = g?.active && g.blockId === b.id}
               {@const l = label(b)}
               {@const editing = store.blockEditingId === b.id}
+              {@const inside = store.tasksInBlock(b.id)}
               <!-- An open box widens leftwards on the right of the grid, so it doesn't push the grid sideways. -->
               {@const flip = editing && (di + (p.lane + 1) / p.lanes) / days.length > 0.5}
               <div
@@ -357,6 +366,7 @@
                 class:selected={store.blockSelectedId === b.id}
                 class:editing
                 class:ghosted={moving}
+                class:merge-target={calDrop.merge === b.id || g?.mergeInto === b.id}
                 class:generic={!b.area_id}
                 class:tiny={p.end - p.start <= 30}
                 data-block={b.id}
@@ -376,6 +386,19 @@
                 {#if !editing}<span class="title">{l.title || 'Block'}</span>{/if}
                 <span class="time">{TB.spanLabel(p.start, p.end)}</span>
                 {#if editing}<BlockAssign block={b} />{/if}
+                {#if inside.length && !editing}
+                  <ul class="inside" data-own-drag>
+                    {#each inside as t (t.id)}
+                      <li class:done={!!t.completed_at}>
+                        <button class="tick" onclick={() => store.toggleComplete(t.id)} aria-label={t.completed_at ? `Uncheck ${t.title}` : `Complete ${t.title}`} title={t.completed_at ? 'Uncheck' : 'Complete'}>{t.completed_at ? '✓' : ''}</button>
+                        <span class="line" title="Drag out of the block, or onto another" {@attach calendarDraggable({ kind: 'task', id: t.id, fromBlock: b.id })}>{t.title}</span>
+                        {#if store.blockSelectedId === b.id}
+                          <button class="unplan" onclick={() => store.removeTaskFromBlock(b.id, t.id)} aria-label={`Take ${t.title} out of the block`} title="Take out of the block">×</button>
+                        {/if}
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
                 <span class="edge bottom" onpointerdown={(e) => down(e, 'end', d, b)} role="presentation"></span>
               </div>
             {/each}
@@ -394,7 +417,7 @@
                 <span class="time">{TB.spanLabel(calDrop.slot.start, calDrop.slot.end)}</span>
               </div>
             {/if}
-            {#if g?.active && g.day === d}
+            {#if g?.active && g.day === d && !g.mergeInto}
               {@const b = g.blockId ? store.block(g.blockId) : undefined}
               <div
                 class="block preview"
@@ -438,8 +461,15 @@
 {#if calDrop.active && calDrop.source}
   {@const link = TB.sourceBlock(calDrop.source, store.areas, store.projects, store.tasks)}
   {@const name = link?.label || store.areas.find((a) => a.id === calDrop.source?.id)?.name || 'Block'}
-  <div class="drop-ghost" class:over={!!calDrop.slot} style:transform={`translate(${calDrop.x + 14}px, ${calDrop.y + 10}px)`} aria-hidden="true">
-    {name}{#if calDrop.slot}<span>&nbsp;· {TB.spanLabel(calDrop.slot.start, calDrop.slot.end)}</span>{/if}
+  {@const into = calDrop.merge ? store.block(calDrop.merge) : undefined}
+  <div class="drop-ghost" class:over={!!calDrop.slot || !!into} style:transform={`translate(${calDrop.x + 14}px, ${calDrop.y + 10}px)`} aria-hidden="true">
+    {name}{#if into}<span>&nbsp;→ into {label(into).title || 'block'}</span>{:else if calDrop.unplan}<span>&nbsp;· take out of the block</span>{:else if calDrop.slot}<span>&nbsp;· {TB.spanLabel(calDrop.slot.start, calDrop.slot.end)}</span>{/if}
+  </div>
+{/if}
+{#if g?.active && g.mergeInto}
+  {@const into = store.block(g.mergeInto)}
+  <div class="drop-ghost over" style:transform={`translate(${lastX + 14}px, ${lastY + 10}px)`} aria-hidden="true">
+    Merge<span>&nbsp;→ into {into ? label(into).title || 'block' : 'block'}</span>
   </div>
 {/if}
 
@@ -686,6 +716,69 @@
 
   .block.ghosted {
     opacity: 0.35;
+    /* So the pointer finds the block underneath (a merge target). */
+    pointer-events: none;
+  }
+  .block.merge-target {
+    box-shadow: 0 0 0 2px var(--c), var(--card-shadow);
+    background: color-mix(in srgb, var(--c) 30%, var(--bg));
+    z-index: 3;
+  }
+  .inside {
+    list-style: none;
+    margin: 3px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-height: 0;
+  }
+  .inside li {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    font-size: 11.5px;
+  }
+  .tick {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1.5px solid var(--c);
+    font-size: 8px;
+    line-height: 9px;
+    color: var(--bg);
+    padding: 0;
+  }
+  .inside li.done .tick {
+    background: var(--c);
+  }
+  .inside li.done .line {
+    text-decoration: line-through;
+    color: var(--text-3);
+  }
+  .line {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: grab;
+    touch-action: pan-y;
+  }
+  .unplan {
+    flex-shrink: 0;
+    color: var(--text-3);
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 2px;
+  }
+  .unplan:hover {
+    color: var(--text);
+  }
+  .block.tiny .inside {
+    display: none;
   }
   .block.preview {
     z-index: 4;
@@ -827,6 +920,17 @@
   @media (pointer: coarse) {
     .edge {
       height: 14px;
+    }
+    /* Bigger targets without taller lines: the hit area extends past the dot and the ×. */
+    .tick,
+    .unplan {
+      position: relative;
+    }
+    .tick::after,
+    .unplan::after {
+      content: '';
+      position: absolute;
+      inset: -14px;
     }
     .ranges button,
     .nav button,

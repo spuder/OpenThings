@@ -15,6 +15,7 @@ import type {
   Tag,
   Task,
   TaskTag,
+  BlockTask,
   TimeBlock,
   TimeEntry,
   ViewKey,
@@ -118,6 +119,7 @@ class Store {
   timeEntries = $state<TimeEntry[]>([]);
   dumpSections = $state<DumpSection[]>([]);
   timeBlocks = $state<TimeBlock[]>([]);
+  blockTasks = $state<BlockTask[]>([]);
   opCount = $state(0);
 
   view = $state<ViewKey>({ kind: 'today' });
@@ -285,6 +287,7 @@ class Store {
     this.tracking = open ? { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) } : null;
     this.dumpSections = db.all<DumpSection>('SELECT * FROM dump_sections ORDER BY sort');
     this.timeBlocks = db.all<TimeBlock>('SELECT * FROM time_blocks WHERE deleted_at IS NULL ORDER BY start_at');
+    this.blockTasks = db.all<BlockTask>('SELECT * FROM block_tasks ORDER BY sort');
     this.opCount = db.opCount();
     this.announceReminders();
   }
@@ -322,7 +325,10 @@ class Store {
     for (const t of old) this.hardDelete(t.id);
     // Deleted time blocks are kept for undo and sync, then go with the Trash.
     const blocks = db.all<{ id: string }>('SELECT id FROM time_blocks WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
-    for (const b of blocks) db.remove('time_blocks', b.id);
+    for (const b of blocks) {
+      for (const l of db.all<{ id: string }>('SELECT id FROM block_tasks WHERE block_id = ?', [b.id])) db.remove('block_tasks', l.id);
+      db.remove('time_blocks', b.id);
+    }
     return old.length > 0 || blocks.length > 0;
   }
 
@@ -1026,6 +1032,7 @@ class Store {
   private hardDelete(id: ID) {
     for (const tt of db.all<TaskTag>('SELECT * FROM task_tags WHERE task_id = ?', [id])) db.remove('task_tags', tt.id);
     for (const c of db.all<ChecklistItem>('SELECT * FROM checklist WHERE task_id = ?', [id])) db.remove('checklist', c.id);
+    for (const l of db.all<{ id: string }>('SELECT id FROM block_tasks WHERE task_id = ?', [id])) db.remove('block_tasks', l.id);
     db.remove('tasks', id);
   }
 
@@ -1346,12 +1353,100 @@ class Store {
     this.addBlock(day, span.start, span.end);
   }
 
-  /** An area or project from the sidebar, or a to-do, dropped on the calendar at minute `at` of `day`. */
+  /**
+   * An area or project from the sidebar, or a to-do, dropped on the calendar at minute `at` of `day`:
+   * a new block. A to-do dragged out of a block also leaves that block, in the same undo step.
+   */
   dropOnCalendar(src: TB.BlockSource, day: string, at: number): ID | null {
     const link = TB.sourceBlock(src, this.areas, this.projects, this.tasks);
     if (!link) return null;
     const span = TB.dropSpan(at, TB.sourceMinutes(src, this.tasks));
-    return this.addBlock(day, span.start, span.end, link);
+    let id: ID | null = null;
+    this.bulk('plan to-do', () => {
+      id = this.addBlock(day, span.start, span.end, link);
+      if (id && src.fromBlock) this.unplanLink(src.fromBlock, src.id);
+    });
+    if (id) this.blockSelectedId = id;
+    return id;
+  }
+
+  // ---------- to-dos inside blocks ----------
+
+  /** The to-dos planned inside a block, in order (completed ones stay, checked). */
+  tasksInBlock(blockId: ID): Task[] {
+    return this.blockTasks
+      .filter((l) => l.block_id === blockId)
+      .map((l) => this.task(l.task_id))
+      .filter((t): t is Task => !!t);
+  }
+
+  private planLink(blockId: ID, taskId: ID): boolean {
+    if (this.blockTasks.some((l) => l.block_id === blockId && l.task_id === taskId)) return false;
+    const id = db.uuid7();
+    const sort = Math.max(0, ...this.blockTasks.filter((l) => l.block_id === blockId).map((l) => l.sort)) + 1;
+    db.insert('block_tasks', { id, block_id: blockId, task_id: taskId, sort });
+    this.undoStack.push('plan to-do', () => db.remove('block_tasks', id));
+    this.blockTasks = [...this.blockTasks, { id, block_id: blockId, task_id: taskId, sort }];
+    return true;
+  }
+
+  private unplanLink(blockId: ID, taskId: ID) {
+    for (const l of this.blockTasks.filter((x) => x.block_id === blockId && x.task_id === taskId)) {
+      db.remove('block_tasks', l.id);
+      // A synced delete is final: undo links it again under a new id.
+      this.undoStack.push('take out of block', () => db.insert('block_tasks', { id: db.uuid7(), block_id: l.block_id, task_id: l.task_id, sort: l.sort }));
+    }
+    this.blockTasks = this.blockTasks.filter((x) => !(x.block_id === blockId && x.task_id === taskId));
+  }
+
+  /** Can to-do `taskId` go inside block `blockId` (same area / project, see acceptsTask)? */
+  blockAccepts(blockId: ID, taskId: ID): boolean {
+    const b = this.block(blockId);
+    const t = this.task(taskId);
+    return !!b && !!t && TB.acceptsTask(b, t, this.projects);
+  }
+
+  /** Put a to-do inside a block (dropped on it). From another block, it moves. One undo step. */
+  addTaskToBlock(blockId: ID, taskId: ID, fromBlock?: ID): boolean {
+    if (!this.blockAccepts(blockId, taskId)) return false;
+    if (this.blockTasks.some((l) => l.block_id === blockId && l.task_id === taskId)) {
+      this.notify('Already in this block');
+      return false;
+    }
+    this.bulk('plan to-do', () => {
+      this.planLink(blockId, taskId);
+      if (fromBlock && fromBlock !== blockId) this.unplanLink(fromBlock, taskId);
+    });
+    this.blockSelectedId = blockId;
+    const b = this.block(blockId);
+    this.notify(`Added to ${b ? TB.blockLabel(b, this.areas, this.projects, this.tasks).title : 'block'}`, { undo: true });
+    return true;
+  }
+
+  /** Take a to-do out of a block (the block stays). */
+  removeTaskFromBlock(blockId: ID, taskId: ID) {
+    this.bulk('take out of block', () => this.unplanLink(blockId, taskId));
+  }
+
+  /**
+   * Merge a single-to-do block into a block of its area or project, like dropping the to-do there:
+   * the to-do goes inside, the dragged block goes away. One undo step.
+   */
+  mergeBlockInto(fromId: ID, intoId: ID): boolean {
+    const from = this.block(fromId);
+    if (!from?.task_id || fromId === intoId || !this.blockAccepts(intoId, from.task_id)) return false;
+    const taskId = from.task_id;
+    const now = new Date().toISOString();
+    this.bulk('merge blocks', () => {
+      this.planLink(intoId, taskId);
+      db.update('time_blocks', fromId, { deleted_at: now });
+      this.undoStack.push('merge blocks', () => db.update('time_blocks', fromId, { deleted_at: null }));
+    });
+    if (this.blockEditingId === fromId) this.blockEditingId = null;
+    this.blockSelectedId = intoId;
+    const into = this.block(intoId);
+    this.notify(`Merged into ${into ? TB.blockLabel(into, this.areas, this.projects, this.tasks).title : 'block'}`, { undo: true });
+    return true;
   }
 
   /**

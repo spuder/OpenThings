@@ -247,6 +247,24 @@ export function blockLabel(b: TimeBlock, areas: Area[], projects: Project[], tas
 export interface BlockSource {
   kind: 'area' | 'project' | 'task';
   id: ID;
+  /** A to-do dragged out of this block (moving it elsewhere takes it out of the block). */
+  fromBlock?: ID;
+}
+
+/**
+ * Does dropping to-do `t` on block `b` put it inside the block? Yes when the block is for an area,
+ * or an area's project, that the to-do belongs to (directly or through its project), and the block
+ * isn't already for a single to-do. Plain blocks and other areas' blocks don't take it.
+ */
+export function acceptsTask(
+  b: Pick<TimeBlock, 'area_id' | 'project_id' | 'task_id'>,
+  t: Pick<Task, 'id' | 'area_id' | 'project_id'>,
+  projects: Pick<Project, 'id' | 'area_id'>[],
+): boolean {
+  if (!b.area_id || b.task_id) return false;
+  const area = t.project_id ? projects.find((p) => p.id === t.project_id)?.area_id : t.area_id;
+  if (area !== b.area_id) return false;
+  return !b.project_id || b.project_id === t.project_id;
 }
 
 /**

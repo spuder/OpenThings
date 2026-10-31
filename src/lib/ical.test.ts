@@ -55,6 +55,17 @@ describe('iCalendar', () => {
     expect(calendar([], { color: { hex: '#e0453c', css: 'tomato' } })).toMatch(/COLOR:tomato\r\nX-APPLE-CALENDAR-COLOR:#E0453C\r\n/);
   });
 
+  it('lists the to-dos inside a block in its description', () => {
+    const ts = [...tasks, { id: 't2', project_id: 'p1', title: 'Rotate tires', completed_at: '2026-10-31T00:00:00Z' }] as Task[];
+    const [e] = blockEvents([block('b1', { area_id: 'a1', project_id: 'p1' })], areas, projects, ts, [
+      { block_id: 'b1', task_id: 't2', sort: 2 },
+      { block_id: 'b1', task_id: 't1', sort: 1 },
+      { block_id: 'other', task_id: 't1' },
+    ]);
+    expect(e.description).toBe('Vehicles › Truck maintenance\n\n☐ Change oil\n☑ Rotate tires');
+    expect(calendar([e]).replace(/\r\n /g, '')).toContain('DESCRIPTION:Vehicles › Truck maintenance\\n\\n☐ Change oil\\n☑ Rotate tires');
+  });
+
   it('ends a block at midnight on the next day', () => {
     const [e] = blockEvents([block('b', { start_at: '2026-10-31T23:00', end_at: '2026-11-01T00:00' })], [], [], []);
     expect(calendar([e])).toContain('DTEND:20261101T000000');

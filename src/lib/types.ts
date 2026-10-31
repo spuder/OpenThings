@@ -123,6 +123,14 @@ export interface TimeBlock {
   deleted_at: string | null;
 }
 
+/** A to-do planned inside a time block (a block can hold several). */
+export interface BlockTask {
+  id: ID;
+  block_id: ID;
+  task_id: ID;
+  sort: number;
+}
+
 export type ViewKey =
   | { kind: 'inbox' }
   | { kind: 'today' }

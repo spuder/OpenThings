@@ -230,6 +230,7 @@ export class Service {
       this.areas(),
       this.db.all<Project>('SELECT * FROM projects'),
       this.db.all<Task>('SELECT * FROM tasks'),
+      this.db.all<{ block_id: string; task_id: string; sort: number }>('SELECT block_id, task_id, sort FROM block_tasks'),
     );
   }
 

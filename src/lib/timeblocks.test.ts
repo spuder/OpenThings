@@ -64,15 +64,19 @@ describe('times', () => {
 });
 
 describe('ranges', () => {
-  it('starts day, 3 and 7 days at the anchor and 4 weeks on its Monday', () => {
+  it('starts day and 3 days at the anchor, and 7 days and 4 weeks on its Sunday', () => {
     expect(rangeDays('3day', '2026-10-31')).toEqual(['2026-10-31', '2026-11-01', '2026-11-02']);
+    const week = rangeDays('week', '2026-10-28'); // a Wednesday
+    expect([week[0], week[6]]).toEqual(['2026-10-25', '2026-10-31']);
+    expect(rangeDays('week', '2026-10-25')[0]).toBe('2026-10-25'); // a Sunday stays put
     const four = rangeDays('4week', '2026-10-31'); // a Saturday
-    expect(four[0]).toBe('2026-10-26');
+    expect(four[0]).toBe('2026-10-25');
     expect(four).toHaveLength(28);
   });
 
   it('steps by the length of the range', () => {
     expect(stepAnchor('week', '2026-10-31', 1)).toBe('2026-11-07');
+    expect(rangeDays('week', stepAnchor('week', '2026-10-28', 1))[0]).toBe('2026-11-01');
     expect(stepAnchor('day', '2026-10-31', -1)).toBe('2026-10-30');
   });
 });

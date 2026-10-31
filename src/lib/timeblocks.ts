@@ -80,16 +80,15 @@ export function spanLabel(start: number, end: number): string {
   return `${clock(start)} – ${clock(end)}`;
 }
 
-/** Monday on or before `day`. */
+/** Sunday on or before `day`: weeks start on Sunday. */
 export function weekStart(day: string): string {
-  const wd = parseYmd(day).getDay();
-  return addDays(day, -((wd + 6) % 7));
+  return addDays(day, -parseYmd(day).getDay());
 }
 
-/** The days a range shows. Day / 3 / 7 days start at `anchor`; 4 weeks starts on its Monday. */
+/** The days a range shows. Day and 3 days start at `anchor`; 7 days and 4 weeks start on its week's Sunday. */
 export function rangeDays(range: CalendarRange, anchor: string): string[] {
   const n = RANGES.find((r) => r.id === range)!.days;
-  const first = range === '4week' ? weekStart(anchor) : anchor;
+  const first = range === 'week' || range === '4week' ? weekStart(anchor) : anchor;
   return Array.from({ length: n }, (_, i) => addDays(first, i));
 }
 

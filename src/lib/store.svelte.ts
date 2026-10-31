@@ -1250,7 +1250,7 @@ class Store {
 
   // ---------- time blocking (#99) ----------
 
-  /** Calendar range and the first day it shows (4 weeks starts on that day's Monday). Range is per device. */
+  /** Calendar range and the first day it shows (7 days and 4 weeks start on that week's Sunday). Range is per device. */
   calRange = $state<TB.CalendarRange>(loadCalRange());
   calAnchor = $state(todayFn());
   /** The block the keyboard acts on, and the one whose inline assignment box is open. */

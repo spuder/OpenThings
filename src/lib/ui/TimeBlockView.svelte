@@ -385,7 +385,7 @@
     </div>
   {:else}
     <div class="month">
-      {#each WD.slice(1).concat(WD[0]) as w}<span class="wd">{w}</span>{/each}
+      {#each WD as w}<span class="wd">{w}</span>{/each}
       {#each days as d (d)}
         {@const list = TB.blocksOn(store.timeBlocks, d)}
         <div class="cell" class:is-today={d === store.day} class:past={d < store.day}>

@@ -10,6 +10,7 @@
     dump: 'var(--dump)',
     habits: 'var(--habits)',
     matrix: 'var(--matrix)',
+    timeblock: 'var(--evening)',
     trash: 'var(--text-2)',
     settings: 'var(--text-2)',
     gear: 'var(--text-2)',
@@ -67,6 +68,10 @@
     <path d="M7.5 8.5c1.2-.6 2.4.6 3.6 0s2.2-.4 2.4 0M7.5 12c1.2-.6 2.4.6 3.6 0" />
   {:else if name === 'habits'}
     <path d="M10 17c-3 0-5-2-5-4.8 0-3 2.6-4.5 3.2-7.7 2 1.3 2.6 3.3 2.4 4.8 1-.6 1.6-1.7 1.7-2.8 1.7 1.5 2.7 3.4 2.7 5.6C15 15 13 17 10 17z" />
+  {:else if name === 'timeblock'}
+    <rect x="3" y="3" width="14" height="14" rx="2.5" />
+    <rect x="6" y="6" width="8" height="3" rx="1" fill={color} stroke="none" />
+    <rect x="6" y="11" width="5" height="3.5" rx="1" fill={color} stroke="none" opacity="0.55" />
   {:else if name === 'matrix'}
     <rect x="3" y="3" width="6" height="6" rx="1.5" />
     <rect x="11" y="3" width="6" height="6" rx="1.5" />

@@ -12,7 +12,7 @@ import { features, viewEnabled } from './features.svelte';
 export interface Command {
   id: string;
   title: string;
-  group: 'Navigate' | 'Create' | 'Selection' | 'Task' | 'Brain dump' | 'Habits' | 'Trash' | 'Time' | 'App';
+  group: 'Navigate' | 'Create' | 'Selection' | 'Task' | 'Brain dump' | 'Habits' | 'Calendar' | 'Trash' | 'Time' | 'App';
   /** Key strings: "x", "alt+1", "mod+k", "shift+p", sequences "g t". */
   keys: string[];
   /** Command only applies when this returns true (default: always). */
@@ -27,6 +27,12 @@ export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(
 const sel = () => store.task(store.selectedId);
 const inHabits = () => store.view.kind === 'habits';
 const inTrash = () => store.view.kind === 'trash';
+const inCalendar = () => store.view.kind === 'timeblock';
+/** A time block is selected (and its inline box isn't taking the keys). */
+const hasBlock = () => inCalendar() && !!store.block(store.blockSelectedId) && !store.blockEditingId;
+const withBlock = (fn: (id: string) => void) => () => {
+  if (store.blockSelectedId) fn(store.blockSelectedId);
+};
 /** One to-do selected: commands that only make sense for a single item (open, tag, timer…). */
 const hasTask = () => !!sel() && !inHabits() && !store.isMulti;
 /** The to-dos bulk-capable commands act on: the multi-selection, or the selected row. */
@@ -230,6 +236,7 @@ export const commands: Command[] = [
   nav('Brain Dump', { kind: 'dump' }, 7, 'd'),
   nav('Habits', { kind: 'habits' }, 8, 'h'),
   nav('Matrix', { kind: 'matrix' }, 9, 'm'),
+  nav('Time Blocking', { kind: 'timeblock' }, null, 'c'),
   nav('Trash', { kind: 'trash' }, 0, 'x'),
   { id: 'go.settings', title: 'Settings', group: 'Navigate', keys: ['mod+,', 'g ,'], run: () => store.go({ kind: 'settings' }) },
 
@@ -317,6 +324,27 @@ export const commands: Command[] = [
     when: inHabits,
     run: () => prompt('New habit', (name) => store.addHabit(name)),
   },
+
+  // Time Blocking calendar. Listed before the to-do selection keys so J / K / Enter act on blocks there.
+  { id: 'cal.new', title: 'New time block', group: 'Calendar', keys: ['shift+b'], when: inCalendar, run: () => store.addBlockNow() },
+  { id: 'cal.prev', title: 'Previous days', group: 'Calendar', keys: ['[', 'arrowleft'], when: inCalendar, run: () => store.stepCalendar(-1) },
+  { id: 'cal.next', title: 'Next days', group: 'Calendar', keys: [']', 'arrowright'], when: inCalendar, run: () => store.stepCalendar(1) },
+  { id: 'cal.today', title: 'Go to today', group: 'Calendar', keys: ['t'], when: inCalendar, run: () => store.calendarToday() },
+  { id: 'cal.day', title: 'Show one day', group: 'Calendar', keys: ['1'], when: inCalendar, run: () => store.setCalRange('day') },
+  { id: 'cal.3day', title: 'Show 3 days', group: 'Calendar', keys: ['3'], when: inCalendar, run: () => store.setCalRange('3day') },
+  { id: 'cal.week', title: 'Show 7 days', group: 'Calendar', keys: ['7'], when: inCalendar, run: () => store.setCalRange('week') },
+  { id: 'cal.4week', title: 'Show 4 weeks', group: 'Calendar', keys: ['4'], when: inCalendar, run: () => store.setCalRange('4week') },
+  { id: 'cal.down', title: 'Select next block', group: 'Calendar', keys: ['j', 'arrowdown'], when: inCalendar, run: () => store.selectBlock(1), hidden: true },
+  { id: 'cal.up', title: 'Select previous block', group: 'Calendar', keys: ['k', 'arrowup'], when: inCalendar, run: () => store.selectBlock(-1), hidden: true },
+  { id: 'cal.edit', title: 'Assign block (area, project, to-do)', group: 'Calendar', keys: ['enter', 'o'], when: hasBlock, run: withBlock((id) => (store.blockEditingId = id)) },
+  { id: 'cal.earlier', title: 'Move block earlier', group: 'Calendar', keys: ['alt+arrowup', 'shift+k'], when: hasBlock, run: withBlock((id) => store.nudgeBlock(id, -15)) },
+  { id: 'cal.later', title: 'Move block later', group: 'Calendar', keys: ['alt+arrowdown', 'shift+j'], when: hasBlock, run: withBlock((id) => store.nudgeBlock(id, 15)) },
+  { id: 'cal.shorter', title: 'Shorten block', group: 'Calendar', keys: ['alt+shift+arrowup'], when: hasBlock, run: withBlock((id) => store.nudgeBlock(id, -15, true)) },
+  { id: 'cal.longer', title: 'Lengthen block', group: 'Calendar', keys: ['alt+shift+arrowdown'], when: hasBlock, run: withBlock((id) => store.nudgeBlock(id, 15, true)) },
+  { id: 'cal.dayBefore', title: 'Move block to the day before', group: 'Calendar', keys: ['alt+arrowleft', 'shift+h'], when: hasBlock, run: withBlock((id) => store.moveBlockDay(id, -1)) },
+  { id: 'cal.dayAfter', title: 'Move block to the day after', group: 'Calendar', keys: ['alt+arrowright', 'shift+l'], when: hasBlock, run: withBlock((id) => store.moveBlockDay(id, 1)) },
+  { id: 'cal.delete', title: 'Delete block', group: 'Calendar', keys: ['backspace', 'delete'], when: hasBlock, run: withBlock((id) => store.deleteBlock(id)) },
+  { id: 'cal.escape', title: 'Deselect block', group: 'Calendar', keys: ['escape'], when: () => inCalendar() && !!store.blockSelectedId, run: () => (store.blockSelectedId = null), hidden: true },
 
   { id: 'sel.down', title: 'Select next', group: 'Selection', keys: ['j', 'arrowdown'], run: () => moveSelection(1), hidden: true },
   { id: 'sel.up', title: 'Select previous', group: 'Selection', keys: ['k', 'arrowup'], run: () => moveSelection(-1), hidden: true },

@@ -87,6 +87,7 @@ Version numbers live in several files, including the Arch PKGBUILDs; only change
 | `src/lib/store.svelte.ts` | App state (runes) and every write action |
 | `src/lib/views.ts` | Pure view filters (Inbox, Today, Upcoming, Matrix, Brain Dump expiry, streaks) |
 | `src/lib/parse.ts` | Quick-add syntax parser and recurrence helpers |
+| `src/lib/timeblocks.ts` | Time Blocking (#99): local-time spans, snapping, calendar layout, assignment rules, autocomplete; UI in `ui/TimeBlockView.svelte` and `ui/BlockAssign.svelte` |
 | `src/lib/commands.ts` | Command registry and keyboard handling |
 | `src/lib/sound.ts` | Synthesized UI sounds |
 | `src/lib/sync/` | Sync protocol types, sync engine (status, push/pull), native bridge — see `docs/sync.md` |

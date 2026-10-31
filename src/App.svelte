@@ -8,6 +8,7 @@
   import DumpView from './lib/ui/DumpView.svelte';
   import HabitsView from './lib/ui/HabitsView.svelte';
   import MatrixView from './lib/ui/MatrixView.svelte';
+  import TimeBlockView from './lib/ui/TimeBlockView.svelte';
   import QuickAdd from './lib/ui/QuickAdd.svelte';
   import Palette from './lib/ui/Palette.svelte';
   import Help from './lib/ui/Help.svelte';
@@ -147,7 +148,7 @@
       </div>
 
       <div class="scroll">
-        <div class="content" class:wide={v.kind === 'matrix' || v.kind === 'habits'}>
+        <div class="content" class:wide={v.kind === 'matrix' || v.kind === 'habits'} class:full={v.kind === 'timeblock'}>
           {#key store.view}
             <header class="view-head" in:fly={{ y: 6, duration: 200 }}>
               {#if project}
@@ -170,6 +171,8 @@
                 <HabitsView />
               {:else if v.kind === 'matrix'}
                 <MatrixView />
+              {:else if v.kind === 'timeblock'}
+                <TimeBlockView />
               {:else if v.kind === 'trash'}
                 <TrashView />
               {:else if v.kind === 'settings'}
@@ -309,6 +312,13 @@
   }
   .content.wide {
     max-width: 1080px;
+  }
+  .content.full {
+    max-width: 1400px;
+    padding: 0 28px 24px;
+  }
+  .content.full .view-head {
+    margin: 8px 0 12px;
   }
   .view-head {
     display: flex;

@@ -1,6 +1,6 @@
 /** Optional features the user can turn on or off in Settings → Features. Saved per device. */
 
-export type FeatureId = 'dump' | 'week';
+export type FeatureId = 'dump' | 'week' | 'timeblock';
 
 export const FEATURES: { id: FeatureId; label: string; icon: string; description: string; default: boolean }[] = [
   {
@@ -15,6 +15,13 @@ export const FEATURES: { id: FeatureId; label: string; icon: string; description
     label: 'This Week',
     icon: 'week',
     description: 'A list of everything scheduled or due from today through Sunday, grouped by day.',
+    default: false,
+  },
+  {
+    id: 'timeblock',
+    label: 'Time Blocking',
+    icon: 'timeblock',
+    description: 'A calendar for planning blocks of time for an area, project or to-do. Day, 3 days, 7 days or 4 weeks.',
     default: false,
   },
 ];
@@ -55,5 +62,6 @@ export const features = new Features();
 export function viewEnabled(kind: string): boolean {
   if (kind === 'dump') return features.enabled('dump');
   if (kind === 'week') return features.enabled('week');
+  if (kind === 'timeblock') return features.enabled('timeblock');
   return true;
 }

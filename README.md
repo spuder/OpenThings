@@ -61,7 +61,8 @@
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
 - **Repeating to-dos:** every N days, weeks, months or years; chosen days of the week; days of the month (the 1st and 15th, the last day) or an ordinal weekday (the 2nd Tuesday, the last Friday); ending never, after N times or on a date. Set it in quick add (`*mon,thu`) or in the repeat editor (`⇧W`, the repeat button on an open to-do, or right-click), which previews the next dates. Checking one off schedules the next.
 - **This Week** (optional, off by default): everything scheduled or due from today through Sunday, grouped by day; overdue items fold into today. `G W` to open.
-- **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default) and This Week (off).
+- **Time Blocking** (optional, off by default; prototype): a calendar of blocks of time, in Day, 3 days, 7 days or 4 weeks. Drag on empty space to add a block, drag it to move it, drag its top or bottom edge to resize (long-press first on touch). A new block's inline box autocompletes an area (`VEH` → Vehicles), then optionally a project and a to-do in it, each accepted with `Enter`; `Esc` stops at any level. Type a name that isn't an area for a plain block, like "Taxes". Blocks take their area's color and sync like everything else. `G C` to open, `⇧B` for a new block.
+- **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default), This Week and Time Blocking (off).
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
 - **Habits** with a 21-day grid (7 on phones) and streaks. Optional **challenges** of a fixed length: 30, 60, 75 days or any number, with day count, missed days and end date. Press `C` on a habit, or name it `Cold shower 75d`. **Schedules:** every day, weekdays, specific days, or N times a week on any days (`W` on a habit, or name it `Gym 5x` / `Journal weekdays`); streaks and missed days follow the schedule.
 - **Matrix:** Eisenhower quadrants from urgent / important flags.
@@ -117,6 +118,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `⇧⌫` | Remove a Brain Dump section |
 | `Alt+1…9` or `G` then `I T U A S L D H M` | Inbox, Today, Upcoming, Anytime, Someday, Logbook, Dump, Habits, Matrix |
 | `G W` | This Week (when turned on in Settings → Features) |
+| `G C` | Time Blocking (when turned on). In it: `⇧B` new block, `J` / `K` select, `↵` assign, `⇧J` / `⇧K` move 15 min, `⌥⇧↓` / `⌥⇧↑` longer / shorter, `⇧H` / `⇧L` another day, `[` / `]` previous / next, `T` today, `1` `3` `7` `4` range, `⌫` delete |
 | `J` / `K` | Move selection |
 | `Enter` | Open / close task |
 | `C` | Complete |

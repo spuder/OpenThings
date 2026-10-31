@@ -55,6 +55,7 @@
       { v: { kind: 'dump' }, label: 'Brain Dump', icon: 'dump', count: true },
       { v: { kind: 'habits' }, label: 'Habits', icon: 'habits' },
       { v: { kind: 'matrix' }, label: 'Matrix', icon: 'matrix' },
+      { v: { kind: 'timeblock' }, label: 'Time Blocking', icon: 'timeblock' },
     ],
   ];
   // Pinned under the scrolling lists, just above the footer.

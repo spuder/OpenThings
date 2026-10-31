@@ -15,6 +15,7 @@ import type {
   Tag,
   Task,
   TaskTag,
+  TimeBlock,
   TimeEntry,
   ViewKey,
 } from './types';
@@ -32,6 +33,7 @@ import * as Sel from './selection';
 import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
 import { mergeImportedTags, type ThingsImport } from './import/things';
+import * as TB from './timeblocks';
 
 export interface Group {
   key: string;
@@ -84,6 +86,15 @@ function loadCollapsedAreas(): ID[] {
   }
 }
 
+function loadCalRange(): TB.CalendarRange {
+  try {
+    const v = localStorage.getItem('openthings.calRange');
+    return TB.RANGES.some((r) => r.id === v) ? (v as TB.CalendarRange) : 'week';
+  } catch {
+    return 'week';
+  }
+}
+
 function norm(s: string) {
   return s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
 }
@@ -106,6 +117,7 @@ class Store {
   habitChecks = $state<HabitCheck[]>([]);
   timeEntries = $state<TimeEntry[]>([]);
   dumpSections = $state<DumpSection[]>([]);
+  timeBlocks = $state<TimeBlock[]>([]);
   opCount = $state(0);
 
   view = $state<ViewKey>({ kind: 'today' });
@@ -272,6 +284,7 @@ class Store {
     const open = this.timeEntries.filter((e) => e.end_at === null).sort((a, b) => b.start_at.localeCompare(a.start_at))[0];
     this.tracking = open ? { entryId: open.id, taskId: open.task_id, start: Date.parse(open.start_at) } : null;
     this.dumpSections = db.all<DumpSection>('SELECT * FROM dump_sections ORDER BY sort');
+    this.timeBlocks = db.all<TimeBlock>('SELECT * FROM time_blocks WHERE deleted_at IS NULL ORDER BY start_at');
     this.opCount = db.opCount();
     this.announceReminders();
   }
@@ -307,7 +320,10 @@ class Store {
     const cutoff = new Date(Date.now() - TRASH_DAYS * 86_400_000).toISOString();
     const old = db.all<{ id: string }>('SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
     for (const t of old) this.hardDelete(t.id);
-    return old.length > 0;
+    // Deleted time blocks are kept for undo and sync, then go with the Trash.
+    const blocks = db.all<{ id: string }>('SELECT id FROM time_blocks WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
+    for (const b of blocks) db.remove('time_blocks', b.id);
+    return old.length > 0 || blocks.length > 0;
   }
 
   /** Show a short message. With `undo`, it carries an Undo button and stays up longer (no ⌘Z on a phone). */
@@ -383,6 +399,7 @@ class Store {
       case 'dump': return 'Brain Dump';
       case 'habits': return 'Habits';
       case 'matrix': return 'Matrix';
+      case 'timeblock': return 'Time Blocking';
       case 'trash': return 'Trash';
       case 'tag': return `#${this.tags.find((t) => t.id === v.id)?.name ?? 'tag'}`;
       case 'settings': return 'Settings';
@@ -420,7 +437,7 @@ class Store {
 
   /** Multi-selection lists only to-dos; Habits, Trash and Brain Dump keep single selection. */
   get canMulti(): boolean {
-    return !['habits', 'trash', 'dump', 'settings'].includes(this.view.kind);
+    return !['habits', 'trash', 'dump', 'settings', 'timeblock'].includes(this.view.kind);
   }
 
   /** The current selection as a Selection, whether or not it's multi. */
@@ -598,6 +615,7 @@ class Store {
       }
       case 'habits':
       case 'settings':
+      case 'timeblock':
         return [];
       case 'trash':
         return [];
@@ -1228,6 +1246,144 @@ class Store {
   removeChecklist(id: ID) {
     db.remove('checklist', id);
     this.load();
+  }
+
+  // ---------- time blocking (#99) ----------
+
+  /** Calendar range and the first day it shows (4 weeks starts on that day's Monday). Range is per device. */
+  calRange = $state<TB.CalendarRange>(loadCalRange());
+  calAnchor = $state(todayFn());
+  /** The block the keyboard acts on, and the one whose inline assignment box is open. */
+  blockSelectedId = $state<ID | null>(null);
+  blockEditingId = $state<ID | null>(null);
+
+  setCalRange(range: TB.CalendarRange) {
+    this.calRange = range;
+    try {
+      localStorage.setItem('openthings.calRange', range);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  stepCalendar(dir: -1 | 1) {
+    this.calAnchor = TB.stepAnchor(this.calRange, this.calAnchor, dir);
+  }
+
+  calendarToday() {
+    this.calAnchor = this.day;
+  }
+
+  block(id: ID | null): TimeBlock | undefined {
+    return id ? this.timeBlocks.find((b) => b.id === id) : undefined;
+  }
+
+  /** Create a block on `day` from minute `start` to `end` (snapped), select it and open its box. */
+  addBlock(day: string, start: number, end: number): ID {
+    const span = TB.fitSpan(start, end);
+    const id = db.uuid7();
+    db.insert('time_blocks', {
+      id,
+      start_at: TB.atTime(day, span.start),
+      end_at: TB.atTime(day, span.end),
+      title: null,
+      area_id: null,
+      project_id: null,
+      task_id: null,
+      calendar_id: null,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+    });
+    this.undoStack.push('new block', () => db.update('time_blocks', id, { deleted_at: new Date().toISOString() }));
+    this.load();
+    this.blockSelectedId = id;
+    this.blockEditingId = id;
+    return id;
+  }
+
+  /** New block from the keyboard: the next hour on the first day shown (today if it's in range). */
+  addBlockNow() {
+    const days = TB.rangeDays(this.calRange, this.calAnchor);
+    const day = days.includes(this.day) ? this.day : days[0];
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const start = day === this.day ? Math.min(Math.ceil(nowMin / TB.SNAP_MIN) * TB.SNAP_MIN, TB.DAY_MIN - 60) : 9 * 60;
+    this.addBlock(day, start, start + 60);
+  }
+
+  private updateBlock(id: ID, fields: Partial<TimeBlock>, label: string) {
+    const b = this.block(id);
+    if (!b) return;
+    const changed = Object.fromEntries(Object.entries(fields).filter(([k, v]) => b[k as keyof TimeBlock] !== v)) as Partial<TimeBlock>;
+    if (!Object.keys(changed).length) return;
+    const prev = previousValues(b, changed);
+    this.undoStack.push(label, () => db.update('time_blocks', id, prev as db.Row));
+    db.update('time_blocks', id, changed as db.Row);
+    this.load();
+  }
+
+  /** Move or resize a block: it lands on `day` from `start` to `end` minutes (snapped). */
+  setBlockSpan(id: ID, day: string, start: number, end: number) {
+    const span = TB.fitSpan(start, end);
+    this.updateBlock(id, { start_at: TB.atTime(day, span.start), end_at: TB.atTime(day, span.end) }, 'move block');
+  }
+
+  /** Keyboard nudge: move the block by `delta` minutes, or (resize) move only its end. */
+  nudgeBlock(id: ID, delta: number, resize = false) {
+    const b = this.block(id);
+    if (!b) return;
+    const s = TB.blockSpan(b);
+    const next = resize ? { start: s.start, end: TB.clamp(s.end + delta, s.start + TB.MIN_BLOCK, TB.DAY_MIN) } : TB.shiftSpan(s.start, s.end, delta);
+    this.setBlockSpan(id, s.day, next.start, next.end);
+  }
+
+  /** Move a block to another day at the same time. */
+  moveBlockDay(id: ID, dir: -1 | 1) {
+    const b = this.block(id);
+    if (!b) return;
+    const s = TB.blockSpan(b);
+    const day = addDays(s.day, dir);
+    this.setBlockSpan(id, day, s.start, s.end);
+    // Keep it in view.
+    if (!TB.rangeDays(this.calRange, this.calAnchor).includes(day)) this.stepCalendar(dir);
+  }
+
+  /**
+   * Assign a block to nothing, an area, area + project, or area + project + to-do. The rules
+   * (no level without the one above it) are checked here, not only in the inline box.
+   */
+  assignBlock(id: ID, a: TB.Assignment, title: string | null = null): boolean {
+    const err = TB.assignmentError(a, this.projects, this.tasks);
+    if (err) {
+      this.notify(err);
+      return false;
+    }
+    // A block named after an area, project or to-do takes its title from it.
+    this.updateBlock(id, { ...a, title: a.area_id ? null : title?.trim() || null }, 'block change');
+    return true;
+  }
+
+  /** Delete a block. It's kept (deleted_at) so undo can bring it back, and purged with the Trash. */
+  deleteBlock(id: ID) {
+    if (!this.block(id)) return;
+    db.update('time_blocks', id, { deleted_at: new Date().toISOString() });
+    this.undoStack.push('delete block', () => db.update('time_blocks', id, { deleted_at: null }));
+    if (this.blockSelectedId === id) this.blockSelectedId = null;
+    if (this.blockEditingId === id) this.blockEditingId = null;
+    this.load();
+    this.notify('Block deleted', { undo: true });
+  }
+
+  /** Blocks in the range shown, in time order: what J / K step through. */
+  get visibleBlocks(): TimeBlock[] {
+    return TB.rangeDays(this.calRange, this.calAnchor).flatMap((d) => TB.blocksOn(this.timeBlocks, d));
+  }
+
+  selectBlock(delta: 1 | -1) {
+    const list = this.visibleBlocks;
+    if (!list.length) return;
+    const i = list.findIndex((b) => b.id === this.blockSelectedId);
+    const next = i < 0 ? (delta > 0 ? 0 : list.length - 1) : TB.clamp(i + delta, 0, list.length - 1);
+    this.blockSelectedId = list[next].id;
   }
 
   // ---------- projects / areas / sections ----------

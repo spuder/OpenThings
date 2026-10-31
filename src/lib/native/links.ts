@@ -3,6 +3,7 @@
  * app's main window (deep links forwarded by the Rust shell as `ot://open-url`). The parsing is in
  * `snapshot.ts` (`parseRoute`), which has the tests. See docs/url-scheme.md.
  */
+import { viewEnabled } from '../features.svelte';
 import { store } from '../store.svelte';
 import { pairing } from '../sync/pairing.svelte';
 import { addLinkParsed, addLinkPrefill, parseRoute } from './snapshot';
@@ -17,7 +18,7 @@ export function openRoute(url: string): boolean {
     pairing.server = r.server;
     store.go({ kind: 'settings' });
   } else if (r.save) {
-    const p = addLinkParsed(r, store.day);
+    const p = addLinkParsed(r, store.day, viewEnabled('dump'));
     if (!p.title) {
       store.notify('Nothing to add: the link has no title');
       return true;
@@ -26,8 +27,7 @@ export function openRoute(url: string): boolean {
     store.addParsed(p, { useContext: false });
     store.notify(`Added “${p.title}”`);
   } else {
-    store.quickAddPrefill = addLinkPrefill(r);
-    store.overlay = 'quickadd';
+    store.openQuickAdd(addLinkPrefill(r, store.day, viewEnabled('dump')));
   }
   return true;
 }

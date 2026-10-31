@@ -181,6 +181,8 @@ class Store {
 
   paletteMode = $state<PaletteMode>({ kind: 'commands' });
   quickAddPrefill = $state('');
+  /** Bumped by each `openQuickAdd`, so opening it again (a widget link) starts it afresh. */
+  quickAddOpened = $state(0);
   /** The to-do a touch swipe opened actions for (overlay 'swipe'), and which way it was swiped. */
   swipeSheet = $state<{ id: ID; side: 'right' | 'left' } | null>(null);
   toast = $state<{ text: string; id: number; undo?: boolean } | null>(null);
@@ -704,7 +706,13 @@ class Store {
     return id;
   }
 
-  /** Placement implied by the current view, used when quick add has no explicit target. */
+  /** Open quick add with `prefill` (quick-add text), replacing quick add if it's already open. */
+  openQuickAdd(prefill: string): void {
+    this.quickAddPrefill = prefill;
+    this.quickAddOpened++;
+    this.overlay = 'quickadd';
+  }
+
   /**
    * Quick-add text that states where a new to-do goes from the current list, so it's visible and editable.
    * Leading space: it sits after the title, with the cursor in front of it.
@@ -759,6 +767,9 @@ class Store {
       reminder_at: p.reminderAt,
       reminder_sent_at: null,
     };
+    // A list or date wins over @dump. With Brain Dump turned off its list is hidden and items in it
+    // expire unseen, so @dump (from quick add, a link, Share or Shortcuts) goes to the Inbox.
+    const dump = p.dump && !p.project && !p.when && viewEnabled('dump');
     const explicit = p.project || p.when || p.dump;
     if (opts.useContext && !explicit) Object.assign(row, this.contextDefaults());
     if (p.project) Object.assign(row, this.resolveContainer(p.project));
@@ -767,7 +778,7 @@ class Store {
       row.evening = p.when.evening ? 1 : 0;
       row.someday = p.when.someday ? 1 : 0;
     }
-    if (p.dump) {
+    if (dump) {
       row.dump = 1;
       row.dump_section_id = p.dumpSection ? this.dumpSectionId(p.dumpSection) : null;
     } else if (row.dump && this.view.kind === 'dump') {

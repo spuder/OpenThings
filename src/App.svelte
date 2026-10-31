@@ -192,7 +192,8 @@
     </main>
   </div>
 
-  {#if store.overlay === 'quickadd'}<QuickAdd />{/if}
+  <!-- Keyed so opening it again (a widget link while quick add is open) starts it afresh. -->
+  {#if store.overlay === 'quickadd'}{#key store.quickAddOpened}<QuickAdd />{/key}{/if}
   {#if store.overlay === 'palette'}<Palette />{/if}
   {#if store.overlay === 'help'}<Help />{/if}
   {#if store.overlay === 'focus'}<FocusView />{/if}

@@ -36,7 +36,7 @@ nothing is added. A `when` or `deadline` the app doesn't understand is left out.
 | `openthings://inbox`, `today`, `upcoming`, `anytime`, `someday`, `logbook`, `dump`, `habits`, `matrix` | That list |
 | `openthings://task/<id>` | That to-do. Ids are in the REST API and MCP results (`docs/api.md`). |
 | `openthings://pair?server=<url>` | Settings → Sync with that server filled in (the pairing QR code, see `docs/sync.md`) |
-| `openthings://show` | Desktop: the main window |
+| `openthings://show` (or just `openthings://`) | Desktop: brings up the main window. On iOS and Android it only opens the app. |
 
 ## Examples
 

@@ -16,7 +16,8 @@
   import BlockAssign from './BlockAssign.svelte';
   import CalendarTodos from './CalendarTodos.svelte';
   import { LONG_PRESS_MS } from './drag.svelte';
-  import { calDrop, calendarDraggable, HOUR_PX } from './calendarDrop.svelte';
+  import { calDrop, calendarDraggable, edgeScroll, HOUR_PX, scrollGrid } from './calendarDrop.svelte';
+  import { isNarrow } from '../env';
 
   /** Pixels per hour. */
   const HOUR = HOUR_PX;
@@ -25,7 +26,6 @@
   const DRAG_PX = 4;
   /** Touch: moving further than this before the long-press fires means scrolling. */
   const TOUCH_SLOP = 8;
-  const EDGE = 40;
 
   const days = $derived(TB.rangeDays(store.calRange, store.calAnchor));
   const grid = $derived(store.calRange !== '4week');
@@ -231,6 +231,7 @@
     clearTimeout(g.timer);
     if (g.active || g.armed) endedAt = Date.now();
     g = null;
+    dwell.since = 0;
     cancelAnimationFrame(raf);
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
@@ -240,17 +241,46 @@
 
   let raf = 0;
   /** Scroll the grid while dragging near its top or bottom edge. */
+  const dwell = { since: 0 };
   function autoScroll() {
     cancelAnimationFrame(raf);
     if (!g?.active || !scroller) return;
-    const r = scroller.getBoundingClientRect();
-    const dy = lastY < r.top + EDGE + 36 ? -1 : lastY > r.bottom - EDGE ? 1 : 0;
+    const dy = edgeScroll(scroller, lastX, lastY, dwell);
     if (dy) {
-      scroller.scrollBy(0, dy * 8);
+      scrollGrid(scroller, dy);
       update(lastX, lastY);
     }
     raf = requestAnimationFrame(autoScroll);
   }
+
+  // Phones: the grid fills the screen below the toolbar (and To-dos), so the whole calendar is
+  // reachable while dragging instead of half of it sitting below the fold.
+  let gridH = $state<number | null>(null);
+  function fitGrid() {
+    if (!scroller || !isNarrow()) {
+      gridH = null;
+      return;
+    }
+    const page = scroller.closest<HTMLElement>('main .scroll');
+    const top = scroller.getBoundingClientRect().top + (page?.scrollTop ?? 0);
+    gridH = Math.max(300, Math.round(window.innerHeight - top - 12));
+  }
+  $effect(() => {
+    void store.calPanel;
+    void store.calRange;
+    if (!scroller) return;
+    fitGrid();
+    const panel = scroller.closest('.cal')?.querySelector('.toolbar');
+    const todos = scroller.closest('.cal')?.querySelector('.todos');
+    const ro = new ResizeObserver(fitGrid);
+    if (panel) ro.observe(panel);
+    if (todos) ro.observe(todos);
+    window.addEventListener('resize', fitGrid);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', fitGrid);
+    };
+  });
 
   /** Once a touch is held, moving it drags instead of scrolling; no callout on long-press. */
   function touchGuard(node: HTMLElement) {
@@ -330,7 +360,7 @@
   {#if store.calPanel}<CalendarTodos />{/if}
   <div class="cal-main">
   {#if grid}
-    <div class="grid-scroll" bind:this={scroller} style:--n={days.length}>
+    <div class="grid-scroll" bind:this={scroller} style:--n={days.length} style:height={gridH ? `${gridH}px` : null}>
       <div class="head">
         <span class="gutter"></span>
         {#each days as d (d)}
@@ -921,6 +951,32 @@
     .edge {
       height: 14px;
     }
+    /* Touch: long-press anywhere on a block moves it. Its edges resize only once it's selected
+       (tap it first), shown as round handles, so a thumb near the top doesn't stretch it. */
+    .block:not(.selected) .edge,
+    .block.tiny .edge.top {
+      pointer-events: none;
+    }
+    .block.selected .edge::after {
+      content: '';
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 2px solid var(--c);
+    }
+    .block.selected .edge.top::after {
+      top: -3px;
+      left: 10px;
+    }
+    .block.selected .edge.bottom::after {
+      bottom: -3px;
+      right: 10px;
+    }
+    .block.selected.tiny .edge.top::after {
+      display: none;
+    }
     /* Bigger targets without taller lines: the hit area extends past the dot and the ×. */
     .tick,
     .unplan {
@@ -953,16 +1009,30 @@
     .short {
       display: inline;
     }
+    /* Two rows: range and navigation, then the dates with To-dos and New block. */
+    .toolbar {
+      gap: 8px;
+    }
+    .nav {
+      margin-left: auto;
+    }
     .period {
       order: 3;
-      width: 100%;
+      flex: 1;
+      margin-right: 0;
+    }
+    .panel-toggle {
+      order: 4;
+    }
+    .add {
+      order: 5;
     }
     .cal-body.with-panel {
       grid-template-columns: minmax(0, 1fr);
     }
     .cal-body.with-panel > :global(.todos) {
       height: auto;
-      max-height: 34dvh;
+      max-height: 26dvh;
     }
     .grid-scroll {
       height: max(380px, calc(100dvh - 250px));

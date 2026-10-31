@@ -98,21 +98,52 @@ export function resetCalendar() {
   calDrop.slot = null;
   calDrop.merge = null;
   calDrop.unplan = false;
+  dwell.since = 0;
   cancelAnimationFrame(raf);
 }
 
+/** How long the pointer rests by an edge before the grid scrolls, so passing over an edge doesn't. */
+const DWELL_MS = 250;
+
+/**
+ * Auto-scroll for a drag over the time grid: -1 / 1 while the pointer rests near the grid's
+ * *visible* top or bottom edge (on a phone the page may cut the grid off), 0 otherwise.
+ * `dwell` remembers since when the pointer has been in an edge zone.
+ */
+export function edgeScroll(grid: HTMLElement, x: number, y: number, dwell: { since: number }): -1 | 0 | 1 {
+  const r = grid.getBoundingClientRect();
+  const top = Math.max(r.top, 0);
+  const bottom = Math.min(r.bottom, window.innerHeight);
+  const inside = x >= r.left && x <= r.right && y >= top - EDGE && y <= bottom + EDGE;
+  // The top zone is taller: the sticky day header sits there.
+  const dir = !inside ? 0 : y < top + EDGE + 36 ? -1 : y > bottom - EDGE ? 1 : 0;
+  if (!dir) {
+    dwell.since = 0;
+    return 0;
+  }
+  if (!dwell.since) dwell.since = performance.now();
+  return performance.now() - dwell.since >= DWELL_MS ? dir : 0;
+}
+
+/** Scroll by `dir`: the page first while it hides part of the grid, then the grid itself. */
+export function scrollGrid(grid: HTMLElement, dir: -1 | 1) {
+  const r = grid.getBoundingClientRect();
+  const page = grid.closest<HTMLElement>('main .scroll');
+  if (page && ((dir > 0 && r.bottom > window.innerHeight) || (dir < 0 && r.top < 0))) page.scrollBy(0, dir * 8);
+  else grid.scrollBy(0, dir * 8);
+}
+
 let raf = 0;
-/** Scroll the time grid while the pointer is near its top or bottom edge. */
+const dwell = { since: 0 };
+/** Scroll the time grid while the pointer rests near its top or bottom edge. */
 function autoScroll() {
   cancelAnimationFrame(raf);
   if (!calDrop.active) return;
   const grid = document.querySelector<HTMLElement>('.cal .grid-scroll');
-  if (grid) {
-    const r = grid.getBoundingClientRect();
-    const inside = calDrop.x >= r.left && calDrop.x <= r.right;
-    const dy = !inside ? 0 : calDrop.y < r.top + EDGE + 36 ? -1 : calDrop.y > r.bottom - EDGE ? 1 : 0;
-    if (dy && calDrop.source) {
-      grid.scrollBy(0, dy * 8);
+  if (grid && calDrop.source) {
+    const dy = edgeScroll(grid, calDrop.x, calDrop.y, dwell);
+    if (dy) {
+      scrollGrid(grid, dy);
       trackCalendar(calDrop.source, calDrop.x, calDrop.y);
     }
   }

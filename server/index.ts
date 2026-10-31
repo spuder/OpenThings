@@ -7,7 +7,9 @@
  *   OPENTHINGS_ALLOWED_ORIGINS  extra browser origins allowed to call the API, comma-separated
  *   OPENTHINGS_PUBLIC_URL       the address devices use, e.g. https://openthings.<tailnet>.ts.net;
  *                               apps prefill it and put it in phone pairing QR codes
- *   TZ                          time zone for "today" in the REST API and MCP tools
+ *   TZ                          time zone for "today" in the REST API and MCP tools, and the one
+ *                               subscribed calendars are told time blocks are in
+ *   OPENTHINGS_CALENDAR_NAME    name of the subscribed time-blocking calendar (default OpenThings)
  */
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -30,7 +32,9 @@ if (publicUrlEnv && !publicUrl) console.warn(`Ignoring OPENTHINGS_PUBLIC_URL=${p
 
 mkdirSync(dataDir, { recursive: true });
 const db = new ServerDb(join(dataDir, 'openthings.sqlite'));
-const fetch = createApp({ db, staticDir, version: pkg.version, allowedOrigins, publicUrl });
+const calendarName = process.env.OPENTHINGS_CALENDAR_NAME?.trim() || 'OpenThings';
+const timezone = process.env.TZ?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+const fetch = createApp({ db, staticDir, version: pkg.version, allowedOrigins, publicUrl, calendarName, timezone });
 
 const server = Bun.serve({ port, fetch, maxRequestBodySize: 64 * 1024 * 1024 });
 console.log(`OpenThings ${pkg.version} on http://localhost:${server.port}${publicUrl ? ` (devices use ${publicUrl})` : ''} · data ${dataDir} · device ${db.device} · ${db.opCount()} ops`);

@@ -12,7 +12,7 @@ export default defineConfig({
   plugins: [svelte()],
   define: { __APP_VERSION__: JSON.stringify(version) },
   // `npm run server` in another terminal: the dev app reaches sync, REST and MCP on its own origin.
-  server: { proxy: { '/api': 'http://localhost:8080', '/mcp': 'http://localhost:8080' } },
+  server: { proxy: { '/api': 'http://localhost:8080', '/mcp': 'http://localhost:8080', '/cal': 'http://localhost:8080', '/dav': 'http://localhost:8080', '/.well-known/caldav': 'http://localhost:8080' } },
   // Background agents keep git worktrees under .claude/; don't pick up their tests. server/ runs under bun test.
   test: { exclude: ['**/node_modules/**', '**/dist/**', '.claude/**', 'server/**'] },
 })

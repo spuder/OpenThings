@@ -162,6 +162,9 @@
 
   const mcpHttp = $derived(JSON.stringify({ mcpServers: { openthings: { type: 'http', url: `${base}/mcp` } } }, null, 2));
   const mcpStdio = $derived(JSON.stringify({ mcpServers: { openthings: { command: 'npx', args: ['-y', 'mcp-remote', `${base}/mcp`] } } }, null, 2));
+  // Calendar subscriptions (#99): the server publishes time blocks as an .ics feed and read-only CalDAV.
+  const feedUrl = $derived(`${base}/cal/openthings.ics`);
+  const webcalUrl = $derived(feedUrl.replace(/^https?:/, 'webcal:'));
   const mcpCli = $derived(`claude mcp add --transport http openthings ${base}/mcp`);
   const curl = $derived(`# Add a to-do with quick-add syntax
 curl -X POST ${base}/api/v1/tasks \\
@@ -387,6 +390,25 @@ curl '${base}/api/v1/tasks?view=today'`);
       </tbody>
     </table>
   </section>
+
+  {#if features.enabled('timeblock')}
+    <section>
+      <header>
+        <h2>Calendar subscription</h2>
+      </header>
+      <p class="lead">
+        Show your time blocks in Apple Calendar, Google Calendar, Outlook, Thunderbird or DAVx5. The server publishes them as a read-only calendar named <strong>OpenThings</strong> (set <code>OPENTHINGS_CALENDAR_NAME</code> to rename it). Blocks reach it when sync is on; edit them here.
+      </p>
+      <dl>
+        <dt>Subscribe (iCalendar)</dt>
+        <dd><code>{webcalUrl}</code></dd>
+        <dt>CalDAV account</dt>
+        <dd><code>{base}/dav/</code> (any user name and password)</dd>
+      </dl>
+      <CodeBlock label="Subscription URL — Apple Calendar: File → New Calendar Subscription; Google Calendar: Other calendars → From URL (use https://)" code={feedUrl} />
+      <p class="note">Subscribed calendars refresh on their own schedule: about every 15 minutes in Apple Calendar, up to a day in Google Calendar. A CalDAV account updates on its next sync.</p>
+    </section>
+  {/if}
 
   <section>
     <header>

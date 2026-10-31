@@ -1,10 +1,12 @@
 /**
  * HTTP routes: the web app (static files), sync (/api/health, /api/sync), the REST API (/api/v1)
- * and MCP (/mcp). `createApp` returns a fetch handler so tests can call it without a socket.
+ * MCP (/mcp) and calendar subscriptions (/cal, /dav, see dav.ts). `createApp` returns a fetch handler
+ * so tests can call it without a socket.
  */
 import { join, normalize } from 'node:path';
 import { PROTOCOL_VERSION, type HealthResponse, type SyncResponse } from '../src/lib/sync/protocol';
 import { validOp, type ServerDb } from './db';
+import { createCalendar, isCalendarPath } from './dav';
 import { handleRpc } from './mcp';
 import { Service, UserError } from './service';
 
@@ -18,6 +20,10 @@ export interface AppOptions {
   allowedOrigins?: string[];
   /** Where devices reach this server (OPENTHINGS_PUBLIC_URL), reported by /api/health. */
   publicUrl?: string;
+  /** Name subscribed calendars show for the time blocks (OPENTHINGS_CALENDAR_NAME). Default "OpenThings". */
+  calendarName?: string;
+  /** IANA time zone the blocks' local times are in, told to subscribers. */
+  timezone?: string;
 }
 
 /** Origins of the native shells and local development, always allowed. */
@@ -57,6 +63,7 @@ export function createApp(opts: AppOptions) {
   const version = opts.version ?? '0.0.0';
   const extraOrigins = new Set(opts.allowedOrigins ?? []);
   const gzipCache = new Map<string, Uint8Array<ArrayBuffer>>();
+  const cal = createCalendar({ name: opts.calendarName ?? 'OpenThings', timezone: opts.timezone, events: () => service.calendarEvents() });
 
   /** Same host as the request (behind a TLS proxy the scheme differs, so compare hosts). */
   function sameOrigin(origin: string, req: Request): boolean {
@@ -260,6 +267,17 @@ export function createApp(opts: AppOptions) {
 
   return async function fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    if (isCalendarPath(url.pathname)) {
+      // Calendar apps send no Origin; a web page that does gets the same check as the API.
+      const origin = req.headers.get('origin');
+      if (origin && !originAllowed(origin, req)) return err(`Origin ${origin} is not allowed (set OPENTHINGS_ALLOWED_ORIGINS)`, 403);
+      try {
+        return await cal(req, url);
+      } catch (e) {
+        console.error(`${req.method} ${url.pathname} failed`, e);
+        return err('Internal server error', 500);
+      }
+    }
     const isApi = url.pathname === '/api' || url.pathname.startsWith('/api/') || url.pathname === '/mcp' || url.pathname.startsWith('/mcp/');
     if (!isApi) return serveStatic(req, url);
 

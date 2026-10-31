@@ -54,6 +54,8 @@
 | ![Brain dump](docs/screenshots/brain-dump.png) | ![Matrix](docs/screenshots/matrix.png) |
 | **Habits** | **Quick add** |
 | ![Habits](docs/screenshots/habits.png) | ![Quick add](docs/screenshots/quick-add.png) |
+| **Time Blocking** | **Assigning a block** |
+| ![Time Blocking week](docs/screenshots/time-blocking.png) | ![A new block's inline box suggesting to-dos in Truck maintenance](docs/screenshots/time-blocking-assign.png) |
 
 ## Features
 
@@ -61,8 +63,9 @@
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
 - **Repeating to-dos:** every N days, weeks, months or years; chosen days of the week; days of the month (the 1st and 15th, the last day) or an ordinal weekday (the 2nd Tuesday, the last Friday); ending never, after N times or on a date. Set it in quick add (`*mon,thu`) or in the repeat editor (`⇧W`, the repeat button on an open to-do, or right-click), which previews the next dates. Checking one off schedules the next.
 - **This Week** (optional, off by default): everything scheduled or due from today through Sunday, grouped by day; overdue items fold into today. `G W` to open.
-- **Time Blocking** (optional, off by default; prototype): a calendar of blocks of time, in Day, 3 days, 7 days or 4 weeks. Drag on empty space to add a block, drag it to move it, drag its top or bottom edge to resize (long-press first on touch). A new block's inline box autocompletes an area (`VEH` → Vehicles), then optionally a project and a to-do in it, each accepted with `Enter`; `Esc` stops at any level. Type a name that isn't an area for a plain block, like "Taxes". Blocks take their area's color and sync like everything else. `G C` to open, `⇧B` for a new block.
-- **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default), This Week and Time Blocking (off).
+- **Time Blocking** (on by default, can be turned off; prototype): a calendar of blocks of time, in Day, 3 days, 7 days or 4 weeks. Drag on empty space to add a block, drag it to move it, drag its top or bottom edge to resize (long-press first on touch). A new block's inline box autocompletes an area (`VEH` → Vehicles), then optionally a project and a to-do in it, each accepted with `Enter`; `Esc` stops at any level. Type a name that isn't an area for a plain block, like "Taxes". Blocks take their area's color and sync like everything else. `G C` to open, `⇧B` for a new block.
+- **Calendar subscription:** the server publishes your time blocks as a read-only calendar named **OpenThings**, so they show in Apple Calendar, Google Calendar, Outlook, Thunderbird or DAVx5. Subscribe to `webcal://<server>/cal/openthings.ics`, or add `https://<server>/dav/` as a CalDAV account. Settings → Calendar subscription has the addresses. See [Calendar subscription](docs/api.md#calendar-subscription).
+- **Features** in Settings turn optional lists on or off per device: Brain Dump and Time Blocking (on by default) and This Week (off).
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
 - **Habits** with a 21-day grid (7 on phones) and streaks. Optional **challenges** of a fixed length: 30, 60, 75 days or any number, with day count, missed days and end date. Press `C` on a habit, or name it `Cold shower 75d`. **Schedules:** every day, weekdays, specific days, or N times a week on any days (`W` on a habit, or name it `Gym 5x` / `Journal weekdays`); streaks and missed days follow the schedule.
 - **Matrix:** Eisenhower quadrants from urgent / important flags.
@@ -118,7 +121,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `⇧⌫` | Remove a Brain Dump section |
 | `Alt+1…9` or `G` then `I T U A S L D H M` | Inbox, Today, Upcoming, Anytime, Someday, Logbook, Dump, Habits, Matrix |
 | `G W` | This Week (when turned on in Settings → Features) |
-| `G C` | Time Blocking (when turned on). In it: `⇧B` new block, `J` / `K` select, `↵` assign, `⇧J` / `⇧K` move 15 min, `⌥⇧↓` / `⌥⇧↑` longer / shorter, `⇧H` / `⇧L` another day, `[` / `]` previous / next, `T` today, `1` `3` `7` `4` range, `⌫` delete |
+| `G C` | Time Blocking (turn it off in Settings → Features). In it: `⇧B` new block, `J` / `K` select, `↵` assign, `⇧J` / `⇧K` move 15 min, `⌥⇧↓` / `⌥⇧↑` longer / shorter, `⇧H` / `⇧L` another day, `[` / `]` previous / next, `T` today, `1` `3` `7` `4` range, `⌫` delete |
 | `J` / `K` | Move selection |
 | `Enter` | Open / close task |
 | `C` | Complete |
@@ -277,6 +280,7 @@ The container is one [Bun](https://bun.sh) process that serves:
 | `/api/health`, `/api/sync` | Sync between devices ([docs/sync.md](docs/sync.md)) |
 | `/api/v1/…` | REST API ([docs/api.md](docs/api.md)) |
 | `/mcp` | MCP endpoint (Streamable HTTP) for AI assistants ([docs/api.md](docs/api.md#mcp)) |
+| `/cal/openthings.ics`, `/dav/` | Time blocks as a subscribable iCalendar feed and a read-only CalDAV calendar ([docs/api.md](docs/api.md#calendar-subscription)) |
 
 To sync a device, open **Settings → Sync**, press **Use this site** (or enter the server URL in the desktop and iOS apps) and **Turn on sync**. With `OPENTHINGS_PUBLIC_URL` set, the web app fills the URL in for you. To add a phone without typing the URL, press **Show QR code** there on a computer that syncs with the server, then **Scan QR code** in the iOS app's Settings → Sync. Each device still keeps a full copy and works offline.
 
@@ -289,19 +293,20 @@ claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/m
 | Setting | Default | |
 | --- | --- | --- |
 | Volume `/data` | | The server's SQLite database (`openthings.sqlite`). Back it up; it holds every device's changes. |
-| `TZ` | `UTC` | Time zone for "today" in the REST API and MCP tools, e.g. `America/Denver`. |
+| `TZ` | `UTC` | Time zone for "today" in the REST API and MCP tools, e.g. `America/Denver`. Subscribed calendars are told time blocks are in this zone. |
+| `OPENTHINGS_CALENDAR_NAME` | `OpenThings` | Name of the subscribed time-blocking calendar. |
 | `OPENTHINGS_PUBLIC_URL` | | The address your devices use, e.g. `https://openthings.<tailnet>.ts.net`. Reported by `/api/health`; the web app prefills it in Settings → Sync and the phone pairing QR code carries it. |
 | `OPENTHINGS_ALLOWED_ORIGINS` | | Extra web origins allowed to call the API from a browser, comma-separated. The server's own origin and the iOS app always are. |
 | `PORT` | `8080` | |
 
 There's no login: anyone who can reach the server can read and change your to-dos, so keep it on your tailnet (as DockTail does) or another private network. Browsers on other websites are refused, so a page you visit can't reach it through your browser. Device tokens are planned before anything is exposed more widely.
 
-Run the server locally with `npm run build && npm run server` (http://localhost:8080); `npm run dev` proxies `/api` and `/mcp` to it.
+Run the server locally with `npm run build && npm run server` (http://localhost:8080); `npm run dev` proxies `/api`, `/mcp`, `/cal` and `/dav` to it.
 
 ## Roadmap
 
 1. **Server:** sync, the REST API and MCP ship in the Docker image ([Self-hosting](#self-hosting)). Next: device tokens, and reminders sent from the server (Web Push) so they arrive with the app closed.
-2. **Calendar time-blocking:** drag tasks onto a day timeline; blocks sync to a CalDAV calendar (iCloud, Radicale, Nextcloud, etc.) from the server, and existing events show as busy time.
+2. **Calendar time-blocking:** blocks of time on a calendar, published by the server as an iCalendar feed and a read-only CalDAV calendar (prototype, [#99](https://github.com/spuder/OpenThings/issues/99)). Next: drag to-dos into blocks, a This Week column, and showing other calendars' events as busy time.
 3. **Desktop:** Tauri shell with a global quick-add hotkey (macOS and Omarchy/Hyprland) in preview, installable on macOS with Homebrew, see [Desktop app](#desktop-app). Releases are signed and notarized. Next: AUR, Ubuntu/Fedora packages.
 4. **Mobile:** iOS app with widgets, Shortcuts and share sheet: runs on iPhone ([docs/ios.md](docs/ios.md)). Android app with widgets, share and app shortcuts in preview ([docs/android.md](docs/android.md), [testers wanted](https://github.com/spuder/OpenThings/issues/6)). Next: interactive widgets on both.
 5. More importers: a CLI, and Super Productivity backups (evaluated in [docs/import.md](docs/import.md)).

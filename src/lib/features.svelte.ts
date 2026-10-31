@@ -21,8 +21,8 @@ export const FEATURES: { id: FeatureId; label: string; icon: string; description
     id: 'timeblock',
     label: 'Time Blocking',
     icon: 'timeblock',
-    description: 'A calendar for planning blocks of time for an area, project or to-do. Day, 3 days, 7 days or 4 weeks.',
-    default: false,
+    description: 'A calendar for planning blocks of time for an area, project or to-do. Day, 3 days, 7 days or 4 weeks. Other calendars can subscribe to it.',
+    default: true,
   },
 ];
 

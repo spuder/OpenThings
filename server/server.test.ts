@@ -368,3 +368,87 @@ describe('MCP', () => {
     expect(r.body.map((x: { id: number }) => x.id)).toEqual([1, 2]);
   });
 });
+
+describe('calendar subscriptions (#99)', () => {
+  const block = (id: string, p: Record<string, unknown> = {}) => ({
+    id, start_at: '2026-10-18T09:00', end_at: '2026-10-18T10:00', title: null, area_id: null, project_id: null, task_id: null,
+    calendar_id: null, created_at: '2026-10-17T12:00:00.000Z', deleted_at: null, ...p,
+  });
+  function cal(opts: { calendarName?: string } = {}) {
+    const db = new ServerDb();
+    db.push([
+      op('devA', 'areas', 'a1', 'insert', { id: 'a1', name: 'Vehicles', sort: 0 }),
+      op('devA', 'time_blocks', 'b1', 'insert', block('b1', { area_id: 'a1' })),
+      op('devA', 'time_blocks', 'b2', 'insert', block('b2', { start_at: '2026-10-25T13:00', end_at: '2026-10-25T14:00', title: 'Taxes' })),
+      op('devA', 'time_blocks', 'b3', 'insert', block('b3', { deleted_at: '2026-10-18T00:00:00Z' })),
+    ]);
+    const app = createApp({ db, version: 'test', timezone: 'America/Denver', ...opts });
+    return (method: string, path: string, body?: string, headers: Record<string, string> = {}) =>
+      app(new Request(`http://ot.test${path}`, { method, headers: { host: 'ot.test', ...headers }, body }));
+  }
+
+  it('serves an .ics feed named OpenThings with the live blocks', async () => {
+    const res = await cal()('GET', '/cal/openthings.ics');
+    expect(res.headers.get('content-type')).toContain('text/calendar');
+    const ics = await res.text();
+    expect(ics).toContain('X-WR-CALNAME:OpenThings\r\n');
+    expect(ics).toContain('X-WR-TIMEZONE:America/Denver');
+    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2);
+    expect(ics).toContain('SUMMARY:Vehicles');
+    expect(ics).toContain('SUMMARY:Taxes');
+  });
+
+  it('takes the calendar name from the option', async () => {
+    expect(await (await cal({ calendarName: 'Blocks' })('GET', '/cal/openthings.ics')).text()).toContain('X-WR-CALNAME:Blocks');
+  });
+
+  it('points CalDAV discovery at /dav/', async () => {
+    const res = await cal()('GET', '/.well-known/caldav');
+    expect(res.status).toBe(301);
+    expect(res.headers.get('location')).toBe('/dav/');
+  });
+
+  it('answers PROPFIND from discovery down to the events', async () => {
+    const call = cal();
+    const principal = await call('PROPFIND', '/dav/', '<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:current-user-principal/><c:calendar-home-set/><d:foo/></d:prop></d:propfind>', { depth: '0' });
+    expect(principal.status).toBe(207);
+    const p = await principal.text();
+    expect(p).toContain('<d:current-user-principal><d:href>/dav/principal/</d:href></d:current-user-principal>');
+    expect(p).toContain('<c:calendar-home-set><d:href>/dav/calendars/</d:href></c:calendar-home-set>');
+    expect(p).toMatch(/<d:foo\/><\/d:prop><d:status>HTTP\/1.1 404 Not Found/);
+
+    const home = await (await call('PROPFIND', '/dav/calendars/', '<propfind xmlns="DAV:"><prop><resourcetype/><displayname/></prop></propfind>', { depth: '1' })).text();
+    expect(home).toContain('<d:href>/dav/calendars/openthings/</d:href>');
+    expect(home).toContain('<d:collection/><c:calendar/>');
+    expect(home).toContain('<d:displayname>OpenThings</d:displayname>');
+
+    const list = await (await call('PROPFIND', '/dav/calendars/openthings', '<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:prop><d:getetag/><cs:getctag/></d:prop></d:propfind>', { depth: '1' })).text();
+    expect(list.match(/\.ics<\/d:href>/g)).toHaveLength(2);
+    expect(list).toMatch(/<cs:getctag>[0-9a-f]{8}<\/cs:getctag>/);
+  });
+
+  it('returns events by multiget and by time range, and each one by GET', async () => {
+    const call = cal();
+    const multi = await (await call('REPORT', '/dav/calendars/openthings/', '<c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop><d:href>/dav/calendars/openthings/b1.ics</d:href><d:href>/dav/calendars/openthings/nope.ics</d:href></c:calendar-multiget>', { depth: '1' })).text();
+    expect(multi).toContain('BEGIN:VCALENDAR');
+    expect(multi).toContain('UID:b1@openthings');
+    expect(multi).toMatch(/nope\.ics<\/d:href><d:status>HTTP\/1.1 404/);
+
+    const query = await (await call('REPORT', '/dav/calendars/openthings/', '<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="20261020T000000Z" end="20261101T000000Z"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>', { depth: '1' })).text();
+    expect(query).toContain('b2.ics');
+    expect(query).not.toContain('b1.ics');
+
+    const one = await call('GET', '/dav/calendars/openthings/b2.ics');
+    expect(one.headers.get('etag')).toMatch(/^"[0-9a-f]{8}"$/);
+    expect(await one.text()).toContain('SUMMARY:Taxes');
+  });
+
+  it('is read only and refuses other websites', async () => {
+    const call = cal();
+    expect((await call('PUT', '/dav/calendars/openthings/b1.ics', 'BEGIN:VCALENDAR')).status).toBe(403);
+    expect((await call('DELETE', '/dav/calendars/openthings/b1.ics')).status).toBe(403);
+    expect((await call('GET', '/cal/openthings.ics', undefined, { origin: 'https://evil.example' })).status).toBe(403);
+    const opts = await call('OPTIONS', '/dav/calendars/openthings/');
+    expect(opts.headers.get('dav')).toContain('calendar-access');
+  });
+});

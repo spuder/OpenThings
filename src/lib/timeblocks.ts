@@ -233,8 +233,60 @@ export function blockLabel(b: TimeBlock, areas: Area[], projects: Project[], tas
   const project = b.project_id ? projects.find((x) => x.id === b.project_id)?.name : undefined;
   const task = b.task_id ? tasks.find((x) => x.id === b.task_id)?.title : undefined;
   const chain = [area, project, task].filter((x): x is string => !!x);
-  if (!chain.length) return { title: b.title?.trim() || '', crumbs: [] };
+  const named = b.title?.trim();
+  if (!chain.length) return { title: named || '', crumbs: [] };
+  // A named block in an area (a to-do of that area dropped on the calendar): the name, under the area.
+  if (named && !b.project_id) return { title: named, crumbs: chain };
   return { title: chain[chain.length - 1], crumbs: chain.slice(0, -1) };
+}
+
+// ---------- dropping lists and to-dos on the calendar ----------
+
+/** Something dragged onto the calendar: an area or project from the sidebar, or a to-do. */
+export interface BlockSource {
+  kind: 'area' | 'project' | 'task';
+  id: ID;
+}
+
+/**
+ * The block a dropped area, project or to-do becomes. It's linked as deep as the rules allow
+ * (area › project › to-do). What can't be linked keeps its name: a project with no area, or a
+ * to-do in the Inbox, becomes a plain named block; a to-do directly in an area, a named block
+ * in that area. Null when the source no longer exists.
+ */
+export function sourceBlock(
+  src: BlockSource,
+  areas: Pick<Area, 'id'>[],
+  projects: Pick<Project, 'id' | 'area_id' | 'name'>[],
+  tasks: Pick<Task, 'id' | 'project_id' | 'area_id' | 'title'>[],
+): { assignment: Assignment; title: string | null; label: string } | null {
+  const none: Assignment = { area_id: null, project_id: null, task_id: null };
+  const hasArea = (id: ID | null): id is ID => !!id && areas.some((a) => a.id === id);
+  if (src.kind === 'area') return hasArea(src.id) ? { assignment: { ...none, area_id: src.id }, title: null, label: '' } : null;
+  if (src.kind === 'project') {
+    const p = projects.find((x) => x.id === src.id);
+    if (!p) return null;
+    if (hasArea(p.area_id)) return { assignment: { area_id: p.area_id, project_id: p.id, task_id: null }, title: null, label: p.name };
+    return { assignment: none, title: p.name, label: p.name };
+  }
+  const t = tasks.find((x) => x.id === src.id);
+  if (!t) return null;
+  const p = t.project_id ? projects.find((x) => x.id === t.project_id) : undefined;
+  if (p && hasArea(p.area_id)) return { assignment: { area_id: p.area_id, project_id: p.id, task_id: t.id }, title: null, label: t.title };
+  if (!p && hasArea(t.area_id)) return { assignment: { ...none, area_id: t.area_id }, title: t.title, label: t.title };
+  return { assignment: none, title: t.title, label: t.title };
+}
+
+/** How long a dropped block is: the to-do's estimate (15 minutes to 8 hours), otherwise an hour. */
+export function sourceMinutes(src: BlockSource, tasks: Pick<Task, 'id' | 'estimate_min'>[]): number {
+  const est = src.kind === 'task' ? tasks.find((t) => t.id === src.id)?.estimate_min : null;
+  return est && est > 0 ? clamp(Math.ceil(est / SNAP_MIN) * SNAP_MIN, MIN_BLOCK, 8 * 60) : 60;
+}
+
+/** Where a block of `minutes` lands when dropped at minute `at` of a day: its slot, kept within the day. */
+export function dropSpan(at: number, minutes: number): { start: number; end: number } {
+  const start = clamp(Math.floor(at / SNAP_MIN) * SNAP_MIN, 0, DAY_MIN - minutes);
+  return { start, end: start + minutes };
 }
 
 /** Area colors reuse the list tokens in app.css, so blocks add no new colors. */

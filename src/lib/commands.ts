@@ -344,6 +344,20 @@ export const commands: Command[] = [
   { id: 'cal.dayBefore', title: 'Move block to the day before', group: 'Calendar', keys: ['alt+arrowleft', 'shift+h'], when: hasBlock, run: withBlock((id) => store.moveBlockDay(id, -1)) },
   { id: 'cal.dayAfter', title: 'Move block to the day after', group: 'Calendar', keys: ['alt+arrowright', 'shift+l'], when: hasBlock, run: withBlock((id) => store.moveBlockDay(id, 1)) },
   { id: 'cal.delete', title: 'Delete block', group: 'Calendar', keys: ['backspace', 'delete'], when: hasBlock, run: withBlock((id) => store.deleteBlock(id)) },
+  { id: 'cal.panel', title: 'Show / hide to-dos beside the calendar', group: 'Calendar', keys: ['l'], when: inCalendar, run: () => store.toggleCalPanel() },
+  {
+    id: 'cal.blockFor',
+    title: 'Block time on the calendar',
+    group: 'Calendar',
+    keys: ['shift+c'],
+    // The selected to-do; otherwise the area or project you're in.
+    when: () => viewEnabled('timeblock') && (hasTask() || store.view.kind === 'area' || store.view.kind === 'project'),
+    run: () => {
+      const v = store.view;
+      if (hasTask() && store.selectedId) store.blockTimeFor({ kind: 'task', id: store.selectedId });
+      else if (v.kind === 'area' || v.kind === 'project') store.blockTimeFor({ kind: v.kind, id: v.id });
+    },
+  },
   { id: 'cal.escape', title: 'Deselect block', group: 'Calendar', keys: ['escape'], when: () => inCalendar() && !!store.blockSelectedId, run: () => (store.blockSelectedId = null), hidden: true },
 
   { id: 'sel.down', title: 'Select next', group: 'Selection', keys: ['j', 'arrowdown'], run: () => moveSelection(1), hidden: true },

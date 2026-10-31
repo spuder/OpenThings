@@ -9,6 +9,10 @@
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
   import { projectDrag, projectDraggable, projectDropLine } from './projectDrag.svelte';
+  import { calendarDraggable } from './calendarDrop.svelte';
+
+  // With the calendar open, areas drag onto it to block time (projects always drag, see projectDrag).
+  const onCalendar = () => store.view.kind === 'timeblock';
 
   let newListOpen = $state(false);
   function newList(kind: 'project' | 'area') {
@@ -125,7 +129,7 @@
               <Icon name="chevron" size={14} />
             </button>
           {/if}
-          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
+          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)} {@attach calendarDraggable({ kind: 'area', id: a.id }, onCalendar)}>
             <Icon name="area" />
             <span class="label">{a.name}</span>
           </button>

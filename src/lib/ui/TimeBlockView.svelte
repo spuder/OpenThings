@@ -14,10 +14,12 @@
   import * as TB from '../timeblocks';
   import type { ID, TimeBlock } from '../types';
   import BlockAssign from './BlockAssign.svelte';
+  import CalendarTodos from './CalendarTodos.svelte';
   import { LONG_PRESS_MS } from './drag.svelte';
+  import { calDrop, HOUR_PX } from './calendarDrop.svelte';
 
   /** Pixels per hour. */
-  const HOUR = 48;
+  const HOUR = HOUR_PX;
   const PX_PER_MIN = HOUR / 60;
   /** Mouse travel before a press on a block becomes a move. */
   const DRAG_PX = 4;
@@ -39,6 +41,14 @@
     return `${MONTHS[x.getMonth()]} ${x.getDate()}`;
   };
   const period = $derived(days.length === 1 ? longLabel(days[0]) : `${short(days[0])} – ${short(days.at(-1)!)}`);
+
+  // What a dragged area, project or to-do would become, shown as a preview where it would land.
+  const dropBlock = $derived.by((): TimeBlock | null => {
+    const link = calDrop.source ? TB.sourceBlock(calDrop.source, store.areas, store.projects, store.tasks) : null;
+    if (!link || !calDrop.slot) return null;
+    const { day, start, end } = calDrop.slot;
+    return { id: '', start_at: TB.atTime(day, start), end_at: TB.atTime(day, end), title: link.title, ...link.assignment, calendar_id: null, created_at: '', deleted_at: null };
+  });
 
   function label(b: TimeBlock) {
     return TB.blockLabel(b, store.areas, store.projects, store.tasks);
@@ -302,11 +312,15 @@
       <button class="today" onclick={() => store.calendarToday()} title="Today (T)">Today</button>
       <button onclick={() => store.stepCalendar(1)} aria-label="Next" title="Next (])">›</button>
     </div>
+    <button class="panel-toggle" class:on={store.calPanel} aria-pressed={store.calPanel} onclick={() => store.toggleCalPanel()} title="Show / hide to-dos (L)">To-dos</button>
     <button class="add" onclick={() => store.addBlockNow()} aria-label="New time block" title="New time block (⇧B)">
       <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
     </button>
   </div>
 
+  <div class="cal-body" class:with-panel={store.calPanel}>
+  {#if store.calPanel}<CalendarTodos />{/if}
+  <div class="cal-main">
   {#if grid}
     <div class="grid-scroll" bind:this={scroller} style:--n={days.length}>
       <div class="head">
@@ -327,7 +341,7 @@
         </div>
         {#each days as d, di (d)}
           {@const placed = TB.layoutDay(TB.blocksOn(store.timeBlocks, d))}
-          <div class="col" data-day={d} class:is-today={d === store.day} onpointerdown={(e) => down(e, 'create', d)} role="presentation">
+          <div class="col" data-day={d} data-grid class:is-today={d === store.day} onpointerdown={(e) => down(e, 'create', d)} role="presentation">
             {#if d === store.day}
               <div class="now" style:top={`${nowMin * PX_PER_MIN}px`} aria-hidden="true"></div>
             {/if}
@@ -365,6 +379,21 @@
                 <span class="edge bottom" onpointerdown={(e) => down(e, 'end', d, b)} role="presentation"></span>
               </div>
             {/each}
+            {#if dropBlock && calDrop.slot?.day === d}
+              {@const l = label(dropBlock)}
+              <div
+                class="block preview"
+                class:generic={!dropBlock.area_id}
+                style:top={`${calDrop.slot.start * PX_PER_MIN}px`}
+                style:height={`${(calDrop.slot.end - calDrop.slot.start) * PX_PER_MIN}px`}
+                style:--c={color(dropBlock)}
+                aria-hidden="true"
+              >
+                {#if l.crumbs.length}<span class="crumbs">{l.crumbs.join(' › ')}</span>{/if}
+                <span class="title">{l.title || 'Block'}</span>
+                <span class="time">{TB.spanLabel(calDrop.slot.start, calDrop.slot.end)}</span>
+              </div>
+            {/if}
             {#if g?.active && g.day === d}
               {@const b = g.blockId ? store.block(g.blockId) : undefined}
               <div
@@ -388,7 +417,7 @@
       {#each WD as w}<span class="wd">{w}</span>{/each}
       {#each days as d (d)}
         {@const list = TB.blocksOn(store.timeBlocks, d)}
-        <div class="cell" class:is-today={d === store.day} class:past={d < store.day}>
+        <div class="cell" data-day={d} class:is-today={d === store.day} class:past={d < store.day} class:drop={calDrop.slot?.day === d}>
           <button class="date" onclick={() => openDay(d)} title={`Open ${longLabel(d)}`}>{parseYmd(d).getDate() === 1 ? short(d) : parseYmd(d).getDate()}</button>
           {#each list.slice(0, 4) as b (b.id)}
             {@const s = TB.blockSpan(b)}
@@ -401,8 +430,18 @@
       {/each}
     </div>
   {/if}
-  <p class="hint">Drag on the calendar to add a block{store.calRange === '4week' ? ' (open a day first)' : ''}, then type an area, project or to-do. ⇧B adds one from the keyboard.</p>
+  </div>
+  </div>
+  <p class="hint">Drag on the calendar to add a block{store.calRange === '4week' ? ' (open a day first)' : ''}, or drag in an area, project or to-do. ⇧B new block · ⇧C block time for a to-do.</p>
 </div>
+
+{#if calDrop.active && calDrop.source}
+  {@const link = TB.sourceBlock(calDrop.source, store.areas, store.projects, store.tasks)}
+  {@const name = link?.label || store.areas.find((a) => a.id === calDrop.source?.id)?.name || 'Block'}
+  <div class="drop-ghost" class:over={!!calDrop.slot} style:transform={`translate(${calDrop.x + 14}px, ${calDrop.y + 10}px)`} aria-hidden="true">
+    {name}{#if calDrop.slot}<span>&nbsp;· {TB.spanLabel(calDrop.slot.start, calDrop.slot.end)}</span>{/if}
+  </div>
+{/if}
 
 <style>
   .cal {
@@ -462,6 +501,62 @@
     border: 1px solid var(--line);
   }
 
+  .cal-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .cal-body.with-panel {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+  .cal-body.with-panel > :global(.todos) {
+    height: max(420px, calc(100dvh - 230px));
+    box-sizing: border-box;
+  }
+  .cal-main {
+    min-width: 0;
+  }
+  .panel-toggle {
+    padding: 4px 10px;
+    min-height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .panel-toggle.on {
+    background: var(--select);
+    color: var(--accent);
+  }
+  .panel-toggle:hover {
+    background: var(--chip);
+  }
+  .cell.drop {
+    background: var(--select);
+  }
+  .drop-ghost {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 40;
+    pointer-events: none;
+    max-width: 280px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background: var(--card);
+    color: var(--text);
+    box-shadow: var(--card-shadow), 0 0 0 1px var(--line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .drop-ghost span {
+    color: var(--text-2);
+    font-weight: 500;
+  }
   .grid-scroll {
     position: relative;
     height: max(420px, calc(100dvh - 230px));
@@ -757,6 +852,13 @@
     .period {
       order: 3;
       width: 100%;
+    }
+    .cal-body.with-panel {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .cal-body.with-panel > :global(.todos) {
+      height: auto;
+      max-height: 34dvh;
     }
     .grid-scroll {
       height: max(380px, calc(100dvh - 250px));

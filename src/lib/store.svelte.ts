@@ -1257,6 +1257,26 @@ class Store {
   blockSelectedId = $state<ID | null>(null);
   blockEditingId = $state<ID | null>(null);
 
+  /** The calendar's To-dos panel. Per device; open by default on wide screens. */
+  calPanel = $state((() => {
+    try {
+      const v = localStorage.getItem('openthings.calPanel');
+      if (v !== null) return v === '1';
+    } catch {
+      /* ignore */
+    }
+    return typeof matchMedia !== 'undefined' && matchMedia('(min-width: 1100px)').matches;
+  })());
+
+  toggleCalPanel() {
+    this.calPanel = !this.calPanel;
+    try {
+      localStorage.setItem('openthings.calPanel', this.calPanel ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }
+
   setCalRange(range: TB.CalendarRange) {
     this.calRange = range;
     try {
@@ -1278,18 +1298,28 @@ class Store {
     return id ? this.timeBlocks.find((b) => b.id === id) : undefined;
   }
 
-  /** Create a block on `day` from minute `start` to `end` (snapped), select it and open its box. */
-  addBlock(day: string, start: number, end: number): ID {
+  /**
+   * Create a block on `day` from minute `start` to `end` (snapped) and select it. A plain new block
+   * opens its inline box; one made from a drop (`link`) is already assigned and doesn't.
+   */
+  addBlock(day: string, start: number, end: number, link?: { assignment: TB.Assignment; title: string | null }): ID | null {
+    if (link) {
+      const err = TB.assignmentError(link.assignment, this.projects, this.tasks);
+      if (err) {
+        this.notify(err);
+        return null;
+      }
+    }
     const span = TB.fitSpan(start, end);
     const id = db.uuid7();
     db.insert('time_blocks', {
       id,
       start_at: TB.atTime(day, span.start),
       end_at: TB.atTime(day, span.end),
-      title: null,
-      area_id: null,
-      project_id: null,
-      task_id: null,
+      title: link?.title ?? null,
+      area_id: link?.assignment.area_id ?? null,
+      project_id: link?.assignment.project_id ?? null,
+      task_id: link?.assignment.task_id ?? null,
       calendar_id: null,
       created_at: new Date().toISOString(),
       deleted_at: null,
@@ -1297,17 +1327,50 @@ class Store {
     this.undoStack.push('new block', () => db.update('time_blocks', id, { deleted_at: new Date().toISOString() }));
     this.load();
     this.blockSelectedId = id;
-    this.blockEditingId = id;
+    this.blockEditingId = link ? null : id;
     return id;
   }
 
-  /** New block from the keyboard: the next hour on the first day shown (today if it's in range). */
-  addBlockNow() {
+  /** Where a block made from the keyboard goes: the next quarter hour today if it's shown, else 9:00 on the first day. */
+  private nextSlot(): { day: string; start: number } {
     const days = TB.rangeDays(this.calRange, this.calAnchor);
     const day = days.includes(this.day) ? this.day : days[0];
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-    const start = day === this.day ? Math.min(Math.ceil(nowMin / TB.SNAP_MIN) * TB.SNAP_MIN, TB.DAY_MIN - 60) : 9 * 60;
-    this.addBlock(day, start, start + 60);
+    return { day, start: day === this.day ? Math.ceil(nowMin / TB.SNAP_MIN) * TB.SNAP_MIN : 9 * 60 };
+  }
+
+  /** New block from the keyboard: the next hour (see nextSlot). */
+  addBlockNow() {
+    const { day, start } = this.nextSlot();
+    const span = TB.dropSpan(start, 60);
+    this.addBlock(day, span.start, span.end);
+  }
+
+  /** An area or project from the sidebar, or a to-do, dropped on the calendar at minute `at` of `day`. */
+  dropOnCalendar(src: TB.BlockSource, day: string, at: number): ID | null {
+    const link = TB.sourceBlock(src, this.areas, this.projects, this.tasks);
+    if (!link) return null;
+    const span = TB.dropSpan(at, TB.sourceMinutes(src, this.tasks));
+    return this.addBlock(day, span.start, span.end, link);
+  }
+
+  /**
+   * Block time for a to-do, area or project from the keyboard (⇧C): the next free slot, then the
+   * calendar opens on it with the block selected, ready for ⇧J / ⇧K and ⌥⇧↓.
+   */
+  blockTimeFor(src: TB.BlockSource) {
+    if (!viewEnabled('timeblock')) return this.notify('Turn on Time Blocking in Settings → Features');
+    if (this.view.kind !== 'timeblock') {
+      this.go({ kind: 'timeblock' });
+      if (!TB.rangeDays(this.calRange, this.calAnchor).includes(this.day)) this.calAnchor = this.day;
+    }
+    const { day, start } = this.nextSlot();
+    const id = this.dropOnCalendar(src, day, start);
+    const b = this.block(id);
+    if (b) {
+      const s = TB.blockSpan(b);
+      this.notify(`Blocked ${TB.spanLabel(s.start, s.end)}`);
+    }
   }
 
   private updateBlock(id: ID, fields: Partial<TimeBlock>, label: string) {

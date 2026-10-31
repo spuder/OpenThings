@@ -3,11 +3,13 @@
  * and reordering. Same pointer-event approach as the to-do drag in `drag.svelte.ts` (mouse: press
  * and move; touch: long-press, then move; Escape cancels). Where a project may land is decided by
  * `projectDrop` in `projectMove.ts`; this file only tracks the pointer and the drop indicator.
+ * With the Time Blocking calendar open, a project can also be dropped on it (calendarDrop.svelte.ts).
  */
 import type { Attachment } from 'svelte/attachments';
 import { store } from '../store.svelte';
 import { projectDrop, type ProjectSlot } from '../projectMove';
 import { drag, LONG_PRESS_MS } from './drag.svelte';
+import { dropOnCalendar, resetCalendar, trackCalendar } from './calendarDrop.svelte';
 import type { ID } from '../types';
 
 export const projectDrag = $state({
@@ -69,7 +71,7 @@ export function projectDraggable(id: ID): Attachment<HTMLElement> {
       }
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
-      window.addEventListener('pointercancel', finish);
+      window.addEventListener('pointercancel', cancel);
       window.addEventListener('keydown', key, true);
     }
 
@@ -86,15 +88,21 @@ export function projectDraggable(id: ID): Attachment<HTMLElement> {
         projectDrag.id = id;
         document.documentElement.classList.add('dragging');
       }
-      projectDrag.slot = slotAt(e.clientX, e.clientY, id);
+      // Over the calendar, it becomes a time block instead of moving in the sidebar.
+      projectDrag.slot = trackCalendar({ kind: 'project', id }, e.clientX, e.clientY) ? null : slotAt(e.clientX, e.clientY, id);
     }
 
     function up(e: PointerEvent) {
       if (!start || e.pointerId !== start.pointerId) return;
       const slot = projectDrag.active ? projectDrag.slot : null;
-      finish();
+      const active = projectDrag.active;
+      finish(active);
+      if (active && dropOnCalendar()) return;
+      resetCalendar();
       if (slot) store.dropProject(id, slot);
     }
+
+    const cancel = () => finish();
 
     function key(e: KeyboardEvent) {
       if (e.key === 'Escape' && projectDrag.active) {
@@ -104,8 +112,10 @@ export function projectDraggable(id: ID): Attachment<HTMLElement> {
       }
     }
 
-    function finish() {
+    /** `keepCalendar` leaves a calendar drop target in place for `up` to use. */
+    function finish(keepCalendar = false) {
       clearTimeout(timer);
+      if (!keepCalendar) resetCalendar();
       if (projectDrag.active || (armed && start && !start.mouse)) drag.endedAt = Date.now();
       start = null;
       armed = false;
@@ -115,7 +125,7 @@ export function projectDraggable(id: ID): Attachment<HTMLElement> {
       document.documentElement.classList.remove('dragging');
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', finish);
+      window.removeEventListener('pointercancel', cancel);
       window.removeEventListener('keydown', key, true);
     }
 

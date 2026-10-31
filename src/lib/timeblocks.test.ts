@@ -14,6 +14,9 @@ import {
   optionsFor,
   rangeDays,
   shiftSpan,
+  sourceBlock,
+  sourceMinutes,
+  dropSpan,
   splitTime,
   stepAnchor,
 } from './timeblocks';
@@ -159,5 +162,42 @@ describe('display', () => {
   it('colors by area and grays unassigned blocks', () => {
     expect(blockColor('a-fam', areas)).toBe('var(--anytime)');
     expect(blockColor(null, areas)).toBe('var(--text-3)');
+  });
+});
+
+describe('dropping on the calendar', () => {
+  const ts = [
+    ...tasks,
+    { id: 't-inbox', project_id: null, area_id: null, title: 'Call dentist', estimate_min: 20 },
+    { id: 't-area', project_id: null, area_id: 'a-fam', title: 'Plan party', estimate_min: null },
+    { id: 't-loose', project_id: 'p-loose', area_id: null, title: 'Loose thing' },
+  ] as Task[];
+
+  it('links an area, a project in an area, and a to-do in such a project', () => {
+    expect(sourceBlock({ kind: 'area', id: 'a-veh' }, areas, projects, ts)?.assignment).toEqual({ area_id: 'a-veh', project_id: null, task_id: null });
+    expect(sourceBlock({ kind: 'project', id: 'p-truck' }, areas, projects, ts)?.assignment).toEqual({ area_id: 'a-veh', project_id: 'p-truck', task_id: null });
+    expect(sourceBlock({ kind: 'task', id: 't-oil' }, areas, projects, ts)).toEqual({ assignment: { area_id: 'a-veh', project_id: 'p-truck', task_id: 't-oil' }, title: null, label: 'Change oil' });
+  });
+
+  it('keeps the name of what the rules cannot link', () => {
+    const none = { area_id: null, project_id: null, task_id: null };
+    expect(sourceBlock({ kind: 'project', id: 'p-loose' }, areas, projects, ts)).toMatchObject({ assignment: none, title: 'Loose' });
+    expect(sourceBlock({ kind: 'task', id: 't-inbox' }, areas, projects, ts)).toMatchObject({ assignment: none, title: 'Call dentist' });
+    expect(sourceBlock({ kind: 'task', id: 't-loose' }, areas, projects, ts)).toMatchObject({ assignment: none, title: 'Loose thing' });
+    expect(sourceBlock({ kind: 'task', id: 't-area' }, areas, projects, ts)).toMatchObject({ assignment: { ...none, area_id: 'a-fam' }, title: 'Plan party' });
+    expect(sourceBlock({ kind: 'area', id: 'gone' }, areas, projects, ts)).toBeNull();
+  });
+
+  it('shows a named block in an area under that area', () => {
+    const b = block('b', '2026-10-31T09:00', '2026-10-31T10:00', { area_id: 'a-fam', title: 'Plan party' });
+    expect(blockLabel(b, areas, projects, ts)).toEqual({ title: 'Plan party', crumbs: ['Family'] });
+  });
+
+  it('sizes a block by the estimate and lands it in the slot under the pointer', () => {
+    expect(sourceMinutes({ kind: 'task', id: 't-inbox' }, ts)).toBe(30);
+    expect(sourceMinutes({ kind: 'task', id: 't-area' }, ts)).toBe(60);
+    expect(sourceMinutes({ kind: 'area', id: 'a-veh' }, ts)).toBe(60);
+    expect(dropSpan(9 * 60 + 40, 60)).toEqual({ start: 570, end: 630 });
+    expect(dropSpan(23 * 60 + 50, 60)).toEqual({ start: 1380, end: 1440 });
   });
 });

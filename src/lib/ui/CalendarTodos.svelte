@@ -1,30 +1,31 @@
 <script lang="ts">
   /**
    * The Time Blocking calendar's To-dos panel (#99): open to-dos to drag onto the calendar. Today,
-   * the rest of This Week, then Anytime; typing searches every open to-do. Enter (or a click) on a
+   * then Upcoming by day (the next 30 days, as in the Upcoming list); typing searches every open to-do. Enter (or a click) on a
    * row blocks the next free slot for it instead, so it works from the keyboard too.
    */
   import { store } from '../store.svelte';
   import * as V from '../views';
   import * as TB from '../timeblocks';
+  import { relLabel } from '../dates';
   import type { Task } from '../types';
   import { calendarDraggable } from './calendarDrop.svelte';
 
   let q = $state('');
   const none = new Set<string>();
 
-  const groups = $derived.by(() => {
+  /** `section` starts a new heading (Today, Upcoming); Upcoming's days are sub-headings. */
+  type Group = { key: string; section?: string; title?: string; items: Task[] };
+
+  const groups = $derived.by((): Group[] => {
     const ts = store.tasks.filter((t) => !t.dump);
     const query = q.trim().toLowerCase();
-    if (query) return [{ title: 'Matches', items: ts.filter((t) => !t.completed_at && t.title.toLowerCase().includes(query)).slice(0, 60) }];
-    const seen = new Set<string>();
-    const fresh = (list: Task[]) => list.filter((t) => !seen.has(t.id) && !!seen.add(t.id));
+    if (query) return [{ key: 'matches', section: 'Matches', items: ts.filter((t) => !t.completed_at && t.title.toLowerCase().includes(query)).slice(0, 60) }];
     const today = V.todayView(ts, store.day, none);
-    return [
-      { title: 'Today', items: fresh([...today.day, ...today.evening]) },
-      { title: 'This Week', items: fresh(V.thisWeek(ts, store.day, none).flatMap((g) => g.tasks)) },
-      { title: 'Anytime', items: fresh(V.anytime(ts, store.day, none)).slice(0, 40) },
-    ].filter((g) => g.items.length);
+    const out: Group[] = [];
+    if (today.day.length || today.evening.length) out.push({ key: 'today', section: 'Today', items: [...today.day, ...today.evening] });
+    V.upcoming(ts, store.day, none).forEach((g, i) => out.push({ key: g.date, section: i === 0 ? 'Upcoming' : undefined, title: relLabel(g.date, store.day), items: g.tasks }));
+    return out;
   });
 
   function areaOf(t: Task) {
@@ -38,8 +39,9 @@
 <aside class="todos" aria-label="To-dos to plan">
   <input bind:value={q} placeholder="Find a to-do…" aria-label="Find a to-do" autocomplete="off" spellcheck="false" />
   <div class="list">
-    {#each groups as g (g.title)}
-      <h4>{g.title}</h4>
+    {#each groups as g (g.key)}
+      {#if g.section}<h4>{g.section}</h4>{/if}
+      {#if g.title}<h5>{g.title}</h5>{/if}
       <ul>
         {#each g.items as t (t.id)}
           <li>
@@ -61,7 +63,7 @@
         {/each}
       </ul>
     {:else}
-      <p class="empty">{q.trim() ? 'No open to-dos match.' : 'Nothing open this week.'}</p>
+      <p class="empty">{q.trim() ? 'No open to-dos match.' : 'Nothing for today or coming up. Search to find any to-do.'}</p>
     {/each}
   </div>
   <p class="tip">Drag a to-do from this list, or an area or project from the sidebar, onto the calendar.</p>
@@ -101,6 +103,12 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--text-3);
+  }
+  h5 {
+    margin: 6px 6px 2px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-2);
   }
   ul {
     list-style: none;

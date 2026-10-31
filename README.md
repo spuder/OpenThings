@@ -7,7 +7,7 @@
 <p align="center">
   <b>A self-hosted, local-first task manager with a calm, keyboard-first design.</b><br>
   Plan your day with Today, Upcoming and Areas, then focus with a built-in Pomodoro, habits, reminders and an Eisenhower matrix.
-  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host, and as an iPhone app and a desktop app for macOS and Arch Linux.
+  Capture anything in a brain dump that tidies itself after 48 hours. Runs in your browser on desktop and phone, from one Docker container you host, and as an iPhone app, an Android app (preview) and a desktop app for macOS and Arch Linux.
 </p>
 
 <p align="center">
@@ -70,13 +70,19 @@
 - **Completion chimes** and a paper crumple on Move to Trash and Empty Trash, synthesized in the browser (toggle with ⇧M).
 - **Reminders:** press `A` on a to-do or type `%9am`, `%in30m`, `%fri-9am` in quick add. Due reminders show a system notification, play a chime and appear in the app while OpenThings is open (tab or installed app); missed ones fire on next open. In the [iOS app](#ios-app) they are scheduled with the system and arrive even when the app is closed. Settings shows permission and upcoming reminders.
 - **Areas and projects** can be renamed, moved or deleted from the ⋯ button or right-click in the sidebar (or `⇧L`).
-- **Collapse areas** in the sidebar with the chevron beside each one; ⌥/Alt-click it, or pick *Collapse all areas* from an area's ⋯ menu, to fold them all.
+- **Collapse areas** in the sidebar with the chevron beside each one; ⌥/Alt-click it, or pick *Collapse all areas* from an area's ⋯ menu (*Expand all areas* once they're all folded), to fold them all. Or use `z a`, `z m` and `z r`. Which areas are folded is remembered on each device; it doesn't sync.
+- **Drag projects** in the sidebar into an area, between areas, out of an area (drop on the *No area* zone that appears while you drag) or into a new order. Press and move with a mouse; on a touch screen, press and hold, then move (on a phone, open the list drawer first). Escape cancels, and ⌘/Ctrl Z undoes a drop. Without a pointer, *Move to area…* in the project's ⋯ menu (`⇧L`, then `M`) moves it to an area.
 - **Appearance:** System, Light or Dark in Settings, or `⇧D` to toggle. On desktop, `⇧T` opens a theme switcher with all 23 [Omarchy](https://omarchy.org) themes (Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine…), previewed live as you move through them. On an Omarchy desktop the app follows the desktop's theme instead, and changes with it.
 - **Trash:** deleted to-dos can be restored for 30 days, then they're purged.
 - **Sync** between your devices through your own server, with status on every screen. Works offline; changes merge per field when you reconnect. See [docs/sync.md](docs/sync.md).
 - **REST API** for scripts, Home Assistant, n8n and Shortcuts, and an **MCP endpoint** so AI assistants (Claude and other MCP clients) can read and manage your to-dos. Quick-add syntax works in both. Settings has ready-to-copy config; reference in [docs/api.md](docs/api.md).
 - **Import from Things 3** (macOS desktop app): Settings → Data finds your Things database automatically and brings across areas, projects, headings, to-dos, tags and checklists. Repeat rules and reminders are left behind, and nothing is uploaded. The web version explains that importing is desktop-only. See [docs/import.md](docs/import.md).
+- **Repeat editor** (`⇧W`) previews the next dates before you save:
+
+  <img src="docs/screenshots/repeat-desktop-weekly.png" alt="Repeat editor: weekly on Mon, Wed and Fri, with the next five dates" width="560">
 - **Mobile:** responsive layout, tap to open tasks, tap outside to close, larger touch targets, installable as a home-screen app. Floating **Find** (bottom left) and **add** (bottom right) buttons; **swipe a to-do right** for Complete or Move, **left** for Move to Trash, **swipe right** elsewhere for your lists, **pull down** at the top of a list for Quick Find. What you're editing stays above the on-screen keyboard.
+
+  <img src="docs/screenshots/swipe-light.png" alt="Row swipe on a phone: swipe right for Complete or Move to, swipe left for Move to Trash, with Undo" width="760">
 - **Quick add** with short syntax (below), from anywhere with `N`. It starts with the list you're in (`+Project` or `@today`) after the cursor, so you can change it. Once you type, the syntax keys appear as tappable chips, and `#important` / `#urgent` are one tap away. In Brain Dump it's a plain box: no syntax, just write.
 - **Quick Find** (`/` or `Ctrl/⌘ F`): recent lists with counts, then search lists, projects, areas, `#tags` and to-dos as you type.
 - **Bottom toolbar** on desktop with New to-do, When, Move and Quick Find; hide the sidebar with `Ctrl/⌘ /`.
@@ -125,7 +131,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `⇧W` | Repeat… (also on right-click and in an open to-do) |
 | `M` | Move to list |
 | `#` | Tag |
-| `U` / `I` | Urgent / important |
+| `U` / `I` | Toggle urgent / important |
 | `F` | Focus mode (Pomodoro on the selected to-do) |
 | `P` / `⇧P` | Timer / quick Pomodoro |
 | `⇧L` | Rename / move / delete the current area or project, or remove one of its headings. In that menu, each option's underlined letter runs it (`R` rename, `M` move, `H` new heading, `E` remove heading, `C` complete, `D` delete) |
@@ -291,6 +297,10 @@ claude mcp add --transport http openthings https://openthings.<tailnet>.ts.net/m
 | `OPENTHINGS_PUBLIC_URL` | | The address your devices use, e.g. `https://openthings.<tailnet>.ts.net`. Reported by `/api/health`; the web app prefills it in Settings → Sync and the phone pairing QR code carries it. |
 | `OPENTHINGS_ALLOWED_ORIGINS` | | Extra web origins allowed to call the API from a browser, comma-separated. The server's own origin and the iOS app always are. |
 | `PORT` | `8080` | |
+| `DATA_DIR` | `./data` (image: `/data`) | Where the server keeps `openthings.sqlite`. |
+| `STATIC_DIR` | `./dist` (image: `/app/public`) | The built web app the server serves. |
+
+The Docker image sets `DATA_DIR` and `STATIC_DIR` for you. They matter when you run the server outside Docker (`npm run server` or `bun server/index.ts`), where the defaults are relative to the directory you start it in.
 
 There's no login: anyone who can reach the server can read and change your to-dos, so keep it on your tailnet (as DockTail does) or another private network. Browsers on other websites are refused, so a page you visit can't reach it through your browser. Device tokens are planned before anything is exposed more widely.
 

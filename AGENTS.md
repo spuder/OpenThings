@@ -96,7 +96,7 @@ Version numbers live in several files, including the Arch PKGBUILDs; only change
 | `src/lib/features.svelte.ts` | Optional features toggled in Settings (Brain Dump, This Week); `viewEnabled()` gates sidebar, Quick Find, nav commands and `store.go` |
 | `src/lib/env.ts` | Touch / narrow-screen detection |
 | `src/lib/reminders.svelte.ts` | Due/upcoming reminder logic and notification delivery (service worker `public/sw.js`) |
-| `src/lib/native/` | Native shell integration. `shell.ts` detects Capacitor; `capacitor.svelte.ts` (lazy-loaded, native only) schedules local notifications, writes the widget snapshot, imports to-dos from extensions; `snapshot.ts` is the pure, tested part |
+| `src/lib/native/` (Capacitor: iOS, Android) | Native shell integration. `shell.ts` detects Capacitor; `capacitor.svelte.ts` (lazy-loaded, native only) schedules local notifications, writes the widget snapshot, imports to-dos from extensions; `snapshot.ts` is the pure, tested part |
 | `capacitor.config.ts` | Capacitor config; fixed `capacitor://localhost` origin so IndexedDB persists |
 | `ios/App/App/` | iOS app target: `OpenThingsPlugin.swift` (JS `OpenThingsNative`, App Group I/O), `OpenThingsViewController.swift`, `OpenThingsIntents.swift` (Shortcuts) |
 | `ios/App/Shared/` | Swift shared by app and extensions: App Group paths, snapshot and pending-item formats |
@@ -105,7 +105,7 @@ Version numbers live in several files, including the Arch PKGBUILDs; only change
 | `android/app/src/main/java/io/github/spuder/openthings/` | Android app: `OpenThingsPlugin.java` (same JS `OpenThingsNative` plugin as iOS), `SharedQueue.java` (queued to-dos and widget snapshot, the App Group's counterpart), `ShareActivity.java`, `TodayWidget.java` / `SyncWidget.java` / `Widgets.java` |
 | `.github/workflows/android.yml`, `scripts/android-keystore.sh` | Signed APKs for testers, the `android-preview` pre-release, APKs on releases; see `docs/android.md#signing` |
 | `src/lib/ui/*` | Svelte components |
-| `src/lib/native/` | Desktop (Tauri) bridge: `desktop.ts` (guarded by `isDesktop`), main-window wiring, quick-add window, Settings → Desktop — see `docs/desktop.md` |
+| `src/lib/native/` (Tauri: desktop) | The same folder also holds the desktop bridge: `desktop.ts` (guarded by `isDesktop`), main-window wiring, quick-add window, Settings → Desktop — see `docs/desktop.md` |
 | `src-tauri/` | Tauri desktop shell (Rust): windows, tray, menu bar, global hotkey, deep links / CLI, native notifications. `npm run tauri dev` |
 | `packaging/arch/` | AUR PKGBUILDs (`openthings` from source, `openthings-bin`), checked by `.github/workflows/desktop.yml` |
 | `site/` | Product website for GitHub Pages (plain HTML/CSS); the app demo is built into `/app/` by `.github/workflows/pages.yml` |

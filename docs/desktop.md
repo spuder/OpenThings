@@ -9,7 +9,7 @@ The desktop app is the same web app in a native window, plus what a browser can'
 | Feature | macOS | Arch / Hyprland |
 | --- | --- | --- |
 | Global quick-add hotkey, configurable in Settings → Desktop (default ⌃Space / Ctrl+Alt+Space / Super+Alt+Space on Hyprland) | yes | Hyprland: written into its config (below). X11: key grab. Other Wayland: bind `openthings --quick-add` yourself |
-| Floating quick-add window (frameless, always on top, title `OpenThings Quick Add`) | yes | yes |
+| Floating quick-add window (frameless, always on top, title `OpenThings Quick Add`) | yes, with rounded corners | yes (square; Hyprland/Omarchy round and border it themselves) |
 | `openthings://add?text=…` deep links, `openthings --quick-add [text]`, `openthings --add <text>` | links | yes |
 | Tray / menu-bar icon showing sync status; menu: Show, Quick Add, Sync Now, Quit | menu bar | needs a StatusNotifier host (Waybar `tray` module) |
 | Keeps running when the window is closed (reminders and sync continue) | yes | yes |
@@ -39,6 +39,12 @@ src/lib/native/DesktopSettings.svelte  Settings → Desktop (only rendered in Ta
 - **Guarding.** `isDesktop` (`'__TAURI_INTERNALS__' in window`) gates every native path; the web, PWA and Docker builds behave as before. Shared web files touched: `main.ts` (pick window), `reminders.svelte.ts` (`notifier.native` hook), `QuickAdd.svelte` (optional `native` prop), `SettingsView.svelte` (Desktop section).
 
 Shell → web events: `ot://command`, `ot://add`, `ot://reveal`, `ot://open-url`, `ot://sync-now`, `ot://will-quit`, `ot://quick-add-open` (quick-add window). Web → shell commands: `desktop_info`, `set_hotkey`, `set_autostart`, `set_sync_status`, `set_reminders`, `show_notification`, `submit_quick_add`, `hide_quick_add`, `show_main_window`, `quit_now`.
+
+### Quick-add window
+
+- **macOS:** the window is transparent, so the panel draws as a card with rounded corners and a thin edge (`src-tauri/src/lib.rs` makes it transparent; `QuickAddWindow.svelte` adds `html.transparent-window`). This needs Tauri's `macos-private-api` (`Cargo.toml`, `macOSPrivateApi` in `tauri.conf.json`), which rules out a Mac App Store build; the notarized DMG and the Homebrew cask are fine.
+- **Linux:** the window isn't transparent (without a compositor, transparent corners show black). Hyprland and Omarchy round and border windows themselves.
+- **Everywhere:** while the field is empty, the hint line lists the quick-add prefixes (`#tag +Project @tomorrow …`), each in its own color. Key hints sit bottom right: **⇧↵ add another**, then **↵ add**, which light up once there's a to-do to add.
 
 ## CLI and deep links
 

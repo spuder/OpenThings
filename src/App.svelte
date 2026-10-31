@@ -29,6 +29,7 @@
   import { drag } from './lib/ui/drag.svelte';
   import RepeatEditor from './lib/ui/RepeatEditor.svelte';
   import SwipeSheet from './lib/ui/SwipeSheet.svelte';
+  import { colorChoice } from './lib/colors';
 
   store.init().then(() => store.start());
   installKeyboardInset();
@@ -97,6 +98,10 @@
   const v = $derived(store.view);
   const iconName = $derived(v.kind === 'project' ? '' : v.kind);
   const project = $derived(v.kind === 'project' ? store.projects.find((p) => p.id === v.id) : undefined);
+  const areaTint = $derived.by(() => {
+    const c = v.kind === 'area' ? colorChoice(store.areas.find((a) => a.id === v.id)?.color) : undefined;
+    return c ? `var(${c.token})` : undefined;
+  });
   const trackedTask = $derived(store.task(store.tracking?.taskId ?? null));
 
   const empty: Record<string, string> = {
@@ -154,7 +159,7 @@
               {#if project}
                 <ProgressPie value={store.projectProgress(project.id)} size={26} />
               {:else}
-                <Icon name={iconName} size={28} />
+                <Icon name={iconName} size={28} color={areaTint} />
               {/if}
               <h1>{store.viewTitle}</h1>
               {#if v.kind === 'today'}<span class="date">{longLabel(store.day)}</span>{/if}

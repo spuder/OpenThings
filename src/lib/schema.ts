@@ -44,6 +44,8 @@ export const ADDED_COLUMNS: [string, string, string][] = [
   ['habits', 'start_date', 'TEXT'],
   // Habit schedule: daily | days:1,2,3,4,5 | times:5 (see views.ts).
   ['habits', 'schedule', 'TEXT'],
+  // Area color picked by the user (an id from colors.ts); null = automatic.
+  ['areas', 'color', 'TEXT'],
 ];
 
 /**

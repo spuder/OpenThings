@@ -1,10 +1,16 @@
 /**
- * Calendar subscriptions for time blocks (#99): an iCalendar feed and a read-only CalDAV calendar,
+ * Calendar subscriptions for time blocks (#99): iCalendar feeds and a read-only CalDAV account,
  * so Apple Calendar, Google Calendar, Outlook, Thunderbird or DAVx5 can show them.
  *
- *   GET  /cal/openthings.ics       the whole calendar (subscribe with webcal://…)
+ *   GET  /cal/openthings.ics       every block in one calendar (subscribe with webcal://…)
+ *   GET  /cal/area/<id>.ics        one area's blocks;  /cal/other.ics  blocks with no area
  *   GET  /.well-known/caldav       → /dav/ (CalDAV discovery, RFC 6764)
- *   /dav/                          principal, calendar home /dav/calendars/, calendar /dav/calendars/openthings/
+ *   /dav/                          principal; calendar home /dav/calendars/ with one calendar per
+ *                                  area (area-<id>/) and other/, each in its area's color
+ *
+ * The CalDAV account doesn't list the combined calendar, so adding it never shows a block twice;
+ * the combined feed is for apps that subscribe to one URL. Calendar URLs use the area's id, so
+ * renaming an area renames its calendar without breaking subscriptions.
  *
  * Read only: OpenThings stays the place blocks are edited, so PUT, DELETE and PROPPATCH are refused.
  * CalDAV support is the subset clients need: PROPFIND (depth 0 / 1), REPORT calendar-multiget and
@@ -12,14 +18,23 @@
  *
  * Written from scratch for this project (RFC 4918, RFC 4791).
  */
-import { calendar, etag, type CalEvent } from '../src/lib/ical';
+import { calendar, etag, type CalColor, type CalEvent } from '../src/lib/ical';
+import { NO_AREA } from '../src/lib/colors';
+
+/** An area as a calendar: its name and its color (picked, or automatic). */
+export interface CalendarArea {
+  id: string;
+  name: string;
+  color: CalColor;
+}
 
 export interface CalendarOptions {
-  /** Shown in subscribers' calendar lists. Default "OpenThings". */
+  /** The combined calendar's name, and the prefix of the per-area ones ("OpenThings · Work"). Default "OpenThings". */
   name: string;
   /** IANA zone the floating times belong to, e.g. America/Denver. */
   timezone?: string;
   events: () => CalEvent[];
+  areas: () => CalendarArea[];
 }
 
 const NS = {
@@ -34,10 +49,15 @@ export const FEED_PATH = '/cal/openthings.ics';
 const ROOT = '/dav/';
 const PRINCIPAL = '/dav/principal/';
 const HOME = '/dav/calendars/';
-const CAL = '/dav/calendars/openthings/';
+const OTHER = 'other';
 
 export function isCalendarPath(path: string): boolean {
-  return path === FEED_PATH || path === '/.well-known/caldav' || path === '/dav' || path.startsWith('/dav/');
+  return (path.startsWith('/cal/') && path.endsWith('.ics')) || path === '/.well-known/caldav' || path === '/dav' || path.startsWith('/dav/');
+}
+
+/** Feed URL path for one area's blocks, or null for the blocks with no area. */
+export function areaFeedPath(areaId: string | null): string {
+  return areaId ? `/cal/area/${encodeURIComponent(areaId)}.ics` : `/cal/${OTHER}.ics`;
 }
 
 const ALLOW = 'OPTIONS, GET, HEAD, PROPFIND, REPORT';
@@ -114,31 +134,57 @@ function timeRange(body: string): { start?: string; end?: string } | null {
 
 // ---------- resources ----------
 
-type Resource =
-  | { kind: 'root' | 'principal' | 'home'; href: string }
-  | { kind: 'calendar'; href: string }
-  | { kind: 'event'; href: string; event: CalEvent; ics: string; etag: string };
-
-export function eventHref(e: CalEvent): string {
-  return `${CAL}${encodeURIComponent(e.uid.replace(/@openthings$/, ''))}.ics`;
+/** One calendar: an area's blocks, or the blocks with no area ("Other"). */
+interface Cal {
+  slug: string;
+  areaId: string | null;
+  name: string;
+  color: CalColor;
 }
+
+type EventRes = { kind: 'event'; href: string; event: CalEvent; ics: string; etag: string };
+type Resource = { kind: 'root' | 'principal' | 'home'; href: string } | { kind: 'calendar'; href: string; cal: Cal } | EventRes;
 
 export function createCalendar(opts: CalendarOptions) {
   const name = opts.name.trim() || 'OpenThings';
 
-  function eventResources(): Extract<Resource, { kind: 'event' }>[] {
-    return opts.events().map((event) => {
-      const ics = calendar([event], { name, timezone: opts.timezone });
-      return { kind: 'event', href: eventHref(event), event, ics, etag: `"${etag(ics)}"` };
-    });
+  function calendars(): Cal[] {
+    return [
+      ...opts.areas().map((a) => ({ slug: `area-${a.id}`, areaId: a.id, name: `${name} · ${a.name}`, color: a.color })),
+      { slug: OTHER, areaId: null, name: `${name} · Other`, color: { hex: NO_AREA.hex, css: NO_AREA.css } },
+    ];
   }
 
-  function ctag(events: Extract<Resource, { kind: 'event' }>[]): string {
-    return etag(name + events.map((e) => e.href + e.etag).join('|'));
+  const calHref = (c: Cal) => `${HOME}${encodeURIComponent(c.slug)}/`;
+  const eventHref = (c: Cal, e: CalEvent) => `${calHref(c)}${encodeURIComponent(e.uid.replace(/@openthings$/, ''))}.ics`;
+
+  /** Per request: the calendars and their events, built once. */
+  function snapshot() {
+    const cals = calendars();
+    const known = new Set(cals.map((c) => c.areaId));
+    const all = opts.events();
+    const events = new Map<string, EventRes[]>();
+    for (const c of cals) {
+      // A block whose area is gone (deleted on another device) shows under Other.
+      const mine = all.filter((e) => (c.areaId ? e.areaId === c.areaId : !e.areaId || !known.has(e.areaId)));
+      events.set(
+        c.slug,
+        mine.map((event) => {
+          const ics = calendar([event], { name: c.name, timezone: opts.timezone, color: c.color });
+          return { kind: 'event', href: eventHref(c, event), event, ics, etag: `"${etag(ics)}"` };
+        }),
+      );
+    }
+    return { cals, events, all };
+  }
+  type Snap = ReturnType<typeof snapshot>;
+
+  function ctag(c: Cal, snap: Snap): string {
+    return etag(c.name + c.color.hex + (snap.events.get(c.slug) ?? []).map((e) => e.href + e.etag).join('|'));
   }
 
   /** Inner XML of one property for a resource, or undefined when it doesn't have it. */
-  function propValue(r: Resource, p: PropName, events: () => Extract<Resource, { kind: 'event' }>[]): string | undefined {
+  function propValue(r: Resource, p: PropName, snap: Snap): string | undefined {
     const key = `${p.ns}|${p.name}`;
     const collection = r.kind !== 'event';
     switch (key) {
@@ -147,7 +193,7 @@ export function createCalendar(opts: CalendarOptions) {
         if (r.kind === 'principal') return '<d:collection/><d:principal/>';
         return collection ? '<d:collection/>' : '';
       case 'DAV:|displayname':
-        return xmlEscape(r.kind === 'calendar' ? name : r.kind === 'event' ? r.event.summary : r.kind === 'principal' ? 'OpenThings' : 'OpenThings calendars');
+        return xmlEscape(r.kind === 'calendar' ? r.cal.name : r.kind === 'event' ? r.event.summary : r.kind === 'principal' ? name : `${name} calendars`);
       case 'DAV:|current-user-principal':
       case 'DAV:|principal-URL':
       case 'DAV:|owner':
@@ -165,15 +211,16 @@ export function createCalendar(opts: CalendarOptions) {
       case `${NS.c}|supported-calendar-component-set`:
         return r.kind === 'calendar' ? '<c:comp name="VEVENT"/>' : undefined;
       case `${NS.c}|calendar-description`:
-        return r.kind === 'calendar' ? 'Time blocks from OpenThings (read only)' : undefined;
-      case `${NS.c}|calendar-timezone`:
-        return undefined;
+        return r.kind === 'calendar' ? xmlEscape(r.cal.areaId ? `Time blocks for ${r.cal.name.slice(name.length + 3)} (read only)` : 'Time blocks with no area (read only)') : undefined;
       case `${NS.cs}|getctag`:
-        return r.kind === 'calendar' ? ctag(events()) : undefined;
+        return r.kind === 'calendar' ? ctag(r.cal, snap) : undefined;
+      // Apple's calendar color, #RRGGBBAA: the area's color as the calendar's default.
       case `${NS.ic}|calendar-color`:
-        return r.kind === 'calendar' ? '#5A78D1FF' : undefined;
+        return r.kind === 'calendar' ? `${r.cal.color.hex.toUpperCase()}FF` : undefined;
+      case `${NS.ic}|calendar-order`:
+        return r.kind === 'calendar' ? String(snap.cals.indexOf(r.cal) + 1) : undefined;
       case 'DAV:|getetag':
-        return r.kind === 'event' ? xmlEscape(r.etag) : r.kind === 'calendar' ? `"${ctag(events())}"` : undefined;
+        return r.kind === 'event' ? xmlEscape(r.etag) : r.kind === 'calendar' ? `"${ctag(r.cal, snap)}"` : undefined;
       case 'DAV:|getcontenttype':
         return r.kind === 'event' ? 'text/calendar; charset=utf-8; component=vevent' : undefined;
       case 'DAV:|getcontentlength':
@@ -193,17 +240,18 @@ export function createCalendar(opts: CalendarOptions) {
     { ns: 'DAV:', name: 'supported-report-set' },
     { ns: NS.c, name: 'supported-calendar-component-set' },
     { ns: NS.cs, name: 'getctag' },
+    { ns: NS.ic, name: 'calendar-color' },
     { ns: 'DAV:', name: 'getetag' },
     { ns: 'DAV:', name: 'getcontenttype' },
     { ns: 'DAV:', name: 'getcontentlength' },
   ];
 
-  function response(r: Resource, wanted: PropName[] | 'all', events: () => Extract<Resource, { kind: 'event' }>[]): string {
+  function response(r: Resource, wanted: PropName[] | 'all', snap: Snap): string {
     const list = wanted === 'all' ? ALL_PROPS : wanted;
     const found: string[] = [];
     const missing: string[] = [];
     list.forEach((p, i) => {
-      const v = propValue(r, p, events);
+      const v = propValue(r, p, snap);
       const prefix = PREFIX[p.ns];
       if (v === undefined) {
         if (wanted !== 'all') missing.push(prefix ? `<${prefix}:${p.name}/>` : `<x${i}:${p.name} xmlns:x${i}="${xmlEscape(p.ns)}"/>`);
@@ -221,16 +269,22 @@ export function createCalendar(opts: CalendarOptions) {
     return new Response(body, { status: 207, headers: { 'content-type': 'application/xml; charset=utf-8', dav: '1, 3, calendar-access' } });
   }
 
-  function feed(head: boolean): Response {
-    const ics = calendar(opts.events(), { name, timezone: opts.timezone });
-    return new Response(head ? null : ics, {
+  function ics(text: string, head: boolean, file: string): Response {
+    return new Response(head ? null : text, {
       headers: {
         'content-type': 'text/calendar; charset=utf-8',
-        'content-disposition': 'inline; filename="openthings.ics"',
+        'content-disposition': `inline; filename="${file}"`,
         'cache-control': 'no-cache',
-        etag: `"${etag(ics)}"`,
+        etag: `"${etag(text)}"`,
       },
     });
+  }
+
+  /** The whole calendar, or one area's (or Other's) as its own calendar with its color. */
+  function feed(cal: Cal | null, snap: Snap, head: boolean): Response {
+    if (!cal) return ics(calendar(snap.all, { name, timezone: opts.timezone }), head, 'openthings.ics');
+    const events = (snap.events.get(cal.slug) ?? []).map((e) => e.event);
+    return ics(calendar(events, { name: cal.name, timezone: opts.timezone, color: cal.color }), head, `${cal.slug}.ics`);
   }
 
   const davHeaders = { dav: '1, 3, calendar-access', allow: ALLOW };
@@ -240,23 +294,28 @@ export function createCalendar(opts: CalendarOptions) {
     const path = url.pathname;
     const m = req.method;
 
-    if (path === FEED_PATH) {
+    if (path.startsWith('/cal/')) {
       if (m !== 'GET' && m !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, HEAD' } });
-      return feed(m === 'HEAD');
+      const snap = snapshot();
+      if (path === FEED_PATH) return feed(null, snap, m === 'HEAD');
+      const cal = snap.cals.find((c) => areaFeedPath(c.areaId) === path);
+      return cal ? feed(cal, snap, m === 'HEAD') : new Response('Not found', { status: 404 });
     }
     if (path === '/.well-known/caldav') return new Response(null, { status: 301, headers: { location: ROOT } });
 
     // Collections answer with or without the trailing slash.
     const p = path.endsWith('.ics') || path.endsWith('/') ? path : `${path}/`;
-    let events: Extract<Resource, { kind: 'event' }>[] | null = null;
-    const allEvents = () => (events ??= eventResources());
+    const snap = snapshot();
 
     let self: Resource | undefined;
     if (p === ROOT) self = { kind: 'root', href: ROOT };
     else if (p === PRINCIPAL) self = { kind: 'principal', href: PRINCIPAL };
     else if (p === HOME) self = { kind: 'home', href: HOME };
-    else if (p === CAL) self = { kind: 'calendar', href: CAL };
-    else if (p.startsWith(CAL) && p.endsWith('.ics')) self = allEvents().find((e) => e.href === p);
+    else {
+      const cal = snap.cals.find((c) => p === calHref(c) || (p.startsWith(calHref(c)) && p.endsWith('.ics')));
+      if (cal && p === calHref(cal)) self = { kind: 'calendar', href: calHref(cal), cal };
+      else if (cal) self = snap.events.get(cal.slug)?.find((e) => e.href === p);
+    }
     if (!self) return status(404, 'Not found');
 
     if (m === 'OPTIONS') return new Response(null, { status: 200, headers: davHeaders });
@@ -265,8 +324,8 @@ export function createCalendar(opts: CalendarOptions) {
       if (self.kind === 'event') {
         return new Response(m === 'HEAD' ? null : self.ics, { headers: { 'content-type': 'text/calendar; charset=utf-8', etag: self.etag } });
       }
-      if (self.kind === 'calendar') return feed(m === 'HEAD');
-      return new Response(m === 'HEAD' ? null : `${name}: a CalDAV calendar. Add ${url.origin}${ROOT} as a CalDAV account, or subscribe to ${url.origin}${FEED_PATH}.\n`, {
+      if (self.kind === 'calendar') return feed(self.cal, snap, m === 'HEAD');
+      return new Response(m === 'HEAD' ? null : `${name}: CalDAV calendars of time blocks. Add ${url.origin}${ROOT} as a CalDAV account, or subscribe to ${url.origin}${FEED_PATH}.\n`, {
         headers: { 'content-type': 'text/plain; charset=utf-8', ...davHeaders },
       });
     }
@@ -277,31 +336,32 @@ export function createCalendar(opts: CalendarOptions) {
       const list: Resource[] = [self];
       if (depth !== '0') {
         if (self.kind === 'root') list.push({ kind: 'principal', href: PRINCIPAL }, { kind: 'home', href: HOME });
-        if (self.kind === 'home') list.push({ kind: 'calendar', href: CAL });
-        if (self.kind === 'calendar') list.push(...allEvents());
+        if (self.kind === 'home') list.push(...snap.cals.map((cal) => ({ kind: 'calendar' as const, href: calHref(cal), cal })));
+        if (self.kind === 'calendar') list.push(...(snap.events.get(self.cal.slug) ?? []));
       }
-      return multistatus(list.map((r) => response(r, wanted, allEvents)));
+      return multistatus(list.map((r) => response(r, wanted, snap)));
     }
 
     if (m === 'REPORT') {
+      if (self.kind !== 'calendar') return status(403, 'REPORT works on a calendar');
       const body = await req.text();
       const kind = reportKind(body);
       const wanted = requestedProps(body);
       const props = wanted === 'all' ? [{ ns: 'DAV:', name: 'getetag' }, { ns: NS.c, name: 'calendar-data' }] : wanted;
+      const mine = snap.events.get(self.cal.slug) ?? [];
       if (kind === 'calendar-multiget') {
-        const want = hrefs(body);
-        const byHref = new Map(allEvents().map((e) => [e.href, e]));
-        const out = want.map((h) => {
+        const byHref = new Map(mine.map((e) => [e.href, e]));
+        const out = hrefs(body).map((h) => {
           const e = byHref.get(h);
-          return e ? response(e, props, allEvents) : `<d:response><d:href>${xmlEscape(h)}</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>`;
+          return e ? response(e, props, snap) : `<d:response><d:href>${xmlEscape(h)}</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>`;
         });
         return multistatus(out);
       }
       if (kind === 'calendar-query') {
         const range = timeRange(body);
         const stamp = (s: string) => s.replace(/[-:]/g, '').padEnd(15, '0');
-        const hits = allEvents().filter((e) => !range || ((!range.end || stamp(e.event.start) < range.end) && (!range.start || stamp(e.event.end) > range.start)));
-        return multistatus(hits.map((e) => response(e, props, allEvents)));
+        const hits = mine.filter((e) => !range || ((!range.end || stamp(e.event.start) < range.end) && (!range.start || stamp(e.event.end) > range.start)));
+        return multistatus(hits.map((e) => response(e, props, snap)));
       }
       return new Response('<?xml version="1.0" encoding="utf-8"?>\n<d:error xmlns:d="DAV:"><d:supported-report/></d:error>', {
         status: 403,
@@ -310,7 +370,7 @@ export function createCalendar(opts: CalendarOptions) {
     }
 
     if (['PUT', 'DELETE', 'PROPPATCH', 'MKCALENDAR', 'MKCOL', 'MOVE', 'COPY', 'POST'].includes(m)) {
-      return status(403, 'This calendar is read only: edit time blocks in OpenThings.');
+      return status(403, 'These calendars are read only: edit time blocks in OpenThings.');
     }
     return status(405, 'Method not allowed');
   };

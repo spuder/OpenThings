@@ -17,6 +17,7 @@
     key?: string;
     icon?: string;
     danger?: boolean;
+    swatch?: string;
     run: () => void;
   }
 
@@ -307,6 +308,7 @@
         <li role="option" aria-selected={i === index}>
           <button class:active={i === index} style:--c={item.icon ? iconColor(item.icon) : null} onmouseenter={() => (index = i)} onclick={() => choose(i)}>
             {#if item.icon}<Icon name={item.icon} />{/if}
+            {#if item.swatch}<span class="swatch" style:background={item.swatch} aria-hidden="true"></span>{/if}
             <span class="l" class:danger={item.danger}>
               {#if parts}{parts[0]}<u>{parts[1]}</u>{parts[2]}{:else}{item.label}{/if}
             </span>
@@ -377,6 +379,13 @@
   }
   li button.active {
     background: var(--select);
+  }
+  .swatch {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin: 0 2px;
   }
   .l {
     flex: 1;

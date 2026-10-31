@@ -6,6 +6,7 @@
  * Written from scratch for this project. No browser imports, so the server can reuse it.
  */
 import { addDays, parseYmd } from './dates';
+import { areaCss } from './colors';
 import type { Area, ID, Project, Task, TimeBlock } from './types';
 
 export type CalendarRange = 'day' | '3day' | 'week' | '4week';
@@ -289,11 +290,7 @@ export function dropSpan(at: number, minutes: number): { start: number; end: num
   return { start, end: start + minutes };
 }
 
-/** Area colors reuse the list tokens in app.css, so blocks add no new colors. */
-const AREA_COLORS = ['--inbox', '--anytime', '--habits', '--matrix', '--logbook', '--week', '--dump', '--evening', '--someday', '--upcoming'];
-
-/** A block's color: its area's (by the area's place in the sidebar), gray when it has none. */
-export function blockColor(areaId: ID | null, areas: Pick<Area, 'id'>[]): string {
-  const i = areaId ? areas.findIndex((a) => a.id === areaId) : -1;
-  return i < 0 ? 'var(--text-3)' : `var(${AREA_COLORS[i % AREA_COLORS.length]})`;
+/** A block's color: its area's (picked, or automatic by sidebar order; see colors.ts), gray when it has none. */
+export function blockColor(areaId: ID | null, areas: (Pick<Area, 'id'> & { color?: string | null })[]): string {
+  return areaCss(areaId, areas);
 }

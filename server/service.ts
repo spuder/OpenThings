@@ -20,6 +20,7 @@ import {
 import { formatRule, parseRule } from '../src/lib/rrule';
 import { mergeTags, uuid7, type Row } from '../src/lib/schema';
 import { blockEvents, type CalEvent } from '../src/lib/ical';
+import { areaColor } from '../src/lib/colors';
 import type { Area, ChecklistItem, Habit, Project, Tag, Task, TaskTag, TimeBlock, TimeEntry } from '../src/lib/types';
 import * as V from '../src/lib/views';
 import type { ServerDb } from './db';
@@ -230,6 +231,15 @@ export class Service {
       this.db.all<Project>('SELECT * FROM projects'),
       this.db.all<Task>('SELECT * FROM tasks'),
     );
+  }
+
+  /** Areas as calendars: name and color (picked, or automatic by sidebar order). */
+  calendarAreas(): { id: string; name: string; color: { hex: string; css: string } }[] {
+    const areas = this.areas();
+    return areas.map((a) => {
+      const c = areaColor(a.id, areas)!;
+      return { id: a.id, name: a.name, color: { hex: c.hex, css: c.css } };
+    });
   }
 
   areas(): Area[] {

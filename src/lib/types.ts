@@ -4,6 +4,8 @@ export interface Area {
   id: ID;
   name: string;
   sort: number;
+  /** Color picked for it (an id from colors.ts); null = automatic. */
+  color?: string | null;
 }
 
 export interface Project {

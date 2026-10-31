@@ -201,3 +201,16 @@ describe('dropping on the calendar', () => {
     expect(dropSpan(23 * 60 + 50, 60)).toEqual({ start: 1380, end: 1440 });
   });
 });
+
+describe('area colors', () => {
+  it('uses a picked color over the automatic one, and ignores unknown ids', async () => {
+    const { areaColor, areaCss } = await import('./colors');
+    const as = [{ id: 'a', color: null }, { id: 'b', color: 'red' }, { id: 'c', color: 'nope' }];
+    expect(areaColor('a', as)?.id).toBe('blue');
+    expect(areaColor('b', as)?.id).toBe('red');
+    expect(areaColor('c', as)?.id).toBe('orange');
+    expect(areaColor('gone', as)).toBeUndefined();
+    expect(areaCss(null, as)).toBe('var(--text-3)');
+    expect(blockColor('b', as)).toBe('var(--upcoming)');
+  });
+});

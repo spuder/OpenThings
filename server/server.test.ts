@@ -378,28 +378,46 @@ describe('calendar subscriptions (#99)', () => {
     const db = new ServerDb();
     db.push([
       op('devA', 'areas', 'a1', 'insert', { id: 'a1', name: 'Vehicles', sort: 0 }),
+      op('devA', 'areas', 'a2', 'insert', { id: 'a2', name: 'Work', sort: 1, color: 'red' }),
       op('devA', 'time_blocks', 'b1', 'insert', block('b1', { area_id: 'a1' })),
       op('devA', 'time_blocks', 'b2', 'insert', block('b2', { start_at: '2026-10-25T13:00', end_at: '2026-10-25T14:00', title: 'Taxes' })),
       op('devA', 'time_blocks', 'b3', 'insert', block('b3', { deleted_at: '2026-10-18T00:00:00Z' })),
+      op('devA', 'time_blocks', 'b4', 'insert', block('b4', { area_id: 'a2', start_at: '2026-10-19T09:00', end_at: '2026-10-19T12:00' })),
     ]);
     const app = createApp({ db, version: 'test', timezone: 'America/Denver', ...opts });
     return (method: string, path: string, body?: string, headers: Record<string, string> = {}) =>
       app(new Request(`http://ot.test${path}`, { method, headers: { host: 'ot.test', ...headers }, body }));
   }
+  const propfind = (body: string) => `<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ic="http://apple.com/ns/ical/"><d:prop>${body}</d:prop></d:propfind>`;
 
-  it('serves an .ics feed named OpenThings with the live blocks', async () => {
+  it('serves every block in one feed named OpenThings, each event in its area color', async () => {
     const res = await cal()('GET', '/cal/openthings.ics');
     expect(res.headers.get('content-type')).toContain('text/calendar');
     const ics = await res.text();
     expect(ics).toContain('X-WR-CALNAME:OpenThings\r\n');
     expect(ics).toContain('X-WR-TIMEZONE:America/Denver');
-    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2);
-    expect(ics).toContain('SUMMARY:Vehicles');
-    expect(ics).toContain('SUMMARY:Taxes');
+    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(3);
+    expect(ics).toMatch(/SUMMARY:Vehicles\r\n[\s\S]*?COLOR:dodgerblue\r\n/);
+    expect(ics).toMatch(/SUMMARY:Work\r\n[\s\S]*?COLOR:tomato\r\n/);
+  });
+
+  it('serves one feed per area, and Other, each with its own name and color', async () => {
+    const call = cal();
+    const work = await (await call('GET', '/cal/area/a2.ics')).text();
+    expect(work).toContain('X-WR-CALNAME:OpenThings · Work\r\n');
+    expect(work).toContain('X-APPLE-CALENDAR-COLOR:#E0453C\r\n');
+    expect(work.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    const other = await (await call('GET', '/cal/other.ics')).text();
+    expect(other).toContain('X-WR-CALNAME:OpenThings · Other');
+    expect(other).toContain('SUMMARY:Taxes');
+    expect(other).not.toContain('SUMMARY:Vehicles');
+    expect((await call('GET', '/cal/area/nope.ics')).status).toBe(404);
   });
 
   it('takes the calendar name from the option', async () => {
-    expect(await (await cal({ calendarName: 'Blocks' })('GET', '/cal/openthings.ics')).text()).toContain('X-WR-CALNAME:Blocks');
+    const call = cal({ calendarName: 'Blocks' });
+    expect(await (await call('GET', '/cal/openthings.ics')).text()).toContain('X-WR-CALNAME:Blocks\r\n');
+    expect(await (await call('GET', '/cal/area/a1.ics')).text()).toContain('X-WR-CALNAME:Blocks · Vehicles\r\n');
   });
 
   it('points CalDAV discovery at /dav/', async () => {
@@ -408,47 +426,62 @@ describe('calendar subscriptions (#99)', () => {
     expect(res.headers.get('location')).toBe('/dav/');
   });
 
-  it('answers PROPFIND from discovery down to the events', async () => {
+  it('lists one CalDAV calendar per area plus Other, with names and colors', async () => {
     const call = cal();
-    const principal = await call('PROPFIND', '/dav/', '<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:current-user-principal/><c:calendar-home-set/><d:foo/></d:prop></d:propfind>', { depth: '0' });
+    const principal = await call('PROPFIND', '/dav/', propfind('<d:current-user-principal/><c:calendar-home-set/><d:foo/>'), { depth: '0' });
     expect(principal.status).toBe(207);
     const p = await principal.text();
     expect(p).toContain('<d:current-user-principal><d:href>/dav/principal/</d:href></d:current-user-principal>');
     expect(p).toContain('<c:calendar-home-set><d:href>/dav/calendars/</d:href></c:calendar-home-set>');
     expect(p).toMatch(/<d:foo\/><\/d:prop><d:status>HTTP\/1.1 404 Not Found/);
 
-    const home = await (await call('PROPFIND', '/dav/calendars/', '<propfind xmlns="DAV:"><prop><resourcetype/><displayname/></prop></propfind>', { depth: '1' })).text();
-    expect(home).toContain('<d:href>/dav/calendars/openthings/</d:href>');
-    expect(home).toContain('<d:collection/><c:calendar/>');
-    expect(home).toContain('<d:displayname>OpenThings</d:displayname>');
+    const home = await (await call('PROPFIND', '/dav/calendars/', propfind('<d:resourcetype/><d:displayname/><ic:calendar-color/>'), { depth: '1' })).text();
+    expect(home.match(/<c:calendar\/>/g)).toHaveLength(3);
+    expect(home).toContain('<d:href>/dav/calendars/area-a1/</d:href>');
+    expect(home).toContain('<d:displayname>OpenThings · Vehicles</d:displayname><ic:calendar-color>#2F86EDFF</ic:calendar-color>');
+    expect(home).toContain('<d:displayname>OpenThings · Work</d:displayname><ic:calendar-color>#E0453CFF</ic:calendar-color>');
+    expect(home).toContain('<d:href>/dav/calendars/other/</d:href>');
+    expect(home).not.toContain('<d:displayname>OpenThings</d:displayname>');
 
-    const list = await (await call('PROPFIND', '/dav/calendars/openthings', '<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:prop><d:getetag/><cs:getctag/></d:prop></d:propfind>', { depth: '1' })).text();
-    expect(list.match(/\.ics<\/d:href>/g)).toHaveLength(2);
+    const list = await (await call('PROPFIND', '/dav/calendars/area-a1', propfind('<d:getetag/><cs:getctag/>'), { depth: '1' })).text();
+    expect(list.match(/\.ics<\/d:href>/g)).toHaveLength(1);
+    expect(list).toContain('/dav/calendars/area-a1/b1.ics');
     expect(list).toMatch(/<cs:getctag>[0-9a-f]{8}<\/cs:getctag>/);
   });
 
   it('returns events by multiget and by time range, and each one by GET', async () => {
     const call = cal();
-    const multi = await (await call('REPORT', '/dav/calendars/openthings/', '<c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop><d:href>/dav/calendars/openthings/b1.ics</d:href><d:href>/dav/calendars/openthings/nope.ics</d:href></c:calendar-multiget>', { depth: '1' })).text();
+    const multi = await (await call('REPORT', '/dav/calendars/area-a1/', '<c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop><d:href>/dav/calendars/area-a1/b1.ics</d:href><d:href>/dav/calendars/area-a1/nope.ics</d:href></c:calendar-multiget>', { depth: '1' })).text();
     expect(multi).toContain('BEGIN:VCALENDAR');
     expect(multi).toContain('UID:b1@openthings');
     expect(multi).toMatch(/nope\.ics<\/d:href><d:status>HTTP\/1.1 404/);
 
-    const query = await (await call('REPORT', '/dav/calendars/openthings/', '<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="20261020T000000Z" end="20261101T000000Z"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>', { depth: '1' })).text();
-    expect(query).toContain('b2.ics');
-    expect(query).not.toContain('b1.ics');
+    const query = (from: string, to: string) => `<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="${from}" end="${to}"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`;
+    expect(await (await call('REPORT', '/dav/calendars/other/', query('20261020T000000Z', '20261101T000000Z'), { depth: '1' })).text()).toContain('b2.ics');
+    expect(await (await call('REPORT', '/dav/calendars/area-a1/', query('20261020T000000Z', '20261101T000000Z'), { depth: '1' })).text()).not.toContain('b1.ics');
 
-    const one = await call('GET', '/dav/calendars/openthings/b2.ics');
+    const one = await call('GET', '/dav/calendars/other/b2.ics');
     expect(one.headers.get('etag')).toMatch(/^"[0-9a-f]{8}"$/);
     expect(await one.text()).toContain('SUMMARY:Taxes');
+    expect((await call('GET', '/dav/calendars/area-a1/b2.ics')).status).toBe(404);
+  });
+
+  it('follows area color changes and renames', async () => {
+    const db = new ServerDb();
+    db.push([op('devA', 'areas', 'a1', 'insert', { id: 'a1', name: 'Vehicles', sort: 0 })]);
+    const app = createApp({ db, version: 'test' });
+    const home = async () => (await app(new Request('http://ot.test/dav/calendars/', { method: 'PROPFIND', headers: { host: 'ot.test', depth: '1' }, body: propfind('<d:displayname/><ic:calendar-color/>') }))).text();
+    expect(await home()).toContain('<d:displayname>OpenThings · Vehicles</d:displayname><ic:calendar-color>#2F86EDFF</ic:calendar-color>');
+    db.push([op('devA', 'areas', 'a1', 'update', { color: 'green', name: 'Cars' })]);
+    expect(await home()).toContain('<d:displayname>OpenThings · Cars</d:displayname><ic:calendar-color>#3FA66BFF</ic:calendar-color>');
   });
 
   it('is read only and refuses other websites', async () => {
     const call = cal();
-    expect((await call('PUT', '/dav/calendars/openthings/b1.ics', 'BEGIN:VCALENDAR')).status).toBe(403);
-    expect((await call('DELETE', '/dav/calendars/openthings/b1.ics')).status).toBe(403);
+    expect((await call('PUT', '/dav/calendars/area-a1/b1.ics', 'BEGIN:VCALENDAR')).status).toBe(403);
+    expect((await call('DELETE', '/dav/calendars/area-a1/b1.ics')).status).toBe(403);
     expect((await call('GET', '/cal/openthings.ics', undefined, { origin: 'https://evil.example' })).status).toBe(403);
-    const opts = await call('OPTIONS', '/dav/calendars/openthings/');
+    const opts = await call('OPTIONS', '/dav/calendars/other/');
     expect(opts.headers.get('dav')).toContain('calendar-access');
   });
 });

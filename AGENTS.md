@@ -88,6 +88,7 @@ Version numbers live in several files, including the Arch PKGBUILDs; only change
 | `src/lib/views.ts` | Pure view filters (Inbox, Today, Upcoming, Matrix, Brain Dump expiry, streaks) |
 | `src/lib/parse.ts` | Quick-add syntax parser and recurrence helpers |
 | `src/lib/timeblocks.ts` | Time Blocking (#99): local-time spans, snapping, calendar layout, assignment rules, autocomplete; UI in `ui/TimeBlockView.svelte` and `ui/BlockAssign.svelte` |
+| `src/lib/colors.ts` | Area color palette (app tokens, plus hex and CSS names for calendars); picked or automatic by sidebar order |
 | `src/lib/ical.ts` | iCalendar (RFC 5545) for time blocks: events, escaping, folding; used by `server/dav.ts` |
 | `src/lib/commands.ts` | Command registry and keyboard handling |
 | `src/lib/sound.ts` | Synthesized UI sounds |

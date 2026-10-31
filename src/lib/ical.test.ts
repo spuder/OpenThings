@@ -42,11 +42,17 @@ describe('iCalendar', () => {
       tasks,
     );
     expect(ev.map((e) => e.uid)).toEqual(['b1@openthings', 'b2@openthings']);
-    expect(ev[0]).toMatchObject({ summary: 'Change oil', description: 'Vehicles › Truck maintenance › Change oil', categories: 'Vehicles' });
-    expect(ev[1]).toMatchObject({ summary: 'Taxes', description: undefined, categories: undefined });
+    expect(ev[0]).toMatchObject({ summary: 'Change oil', description: 'Vehicles › Truck maintenance › Change oil', categories: 'Vehicles', areaId: 'a1', color: 'dodgerblue' });
+    expect(ev[1]).toMatchObject({ summary: 'Taxes', description: undefined, categories: undefined, areaId: null, color: undefined });
     const ics = calendar(ev);
     expect(ics).toContain('DTSTART:20261031T090000\r\nDTEND:20261031T103000\r\n');
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2);
+  });
+
+  it('colors events by area, and a calendar by its own color', () => {
+    const [e] = blockEvents([block('b1', { area_id: 'a1' })], [{ ...areas[0], color: 'red' }], projects, tasks);
+    expect(calendar([e])).toContain('COLOR:tomato\r\n');
+    expect(calendar([], { color: { hex: '#e0453c', css: 'tomato' } })).toMatch(/COLOR:tomato\r\nX-APPLE-CALENDAR-COLOR:#E0453C\r\n/);
   });
 
   it('ends a block at midnight on the next day', () => {

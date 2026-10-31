@@ -8,6 +8,7 @@ import { theme } from './theme.svelte';
 import { isNarrow, isTouch } from './env';
 import type { ViewKey } from './types';
 import { features, viewEnabled } from './features.svelte';
+import { areaColor, COLORS } from './colors';
 
 export interface Command {
   id: string;
@@ -120,6 +121,22 @@ const anyAreaOpen = () => store.foldableAreas.some((a) => !store.collapsedAreas.
 const anyAreaFolded = () => store.foldableAreas.some((a) => store.collapsedAreas.has(a.id));
 
 /** Rename / move / delete menu for an area or project, shown in the palette. Each option has a letter (see menu.ts). */
+/** Pick an area's color: Automatic (by sidebar order) or one of the palette. Used by time blocks and calendars. */
+export function openAreaColors(id: string) {
+  const a = store.areas.find((x) => x.id === id);
+  if (!a) return;
+  const auto = areaColor(a.id, store.areas.map((x) => (x.id === a.id ? { ...x, color: null } : x)));
+  store.paletteMode = {
+    kind: 'choose',
+    label: `Color for “${a.name}”`,
+    options: [
+      { label: 'Automatic', swatch: auto ? `var(${auto.token})` : undefined, hint: !a.color ? `current · ${auto?.label.toLowerCase() ?? ''}` : auto?.label.toLowerCase(), run: () => store.setAreaColor(a.id, null) },
+      ...COLORS.map((c) => ({ label: c.label, swatch: `var(${c.token})`, hint: a.color === c.id ? 'current' : undefined, run: () => store.setAreaColor(a.id, c.id) })),
+    ],
+  };
+  store.overlay = 'palette';
+}
+
 export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
   if (target.kind === 'area') {
     const a = store.areas.find((x) => x.id === target.id);
@@ -130,6 +147,7 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
       options: [
         { label: 'Rename…', key: 'r', icon: 'rename', run: () => prompt('Rename area', (n) => store.renameArea(a.id, n), a.name, a.name) },
         { label: 'New project in this area…', key: 'n', icon: 'add', run: () => prompt('New project', (n) => store.go({ kind: 'project', id: store.addProject(n, a.id) })) },
+        { label: 'Color…', key: 'o', swatch: `var(${areaColor(a.id, store.areas)?.token ?? '--text-3'})`, hint: a.color ? undefined : 'automatic', run: () => openAreaColors(a.id) },
         anyAreaOpen()
           ? { label: 'Collapse all areas', key: 'c', icon: 'chevron', run: () => store.setAreasCollapsed(true) }
           : { label: 'Expand all areas', key: 'e', icon: 'chevron', run: () => store.setAreasCollapsed(false) },

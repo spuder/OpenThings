@@ -1511,6 +1511,16 @@ class Store {
     this.load();
     this.notify(`Removed “${s.name}”; its to-dos are unsectioned`);
   }
+  /** Pick an area's color (an id from colors.ts), or null for automatic. One undo step. */
+  setAreaColor(id: ID, color: string | null) {
+    const a = this.areas.find((x) => x.id === id);
+    if (!a || (a.color ?? null) === color) return;
+    const prev = a.color ?? null;
+    db.update('areas', id, { color });
+    this.undoStack.push('area color', () => db.update('areas', id, { color: prev }));
+    this.load();
+  }
+
   renameArea(id: ID, name: string) {
     db.update('areas', id, { name });
     this.load();

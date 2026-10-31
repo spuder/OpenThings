@@ -8,6 +8,7 @@
  *
  * Written from scratch for this project.
  */
+import { areaColor } from './colors';
 import { blockLabel } from './timeblocks';
 import type { Area, Project, Task, TimeBlock } from './types';
 
@@ -24,6 +25,16 @@ export interface CalEvent {
   categories?: string;
   /** ISO timestamp (UTC), used for DTSTAMP and CREATED. */
   created: string;
+  /** The block's area, which per-area calendars are split by; null = none (the "Other" calendar). */
+  areaId?: string | null;
+  /** CSS color name of the area (RFC 7986 COLOR), for clients that color single events. */
+  color?: string;
+}
+
+/** A calendar's own color: hex for Apple's X-APPLE-CALENDAR-COLOR, a CSS name for RFC 7986 COLOR. */
+export interface CalColor {
+  hex: string;
+  css: string;
 }
 
 /** Escape TEXT values: backslash, semicolon, comma and newlines. */
@@ -77,12 +88,13 @@ export function eventLines(e: CalEvent): string[] {
   ];
   if (e.description) lines.push(`DESCRIPTION:${escapeText(e.description)}`);
   if (e.categories) lines.push(`CATEGORIES:${escapeText(e.categories)}`);
+  if (e.color) lines.push(`COLOR:${e.color}`);
   lines.push('TRANSP:OPAQUE', 'END:VEVENT');
   return lines;
 }
 
 /** A whole VCALENDAR, CRLF line endings, folded. */
-export function calendar(events: CalEvent[], opts: { name?: string; timezone?: string } = {}): string {
+export function calendar(events: CalEvent[], opts: { name?: string; timezone?: string; color?: CalColor } = {}): string {
   const name = opts.name?.trim() || DEFAULT_CALENDAR_NAME;
   const lines = [
     'BEGIN:VCALENDAR',
@@ -93,6 +105,7 @@ export function calendar(events: CalEvent[], opts: { name?: string; timezone?: s
     `X-WR-CALNAME:${escapeText(name)}`,
     `NAME:${escapeText(name)}`,
     ...(opts.timezone ? [`X-WR-TIMEZONE:${opts.timezone}`] : []),
+    ...(opts.color ? [`COLOR:${opts.color.css}`, `X-APPLE-CALENDAR-COLOR:${opts.color.hex.toUpperCase()}`] : []),
     // Ask subscribers to refresh every 15 minutes.
     'REFRESH-INTERVAL;VALUE=DURATION:PT15M',
     'X-PUBLISHED-TTL:PT15M',
@@ -109,15 +122,17 @@ export function blockEvents(blocks: TimeBlock[], areas: Area[], projects: Projec
     .sort((a, b) => a.start_at.localeCompare(b.start_at))
     .map((b) => {
       const l = blockLabel(b, areas, projects, tasks);
-      const area = b.area_id ? areas.find((a) => a.id === b.area_id)?.name : undefined;
+      const area = b.area_id ? areas.find((a) => a.id === b.area_id) : undefined;
       return {
         uid: `${b.id}@openthings`,
         start: b.start_at,
         end: b.end_at,
         summary: l.title || 'Time block',
         description: l.crumbs.length ? [...l.crumbs, l.title].join(' › ') : undefined,
-        categories: area,
+        categories: area?.name,
         created: b.created_at,
+        areaId: area?.id ?? null,
+        color: area ? areaColor(area.id, areas)?.css : undefined,
       };
     });
 }

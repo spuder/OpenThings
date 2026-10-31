@@ -63,7 +63,7 @@ export function createApp(opts: AppOptions) {
   const version = opts.version ?? '0.0.0';
   const extraOrigins = new Set(opts.allowedOrigins ?? []);
   const gzipCache = new Map<string, Uint8Array<ArrayBuffer>>();
-  const cal = createCalendar({ name: opts.calendarName ?? 'OpenThings', timezone: opts.timezone, events: () => service.calendarEvents() });
+  const cal = createCalendar({ name: opts.calendarName ?? 'OpenThings', timezone: opts.timezone, events: () => service.calendarEvents(), areas: () => service.calendarAreas() });
 
   /** Same host as the request (behind a TLS proxy the scheme differs, so compare hosts). */
   function sameOrigin(origin: string, req: Request): boolean {

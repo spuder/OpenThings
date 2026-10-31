@@ -35,9 +35,10 @@
 
 <script lang="ts">
   /** Original line icons for each list. Simple geometric shapes, drawn for this project. */
-  let { name, size = 18 }: { name: string; size?: number } = $props();
+  /** `color` overrides the icon's own color (an area's picked color). */
+  let { name, size = 18, color: tint }: { name: string; size?: number; color?: string } = $props();
 
-  const color = $derived(iconColor(name));
+  const color = $derived(tint ?? iconColor(name));
 </script>
 
 <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke={color} stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

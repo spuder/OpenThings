@@ -10,6 +10,7 @@
   import { dropOn } from './drag.svelte';
   import { projectDrag, projectDraggable, projectDropLine } from './projectDrag.svelte';
   import { calendarDraggable } from './calendarDrop.svelte';
+  import { colorChoice } from '../colors';
 
   // With the calendar open, areas drag onto it to block time (projects always drag, see projectDrag).
   const onCalendar = () => store.view.kind === 'timeblock';
@@ -130,7 +131,8 @@
             </button>
           {/if}
           <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)} {@attach calendarDraggable({ kind: 'area', id: a.id }, onCalendar)}>
-            <Icon name="area" />
+            <!-- A picked color shows on the area's icon; automatic colors only show on the calendar. -->
+            <Icon name="area" color={colorChoice(a.color) ? `var(${colorChoice(a.color)?.token})` : undefined} />
             <span class="label">{a.name}</span>
           </button>
           <button class="more" onclick={(e) => menu(e, 'area', a.id)} aria-label={`Actions for ${a.name}`} title="Rename, new project, delete">⋯</button>

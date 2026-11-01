@@ -98,10 +98,10 @@ function autoScroll() {
   scrollRaf = requestAnimationFrame(autoScroll);
 }
 
-/** Attach to a to-do row: `{@attach draggable(task.id)}`. */
 /** 'tasks': to-do rows (selection, reorder, sidebar). 'dump': a Brain Dump item, onto sidebar lists only (#132). */
 export type DragMode = 'tasks' | 'dump';
 
+/** Attach to a to-do row: `{@attach draggable(task.id)}`. */
 export function draggable(id: ID, mode: DragMode = 'tasks'): Attachment<HTMLElement> {
   return (node) => {
     let start: { x: number; y: number; pointerId: number; mouse: boolean } | null = null;

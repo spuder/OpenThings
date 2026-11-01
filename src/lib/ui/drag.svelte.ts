@@ -53,14 +53,16 @@ export function dropOn(v: ViewKey): 'ok' | 'no' | null {
   return t.ok ? 'ok' : 'no';
 }
 
-function hitTest(x: number, y: number): DropTarget | null {
+function hitTest(x: number, y: number, mode: DragMode = 'tasks'): DropTarget | null {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
   const nav = el.closest<HTMLElement>('[data-drop-view]');
   if (nav) {
     const view = JSON.parse(nav.dataset.dropView!) as ViewKey;
-    return { kind: 'view', view, key: viewKey(view), ok: store.acceptsDrop(view) };
+    return { kind: 'view', view, key: viewKey(view), ok: mode === 'dump' ? store.acceptsDumpDrop(view) : store.acceptsDrop(view) };
   }
+  // Brain Dump items only drop on sidebar lists (#132).
+  if (mode === 'dump') return null;
   const groupEl = el.closest<HTMLElement>('[data-group]');
   if (!groupEl || !canReorder(store.view.kind)) return null;
   const group = groupEl.dataset.group!;
@@ -96,8 +98,11 @@ function autoScroll() {
   scrollRaf = requestAnimationFrame(autoScroll);
 }
 
+/** 'tasks': to-do rows (selection, reorder, sidebar). 'dump': a Brain Dump item, onto sidebar lists only (#132). */
+export type DragMode = 'tasks' | 'dump';
+
 /** Attach to a to-do row: `{@attach draggable(task.id)}`. */
-export function draggable(id: ID): Attachment<HTMLElement> {
+export function draggable(id: ID, mode: DragMode = 'tasks'): Attachment<HTMLElement> {
   return (node) => {
     let start: { x: number; y: number; pointerId: number; mouse: boolean } | null = null;
     let armed = false;
@@ -106,7 +111,8 @@ export function draggable(id: ID): Attachment<HTMLElement> {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     function down(e: PointerEvent) {
-      if (e.button !== 0 || !e.isPrimary || !store.canMulti || store.expandedId === id) return;
+      if (e.button !== 0 || !e.isPrimary) return;
+      if (mode === 'dump' ? store.view.kind !== 'dump' : !store.canMulti || store.expandedId === id) return;
       if (e.target instanceof Element && e.target.closest('button, input, textarea, select, a, [data-no-drag]')) return;
       const mouse = e.pointerType === 'mouse';
       start = { x: e.clientX, y: e.clientY, pointerId: e.pointerId, mouse };
@@ -116,7 +122,8 @@ export function draggable(id: ID): Attachment<HTMLElement> {
         timer = setTimeout(() => {
           armed = true;
           longPressed = true;
-          store.startSelecting(id);
+          if (mode === 'dump') store.selectedId = id;
+          else store.startSelecting(id);
           navigator.vibrate?.(8);
         }, LONG_PRESS_MS);
       }
@@ -127,6 +134,13 @@ export function draggable(id: ID): Attachment<HTMLElement> {
     }
 
     function begin() {
+      if (mode === 'dump') {
+        store.selectedId = id;
+        drag.ids = [id];
+        drag.active = true;
+        document.documentElement.classList.add('dragging');
+        return;
+      }
       // Dragging an unselected row drags just that row (and selects it, like a click would).
       if (!store.isPicked(id)) {
         if (store.selecting) store.toggleSelect(id);
@@ -159,7 +173,7 @@ export function draggable(id: ID): Attachment<HTMLElement> {
         store.sidebarOpen = true;
         openedSidebar = true;
       }
-      drag.target = hitTest(e.clientX, e.clientY);
+      drag.target = hitTest(e.clientX, e.clientY, mode);
     }
 
     function up(e: PointerEvent) {
@@ -170,6 +184,7 @@ export function draggable(id: ID): Attachment<HTMLElement> {
       finish();
       if (dropped && t?.ok) {
         if (t.kind === 'list') store.dropInList(ids, t.group, t.before);
+        else if (mode === 'dump') store.dropDumpOnView(ids, t.view);
         else store.dropOnView(ids, t.view);
       }
     }

@@ -28,6 +28,7 @@ import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
 import { projectDrop, type ProjectSlot } from './projectMove';
+import { DUMP_DROP_KINDS, dumpDropFields } from './dumpDrop';
 import * as Sel from './selection';
 import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
@@ -1124,6 +1125,34 @@ class Store {
     if (loose === ids.length) this.notify(`Moved${n} to Inbox: Anytime needs a project or area`);
     else if (loose) this.notify(`Moved${n} to Anytime; ${loose} without a project or area went to the Inbox`);
     else this.notify(list === 'dump' ? `Moved${n} to Brain Dump; ${ids.length === 1 ? 'it goes' : 'they go'} in 48 hours unless kept` : `Moved${n} to ${name}`);
+  }
+
+  /** Whether a Brain Dump item dragged from the Brain Dump can be dropped on sidebar list `v` (#132). */
+  acceptsDumpDrop(v: ViewKey): boolean {
+    return DUMP_DROP_KINDS.includes(v.kind) && viewEnabled(v.kind) && (v.kind !== 'project' || this.projects.some((p) => p.id === v.id)) && (v.kind !== 'area' || this.areas.some((a) => a.id === v.id));
+  }
+
+  /**
+   * Drop Brain Dump items on a sidebar list (#132): each becomes a normal to-do with that list's
+   * When, project or area, converted in place (see dumpDrop.ts). One undo step.
+   */
+  dropDumpOnView(ids: ID[], v: ViewKey) {
+    if (!ids.length || !this.acceptsDumpDrop(v)) return;
+    const moves = ids.flatMap((id) => {
+      const t = this.task(id);
+      const f = t && dumpDropFields(t, v, this.day);
+      return f ? [[id, f] as const] : [];
+    });
+    if (!moves.length) return;
+    this.bulk('move', () => moves.forEach(([id, f]) => this.update(id, f, 'move')));
+    const n = moves.length === 1 ? '' : ` ${moves.length} to-dos`;
+    const name =
+      v.kind === 'project' ? this.projects.find((p) => p.id === v.id)?.name
+      : v.kind === 'area' ? this.areas.find((a) => a.id === v.id)?.name
+      : ({ inbox: 'Inbox', today: 'Today', week: 'This Week', upcoming: 'Upcoming (tomorrow)', anytime: 'Anytime', someday: 'Someday' } as Record<string, string>)[v.kind];
+    this.notify(v.kind === 'anytime' && moves.every(([id]) => { const t = this.task(id); return t && !t.project_id && !t.area_id; })
+      ? `Moved${n} to Inbox: Anytime needs a project or area`
+      : `Moved${n} to ${name ?? 'list'}`);
   }
 
   /** Drag and drop onto a sidebar list: schedule, move, complete or trash every dragged to-do. One undo step. */

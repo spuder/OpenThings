@@ -6,6 +6,7 @@
   import { dumpAgeFraction, DUMP_TTL_MS } from '../views';
   import { prompt } from '../commands';
   import type { Task } from '../types';
+  import { draggable } from './drag.svelte';
 
   let drafts = $state<Record<string, string>>({});
   const selectedDump = $derived(store.task(store.selectedId)?.dump ? store.task(store.selectedId) : undefined);
@@ -83,6 +84,8 @@
               onkeydown={() => {}}
               role="option"
               aria-selected={store.selectedId === t.id}
+              title={t.completed_at ? undefined : 'Drag onto a list in the sidebar to keep it there'}
+              {@attach t.completed_at ? undefined : draggable(t.id, 'dump')}
             >
               <button class="mark" onclick={(e) => { e.stopPropagation(); store.toggleComplete(t.id); }} aria-label="Check off">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -225,6 +228,12 @@
     padding-left: 8px;
     transform-origin: left center;
     transition: opacity 1.5s linear, background 0.12s;
+  }
+  /* Items are dragged onto the sidebar (#132): no text selection or iOS callout while pressing. */
+  li:not(.write) {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
   li.selected {
     background: color-mix(in srgb, var(--paper-ink) 7%, transparent);

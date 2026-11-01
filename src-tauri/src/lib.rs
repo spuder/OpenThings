@@ -753,6 +753,86 @@ fn open_self_hosting_docs() -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// What a project link (#130) asks the system to open.
+#[derive(Debug, PartialEq)]
+enum LinkTarget {
+    Url(String),
+    Path(std::path::PathBuf),
+}
+
+/// Schemes the shell passes to the system opener. Links arrive by sync, so this is an allowlist:
+/// other app schemes can still be copied from the details panel.
+const LINK_SCHEMES: &[&str] = &["http", "https", "vscode", "vscode-insiders", "cursor", "zed", "idea", "obsidian"];
+
+/// Extensions that launch something rather than open it.
+const LAUNCHER_EXTS: &[&str] = &["app", "command", "desktop", "sh", "bash", "zsh", "appimage", "jar", "py", "pl", "rb", "run", "bin", "exe", "bat", "cmd", "scpt", "workflow", "pkg", "dmg"];
+
+/// Work out what a link points at, without touching the file system.
+fn link_target(raw: &str, home: Option<&std::path::Path>) -> Result<LinkTarget, String> {
+    let s = raw.trim();
+    if s.is_empty() || s.chars().any(char::is_control) {
+        return Err("not a link".into());
+    }
+    if s == "~" || s.starts_with("~/") {
+        let home = home.ok_or("no home folder")?;
+        return Ok(LinkTarget::Path(home.join(s.trim_start_matches('~').trim_start_matches('/'))));
+    }
+    if s.starts_with('/') && !s.starts_with("//") {
+        return Ok(LinkTarget::Path(s.into()));
+    }
+    let url = url::Url::parse(s).map_err(|_| "not a link".to_string())?;
+    if url.scheme() == "file" {
+        return url.to_file_path().map(LinkTarget::Path).map_err(|_| "not a local path".into());
+    }
+    if !LINK_SCHEMES.contains(&url.scheme()) || s.chars().any(char::is_whitespace) {
+        return Err(format!("{}: links can't be opened from here", url.scheme()));
+    }
+    Ok(LinkTarget::Url(s.to_string()))
+}
+
+/// A path the opener would run or install rather than show.
+#[cfg_attr(not(unix), allow(unused_variables))]
+fn launches(path: &std::path::Path, meta: &std::fs::Metadata) -> bool {
+    let ext = path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
+    if ext.is_some_and(|e| LAUNCHER_EXTS.contains(&e.as_str())) {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        if meta.is_file() && meta.permissions().mode() & 0o111 != 0 {
+            return true;
+        }
+    }
+    false
+}
+
+/// Open a project link in the default browser, editor or file manager. Web links, a few editor
+/// and notes schemes, and local files and folders that exist; programs and other schemes are refused.
+#[tauri::command]
+fn open_link(url: String) -> Result<(), String> {
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let arg = match link_target(&url, home.as_deref())? {
+        LinkTarget::Url(u) => u,
+        LinkTarget::Path(p) => {
+            let meta = std::fs::metadata(&p).map_err(|_| format!("{} doesn't exist", p.display()))?;
+            if launches(&p, &meta) {
+                return Err("programs and scripts aren't opened from links".into());
+            }
+            p.to_string_lossy().into_owned()
+        }
+    };
+    #[cfg(target_os = "macos")]
+    let opener = "open";
+    #[cfg(not(target_os = "macos"))]
+    let opener = "xdg-open";
+    std::process::Command::new(opener)
+        .arg(arg)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 /// The Omarchy desktop theme to follow, or null when this isn't an Omarchy desktop.
 #[tauri::command]
 fn omarchy_theme() -> Option<omarchy::Current> {
@@ -812,6 +892,7 @@ pub fn run() {
             hide_quick_add,
             show_main_window,
             open_self_hosting_docs,
+            open_link,
             omarchy_theme,
             quit_now,
         ])
@@ -942,7 +1023,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{link_parts, parse_iso_ms};
+    use super::{link_parts, link_target, parse_iso_ms, LinkTarget};
+    use std::path::{Path, PathBuf};
 
     fn parts(s: &str) -> (String, String, bool) {
         link_parts(&url::Url::parse(s).unwrap())
@@ -967,5 +1049,23 @@ mod tests {
         assert_eq!(parse_iso_ms("2026-10-18T15:30:00.000Z"), Some(1_792_337_400_000));
         assert_eq!(parse_iso_ms("2000-02-29T12:00:01.500Z"), Some(951_825_601_500));
         assert_eq!(parse_iso_ms("nonsense"), None);
+    }
+
+    #[test]
+    fn project_link_targets() {
+        let home = Some(Path::new("/home/me"));
+        let url = |s: &str| Ok(LinkTarget::Url(s.to_string()));
+        let path = |s: &str| Ok(LinkTarget::Path(PathBuf::from(s)));
+        assert_eq!(link_target("https://github.com/a/b", home), url("https://github.com/a/b"));
+        assert_eq!(link_target("vscode://file/home/me/code", home), url("vscode://file/home/me/code"));
+        assert_eq!(link_target("obsidian://open?vault=Home", home), url("obsidian://open?vault=Home"));
+        assert_eq!(link_target("~/My Projects/truck", home), path("/home/me/My Projects/truck"));
+        assert_eq!(link_target("~", home), path("/home/me"));
+        assert_eq!(link_target("/srv/notes", home), path("/srv/notes"));
+        assert_eq!(link_target("file:///home/me/My%20Notes.md", home), path("/home/me/My Notes.md"));
+        for bad in ["javascript:alert(1)", "data:text/html,x", "ms-msdt:x", "x-devonthink-item://A", "//host/x", "", "https://a.com/\nx", "~/x"] {
+            let h = if bad == "~/x" { None } else { home };
+            assert!(link_target(bad, h).is_err(), "{bad}");
+        }
     }
 }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as db from '../db';
-import { mergeTags } from '../schema';
+import initSqlJs from 'sql.js';
+import { mergeTags, SCHEMA, type Op } from '../schema';
 import { SyncEngine, normalizeUrl, type Transport } from './engine.svelte';
 import { PROTOCOL_VERSION, type SyncRequest } from './protocol';
 
@@ -202,5 +203,36 @@ describe('SyncEngine', () => {
   it('normalizes server URLs', () => {
     expect(normalizeUrl(' https://a.b/ ')).toBe('https://a.b');
     expect(normalizeUrl('http://10.0.0.5:8080')).toBe('http://10.0.0.5:8080');
+  });
+});
+
+describe('upgrading with ops from newer devices (#130)', () => {
+  const link = (id: string) => ({ id, project_id: 'p1', type: 'github', label: '', url: `https://github.com/a/${id}`, sort: 1, created_at: '2026-10-31T00:00:00Z' });
+
+  it('keeps ops for a table this version does not have yet', () => {
+    db.applyRemoteOps([{ hlc: hlcAt(Date.now()), device: 'otherdevice1', tbl: 'future_things', row_id: 'f1', kind: 'insert', payload: { id: 'f1' } }]);
+    expect(db.one<{ n: number }>("SELECT COUNT(*) AS n FROM ops WHERE tbl = 'future_things' AND remote = 1")?.n).toBe(1);
+  });
+
+  it('applies kept ops for a table and a column it gained', async () => {
+    // A database from before project links and project colors, holding ops a newer device sent.
+    const SQL = await initSqlJs();
+    const old = new SQL.Database();
+    old.exec(SCHEMA.replace(/CREATE TABLE IF NOT EXISTS project_links[^;]*;/, ''));
+    old.exec('ALTER TABLE ops ADD COLUMN remote INTEGER NOT NULL DEFAULT 0');
+    old.run("INSERT INTO projects (id, name, sort) VALUES ('p1', 'Truck', 1)");
+    let at = Date.now();
+    const put = (o: Omit<Op, 'hlc' | 'device'>) =>
+      old.run('INSERT INTO ops (hlc, device, tbl, row_id, kind, payload, remote) VALUES (?, ?, ?, ?, ?, ?, 1)', [hlcAt(at++), 'otherdevice1', o.tbl, o.row_id, o.kind, JSON.stringify(o.payload)]);
+    put({ tbl: 'projects', row_id: 'p1', kind: 'update', payload: { color: '#e5484d' } });
+    put({ tbl: 'projects', row_id: 'p1', kind: 'update', payload: { color: '#30a46c', name: 'Truck' } });
+    put({ tbl: 'project_links', row_id: 'l1', kind: 'insert', payload: link('l1') });
+    put({ tbl: 'project_links', row_id: 'l2', kind: 'insert', payload: link('l2') });
+    put({ tbl: 'project_links', row_id: 'l2', kind: 'delete', payload: {} });
+    put({ tbl: 'project_links', row_id: 'l1', kind: 'update', payload: { label: 'Repo' } });
+
+    await db.openDb({ memory: true, data: old.export() });
+    expect(db.one<{ color: string }>('SELECT color FROM projects WHERE id = ?', ['p1'])?.color).toBe('#30a46c');
+    expect(db.all('SELECT id, label FROM project_links')).toEqual([{ id: 'l1', label: 'Repo' }]);
   });
 });

@@ -13,6 +13,18 @@ export interface Project {
   notes: string;
   sort: number;
   completed_at: string | null;
+  color?: string | null;
+}
+
+/** A link or reference attached to a project (#130): repo, issue tracker, path, conversation… */
+export interface ProjectLink {
+  id: ID;
+  project_id: ID;
+  type: string;
+  label: string;
+  url: string;
+  sort: number;
+  created_at: string;
 }
 
 export interface Heading {

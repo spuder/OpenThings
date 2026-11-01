@@ -66,6 +66,9 @@ export const setAutostart = (enabled: boolean) => invoke<boolean>('set_autostart
 /** The webview can't open external links itself; this opens README#self-hosting in the browser. */
 export const openSelfHostingDocs = () => invoke('open_self_hosting_docs');
 
+/** Open a project link (#130) with the system opener. The shell refuses unknown schemes and executables. */
+export const openLink = (url: string) => invoke<void>('open_link', { url });
+
 /** The Omarchy desktop's current theme: its id and the text of its colors.toml. */
 export interface OmarchyTheme {
   id: string;

@@ -12,6 +12,7 @@ import type {
   Heading,
   ID,
   Project,
+  ProjectLink,
   Tag,
   Task,
   TaskTag,
@@ -28,6 +29,7 @@ import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
 import { projectDrop, type ProjectSlot } from './projectMove';
+import * as Links from './projectLinks';
 import * as Sel from './selection';
 import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
@@ -95,6 +97,9 @@ class Store {
   ready = $state(false);
   areas = $state<Area[]>([]);
   projects = $state<Project[]>([]);
+  projectLinks = $state<ProjectLink[]>([]);
+  /** The project details panel (links, color) is open. */
+  detailsOpen = $state(false);
   headings = $state<Heading[]>([]);
   tasks = $state<Task[]>([]);
   /** Tasks in the Trash, newest first. */
@@ -257,6 +262,7 @@ class Store {
     this.loadPending = false;
     this.areas = db.all<Area>('SELECT * FROM areas ORDER BY sort');
     this.projects = db.all<Project>('SELECT * FROM projects ORDER BY sort');
+    this.projectLinks = db.all<ProjectLink>('SELECT * FROM project_links ORDER BY sort, id');
     this.headings = db.all<Heading>('SELECT * FROM headings ORDER BY sort');
     this.tasks = db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NULL');
     this.trashed = db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC');
@@ -1302,6 +1308,54 @@ class Store {
     this.load();
   }
 
+  // ---------- project details (#130) ----------
+  linksOf(projectId: ID): ProjectLink[] {
+    return this.projectLinks.filter((l) => l.project_id === projectId);
+  }
+  /** Add a link to a project. Returns false (and says why) if the URL isn't valid. */
+  addProjectLink(projectId: ID, url: string, label = ''): boolean {
+    const row = Links.addLink(projectId, url, label);
+    if (!row) {
+      this.notify('That doesn’t look like a link or path');
+      return false;
+    }
+    this.undoStack.push('add link', () => Links.removeLink(row.id));
+    this.load();
+    return true;
+  }
+  /** Remove a link. Undo adds it back under a new id, because a synced delete is final. */
+  removeProjectLink(id: ID) {
+    const l = this.projectLinks.find((x) => x.id === id);
+    if (!l) return;
+    Links.removeLink(id);
+    this.undoStack.push('remove link', () => {
+      if (db.one('SELECT 1 AS x FROM projects WHERE id = ?', [l.project_id])) db.insert('project_links', { ...l, id: db.uuid7() });
+    });
+    this.load();
+    this.notify('Link removed', { undo: true });
+  }
+  moveProjectLink(id: ID, dir: -1 | 1) {
+    const l = this.projectLinks.find((x) => x.id === id);
+    if (!l) return;
+    const before = this.linksOf(l.project_id).map((x) => [x.id, x.sort] as const);
+    if (!Links.moveLink(id, dir)) return;
+    this.undoStack.push('move link', () => {
+      for (const [lid, sort] of before) {
+        const now = db.one<{ sort: number }>('SELECT sort FROM project_links WHERE id = ?', [lid]);
+        if (now && now.sort !== sort) db.update('project_links', lid, { sort });
+      }
+    });
+    this.load();
+  }
+  setProjectColor(id: ID, color: string | null) {
+    const p = this.projects.find((x) => x.id === id);
+    if (!p || (p.color ?? null) === color) return;
+    const prev = p.color ?? null;
+    db.update('projects', id, { color });
+    this.undoStack.push('project color', () => db.update('projects', id, { color: prev }));
+    this.load();
+  }
+
   /** Sidebar drag and drop (#126): put a project in an area (or none), before another project. */
   dropProject(id: ID, slot: ProjectSlot): boolean {
     const fields = projectDrop(this.projects, this.areas.map((a) => a.id), id, slot);
@@ -1332,6 +1386,7 @@ class Store {
       db.update('tasks', t.id, { deleted_at: now });
     }
     for (const h of this.headings.filter((h) => h.project_id === id)) db.remove('headings', h.id);
+    for (const l of this.projectLinks.filter((l) => l.project_id === id)) db.remove('project_links', l.id);
     db.remove('projects', id);
     this.load();
     if (this.view.kind === 'project' && this.view.id === id) this.go({ kind: 'inbox' });

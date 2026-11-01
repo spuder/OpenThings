@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS habits (id TEXT PRIMARY KEY, name TEXT NOT NULL, sort
 CREATE TABLE IF NOT EXISTS habit_checks (id TEXT PRIMARY KEY, habit_id TEXT NOT NULL, day TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS time_entries (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, start_at TEXT NOT NULL, end_at TEXT);
 CREATE TABLE IF NOT EXISTS dump_sections (id TEXT PRIMARY KEY, name TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS project_links (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'web',
+  label TEXT NOT NULL DEFAULT '', url TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS ops (seq INTEGER PRIMARY KEY AUTOINCREMENT, hlc TEXT NOT NULL, device TEXT NOT NULL,
   tbl TEXT NOT NULL, row_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
@@ -42,6 +44,8 @@ export const ADDED_COLUMNS: [string, string, string][] = [
   ['habits', 'start_date', 'TEXT'],
   // Habit schedule: daily | days:1,2,3,4,5 | times:5 (see views.ts).
   ['habits', 'schedule', 'TEXT'],
+  // Project color (a CSS color), set in the project details panel (#130).
+  ['projects', 'color', 'TEXT'],
 ];
 
 /**
@@ -79,7 +83,7 @@ export function mergeTags<T extends { id: string; name: string }, L extends { ta
 }
 
 /** Tables that sync. `ops` and `meta` never leave the device. */
-export const SYNC_TABLES = ['areas', 'projects', 'headings', 'tasks', 'checklist', 'tags', 'task_tags', 'habits', 'habit_checks', 'time_entries', 'dump_sections'] as const;
+export const SYNC_TABLES = ['areas', 'projects', 'headings', 'tasks', 'checklist', 'tags', 'task_tags', 'habits', 'habit_checks', 'time_entries', 'dump_sections', 'project_links'] as const;
 
 export type SqlValue = string | number | null | Uint8Array;
 export type Row = Record<string, SqlValue>;

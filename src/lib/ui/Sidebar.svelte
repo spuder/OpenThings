@@ -103,7 +103,7 @@
         {#each looseProjects as p (p.id)}
           <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(null, p.id)} class:dragged={projectDrag.id === p.id}>
             <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
-              <ProgressPie value={store.projectProgress(p.id)} />
+              <ProgressPie value={store.projectProgress(p.id)} color={p.color} />
               <span class="label">{p.name}</span>
             </button>
             <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>
@@ -136,7 +136,7 @@
               {#each projects as p (p.id)}
                 <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(a.id, p.id)} class:drop-after={projectDropLine(a.id, null) && p === projects[projects.length - 1]} class:dragged={projectDrag.id === p.id}>
                   <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
-                    <ProgressPie value={store.projectProgress(p.id)} />
+                    <ProgressPie value={store.projectProgress(p.id)} color={p.color} />
                     <span class="label">{p.name}</span>
                   </button>
                   <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, move, delete">⋯</button>

@@ -61,8 +61,8 @@ function hitTest(x: number, y: number, mode: DragMode = 'tasks'): DropTarget | n
     const view = JSON.parse(nav.dataset.dropView!) as ViewKey;
     return { kind: 'view', view, key: viewKey(view), ok: mode === 'dump' ? store.acceptsDumpDrop(view) : store.acceptsDrop(view) };
   }
-  // Brain Dump items only drop on sidebar lists (#132).
-  if (mode === 'dump') return null;
+  // Brain Dump items (#132) and Trash rows only drop on sidebar lists.
+  if (mode !== 'tasks') return null;
   const groupEl = el.closest<HTMLElement>('[data-group]');
   if (!groupEl || !canReorder(store.view.kind)) return null;
   const group = groupEl.dataset.group!;
@@ -99,8 +99,11 @@ function autoScroll() {
 }
 
 /** Attach to a to-do row: `{@attach draggable(task.id)}`. */
-/** 'tasks': to-do rows (selection, reorder, sidebar). 'dump': a Brain Dump item, onto sidebar lists only (#132). */
-export type DragMode = 'tasks' | 'dump';
+/**
+ * 'tasks': to-do rows (selection, reorder, sidebar). 'dump': a Brain Dump item, onto sidebar lists
+ * only (#132). 'trash': a Trash row, onto a sidebar list to restore it there. The last two drag one row.
+ */
+export type DragMode = 'tasks' | 'dump' | 'trash';
 
 export function draggable(id: ID, mode: DragMode = 'tasks'): Attachment<HTMLElement> {
   return (node) => {
@@ -112,7 +115,7 @@ export function draggable(id: ID, mode: DragMode = 'tasks'): Attachment<HTMLElem
 
     function down(e: PointerEvent) {
       if (e.button !== 0 || !e.isPrimary) return;
-      if (mode === 'dump' ? store.view.kind !== 'dump' : !store.canMulti || store.expandedId === id) return;
+      if (mode === 'tasks' ? !store.canMulti || store.expandedId === id : store.view.kind !== mode) return;
       if (e.target instanceof Element && e.target.closest('button, input, textarea, select, a, [data-no-drag]')) return;
       const mouse = e.pointerType === 'mouse';
       start = { x: e.clientX, y: e.clientY, pointerId: e.pointerId, mouse };
@@ -122,7 +125,7 @@ export function draggable(id: ID, mode: DragMode = 'tasks'): Attachment<HTMLElem
         timer = setTimeout(() => {
           armed = true;
           longPressed = true;
-          if (mode === 'dump') store.selectedId = id;
+          if (mode !== 'tasks') store.selectedId = id;
           else store.startSelecting(id);
           navigator.vibrate?.(8);
         }, LONG_PRESS_MS);
@@ -134,7 +137,7 @@ export function draggable(id: ID, mode: DragMode = 'tasks'): Attachment<HTMLElem
     }
 
     function begin() {
-      if (mode === 'dump') {
+      if (mode !== 'tasks') {
         store.selectedId = id;
         drag.ids = [id];
         drag.active = true;

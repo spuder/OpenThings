@@ -9,6 +9,17 @@
   import { viewEnabled } from '../features.svelte';
   import { dropOn } from './drag.svelte';
   import { projectDrag, projectDraggable, projectDropLine } from './projectDrag.svelte';
+  import { beforeAt, sortable, sortDrag, sortLine, sortOn } from './sortDrag.svelte';
+  import { reorderSort } from '../dragRules';
+
+  /** Area drag (gap 1): the area under a point and where it would land, if that moves it. */
+  function areaSlot(id: string, x: number, y: number) {
+    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('ul.area[data-area-id]');
+    if (!el) return null;
+    const rows = [...document.querySelectorAll<HTMLElement>('ul.area[data-area-id]')];
+    const before = beforeAt(rows, el, y, 'data-area-id');
+    return reorderSort(store.areas, id, before) === null ? null : ({ kind: 'before', before } as const);
+  }
 
   let newListOpen = $state(false);
   function newList(kind: 'project' | 'area') {
@@ -72,7 +83,7 @@
 {#snippet navRow(item: NavItem)}
   {@const n = item.count ? store.openCount(item.v) : 0}
   <li>
-    <button class="row" class:active={store.isView(item.v)} class:drop-ok={dropOn(item.v) === 'ok'} data-drop-view={JSON.stringify(item.v)} onclick={() => store.go(item.v)}>
+    <button class="row" class:active={store.isView(item.v)} class:drop-ok={(dropOn(item.v) === 'ok' || sortOn(item.v))} data-drop-view={JSON.stringify(item.v)} onclick={() => store.go(item.v)}>
       <Icon name={item.icon} />
       <span class="label">{item.label}</span>
       {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
@@ -102,7 +113,7 @@
       <ul data-project-list="" class:drop-end={projectDropLine(null, null)} class:drop-zone={!looseProjects.length}>
         {#each looseProjects as p (p.id)}
           <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(null, p.id)} class:dragged={projectDrag.id === p.id}>
-            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
+            <button class="row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={(dropOn({ kind: 'project', id: p.id }) === 'ok' || sortOn({ kind: 'project', id: p.id }))} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
               <ProgressPie value={store.projectProgress(p.id)} />
               <span class="label">{p.name}</span>
             </button>
@@ -114,17 +125,17 @@
       </ul>
     {/if}
 
-    {#each store.areas as a (a.id)}
+    {#each store.areas as a, ai (a.id)}
       {@const projects = projectsIn(a.id)}
       {@const folded = store.collapsedAreas.has(a.id)}
-      <ul class="area" data-project-list={a.id} class:drop-end={projectDropLine(a.id, null) && (!projects.length || folded)}>
+      <ul class="area" data-project-list={a.id} data-area-id={a.id} class:drop-end={projectDropLine(a.id, null) && (!projects.length || folded)} class:area-before={sortLine('area', a.id)} class:area-after={sortLine('area', null) && ai === store.areas.length - 1} class:area-dragged={sortDrag.kind === 'area' && sortDrag.id === a.id}>
         <li class="has-menu" data-area-head>
           {#if projects.length}
             <button class="fold" class:folded onclick={(e) => fold(e, a.id)} aria-expanded={!folded} aria-label={`${folded ? 'Expand' : 'Collapse'} ${a.name}`} title={`${folded ? 'Expand' : 'Collapse'} (${isMac ? '⌥' : 'Alt'}-click: all areas)`}>
               <Icon name="chevron" size={14} />
             </button>
           {/if}
-          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={dropOn({ kind: 'area', id: a.id }) === 'ok' || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)}>
+          <button class="row area-row" class:active={store.isView({ kind: 'area', id: a.id })} class:drop-ok={(dropOn({ kind: 'area', id: a.id }) === 'ok' || sortOn({ kind: 'area', id: a.id })) || (projectDrag.active && projectDrag.slot?.area === a.id)} data-drop-view={JSON.stringify({ kind: 'area', id: a.id })} onclick={() => store.go({ kind: 'area', id: a.id })} oncontextmenu={(e) => menu(e, 'area', a.id)} {@attach sortable({ kind: 'area', id: a.id, label: () => a.name, slotAt: (x, y) => areaSlot(a.id, x, y), drop: (s) => s.kind === 'before' && store.reorderArea(a.id, s.before) })}>
             <Icon name="area" />
             <span class="label">{a.name}</span>
           </button>
@@ -135,7 +146,7 @@
             <ul>
               {#each projects as p (p.id)}
                 <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(a.id, p.id)} class:drop-after={projectDropLine(a.id, null) && p === projects[projects.length - 1]} class:dragged={projectDrag.id === p.id}>
-                  <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
+                  <button class="row in-area" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={(dropOn({ kind: 'project', id: p.id }) === 'ok' || sortOn({ kind: 'project', id: p.id }))} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
                     <ProgressPie value={store.projectProgress(p.id)} />
                     <span class="label">{p.name}</span>
                   </button>
@@ -251,6 +262,30 @@
   li.drop-after::after,
   ul.drop-end > li:last-child::after {
     bottom: -1px;
+  }
+  /* Area drag (gap 1): a line above or below the area that moves, and the area dimmed. */
+  ul.area {
+    position: relative;
+  }
+  ul.area-before::before,
+  ul.area-after::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+  ul.area-before::before {
+    top: -1px;
+  }
+  ul.area-after::after {
+    bottom: -1px;
+  }
+  ul.area-dragged {
+    opacity: 0.45;
   }
   li.dragged {
     opacity: 0.45;

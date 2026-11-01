@@ -21,33 +21,43 @@ const LEAVE_DUMP = { dump: 0, dump_section_id: null } as const;
 const UNSCHEDULED = { when_date: null, evening: 0, someday: 0 } as const;
 
 /**
- * The fields that turn Brain Dump item `t` into a to-do in list `v`, or null when `v` isn't a
- * list it can be converted into (Brain Dump itself, Logbook, Trash, Habits…) or `t` isn't an open
- * Brain Dump item.
+ * The fields a to-do takes on when it lands in sidebar list `v`, or null when `v` isn't a list to
+ * file things in (Brain Dump, Logbook, Trash, Habits…). Shared by Brain Dump drops (#132) and the
+ * other drags that file something in a list: to-dos on Upcoming/This Week, checklist items pulled
+ * out, Logbook/Trash restores.
  */
-export function dumpDropFields(t: Pick<Task, 'dump' | 'completed_at'>, v: ViewKey, day: string): Partial<Task> | null {
-  if (!t.dump || t.completed_at) return null;
+export function listDropFields(v: ViewKey, day: string): Partial<Task> | null {
   switch (v.kind) {
     case 'inbox':
-      return { ...LEAVE_DUMP, ...UNSCHEDULED, project_id: null, area_id: null, heading_id: null };
+      return { ...UNSCHEDULED, project_id: null, area_id: null, heading_id: null };
     case 'today':
-      return { ...LEAVE_DUMP, ...UNSCHEDULED, when_date: day };
+      return { ...UNSCHEDULED, when_date: day };
     case 'upcoming':
-      return { ...LEAVE_DUMP, ...UNSCHEDULED, when_date: upcomingDropDate(day) };
+      return { ...UNSCHEDULED, when_date: upcomingDropDate(day) };
     case 'week':
-      return { ...LEAVE_DUMP, ...UNSCHEDULED, when_date: weekDropDate(day) };
+      return { ...UNSCHEDULED, when_date: weekDropDate(day) };
     case 'anytime':
       // Like moving any to-do to Anytime: without a project or area it shows in the Inbox.
-      return { ...LEAVE_DUMP, ...UNSCHEDULED };
+      return { ...UNSCHEDULED };
     case 'someday':
-      return { ...LEAVE_DUMP, ...UNSCHEDULED, someday: 1 };
+      return { ...UNSCHEDULED, someday: 1 };
     case 'project':
-      return { ...LEAVE_DUMP, project_id: v.id, area_id: null, heading_id: null };
+      return { project_id: v.id, area_id: null, heading_id: null };
     case 'area':
-      return { ...LEAVE_DUMP, project_id: null, area_id: v.id, heading_id: null };
+      return { project_id: null, area_id: v.id, heading_id: null };
     default:
       return null;
   }
+}
+
+/**
+ * The fields that turn Brain Dump item `t` into a to-do in list `v`, or null when `v` isn't a
+ * list it can be converted into or `t` isn't an open Brain Dump item.
+ */
+export function dumpDropFields(t: Pick<Task, 'dump' | 'completed_at'>, v: ViewKey, day: string): Partial<Task> | null {
+  if (!t.dump || t.completed_at) return null;
+  const f = listDropFields(v, day);
+  return f && { ...LEAVE_DUMP, ...f };
 }
 
 /** Sidebar lists a Brain Dump item can be dropped on. */

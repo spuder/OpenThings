@@ -26,6 +26,7 @@
   import { theme } from './lib/theme.svelte';
   import SelectionBar from './lib/ui/SelectionBar.svelte';
   import { drag } from './lib/ui/drag.svelte';
+  import { sortDrag } from './lib/ui/sortDrag.svelte';
   import RepeatEditor from './lib/ui/RepeatEditor.svelte';
   import SwipeSheet from './lib/ui/SwipeSheet.svelte';
 
@@ -205,6 +206,12 @@
     {@const first = store.task(drag.ids[0] ?? null)}
     <div class="drag-ghost" class:refused={drag.target !== null && !drag.target.ok} style:transform={`translate(${drag.x + 14}px, ${drag.y + 10}px)`} aria-hidden="true">
       {drag.ids.length === 1 ? (first?.title ?? 'To-do') : `${drag.ids.length} to-dos`}
+    </div>
+  {/if}
+
+  {#if sortDrag.active && sortDrag.kind !== 'area'}
+    <div class="drag-ghost" class:refused={!sortDrag.slot} style:transform={`translate(${sortDrag.x + 14}px, ${sortDrag.y + 10}px)`} aria-hidden="true">
+      {sortDrag.label}
     </div>
   {/if}
 

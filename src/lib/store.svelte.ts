@@ -28,6 +28,7 @@ import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
 import { projectDrop, type ProjectSlot } from './projectMove';
+import { checklistToTask, FILE_KINDS, headingMove, reorderSort, restoreFields, scheduleDropFields } from './dragRules';
 import { DUMP_DROP_KINDS, dumpDropFields } from './dumpDrop';
 import * as Sel from './selection';
 import type { MenuOption } from './menu';
@@ -1083,7 +1084,104 @@ class Store {
   /** Whether dropping `ids` on a sidebar list does something. */
   acceptsDrop(v: ViewKey): boolean {
     if (this.isView(v) || !viewEnabled(v.kind)) return false;
-    return ['inbox', 'today', 'anytime', 'someday', 'dump', 'logbook', 'trash', 'project', 'area'].includes(v.kind);
+    // Out of the Logbook or Trash: only lists that restore it (gap 5).
+    if (this.view.kind === 'logbook' || this.view.kind === 'trash') return this.knownList(v) && FILE_KINDS.includes(v.kind);
+    return ['inbox', 'today', 'week', 'upcoming', 'anytime', 'someday', 'dump', 'logbook', 'trash', 'project', 'area'].includes(v.kind);
+  }
+
+  /** A sidebar list that exists (a project or area that wasn't deleted meanwhile). */
+  private knownList(v: ViewKey): boolean {
+    return (v.kind !== 'project' || this.projects.some((p) => p.id === v.id)) && (v.kind !== 'area' || this.areas.some((a) => a.id === v.id));
+  }
+
+  /** The display name of sidebar list `v`, for toasts. */
+  private listName(v: ViewKey): string {
+    if (v.kind === 'project') return this.projects.find((p) => p.id === v.id)?.name ?? 'project';
+    if (v.kind === 'area') return this.areas.find((a) => a.id === v.id)?.name ?? 'area';
+    return ({ inbox: 'Inbox', today: 'Today', week: 'This Week', upcoming: 'Upcoming (tomorrow)', anytime: 'Anytime', someday: 'Someday' } as Record<string, string>)[v.kind] ?? 'list';
+  }
+
+  /** Write `fields` to a row of `table` with an undo step that puts back what was there. */
+  private writeUndoable<T extends { id: ID }>(table: string, row: T, fields: Partial<T>, label: string) {
+    const prev = Object.fromEntries(Object.keys(fields).map((k) => [k, (row as Record<string, unknown>)[k] ?? null]));
+    db.update(table, row.id, fields as db.Row);
+    this.undoStack.push(label, () => db.update(table, row.id, prev as db.Row));
+  }
+
+  /** Drag in the sidebar: put area `id` just before area `before` (null: last). One undo step. */
+  reorderArea(id: ID, before: ID | null): boolean {
+    const a = this.areas.find((x) => x.id === id);
+    const sort = a ? reorderSort(this.areas, id, before) : null;
+    if (!a || sort === null) return false;
+    this.bulk('move area', () => this.writeUndoable('areas', a, { sort }, 'move area'));
+    return true;
+  }
+
+  /** Drag in a project: put heading `id` just before heading `before` (null: last). One undo step. */
+  reorderHeading(id: ID, before: ID | null): boolean {
+    const h = this.headings.find((x) => x.id === id);
+    if (!h) return false;
+    const sort = reorderSort(this.headings.filter((x) => x.project_id === h.project_id), id, before);
+    if (sort === null) return false;
+    this.bulk('move heading', () => this.writeUndoable('headings', h, { sort }, 'move heading'));
+    return true;
+  }
+
+  /** Drop a heading on a sidebar project: the heading and its to-dos move there. One undo step. */
+  moveHeadingToProject(id: ID, projectId: ID): boolean {
+    const h = this.headings.find((x) => x.id === id);
+    const m = h && headingMove(h, this.headings, this.projects, projectId);
+    if (!h || !m) return false;
+    const ids = this.tasks.filter((t) => t.heading_id === id && t.project_id === h.project_id).map((t) => t.id);
+    this.bulk('move heading', () => {
+      this.writeUndoable('headings', h, { project_id: projectId, sort: m.sort }, 'move heading');
+      for (const tid of ids) this.update(tid, m.task, 'move heading');
+    });
+    this.notify(`Moved “${h.name}” to ${this.listName({ kind: 'project', id: projectId })}`);
+    return true;
+  }
+
+  /** Drag inside a to-do: put checklist item `id` just before `before` (null: last). One undo step. */
+  reorderChecklist(id: ID, before: ID | null): boolean {
+    const c = this.checklist.find((x) => x.id === id);
+    if (!c) return false;
+    const sort = reorderSort(this.checklistFor(c.task_id), id, before);
+    if (sort === null) return false;
+    this.bulk('move checklist item', () => this.writeUndoable('checklist', c, { sort }, 'move checklist item'));
+    return true;
+  }
+
+  /** Whether a checklist item can be pulled out onto sidebar list `v`. */
+  acceptsChecklistDrop(v: ViewKey): boolean {
+    return FILE_KINDS.includes(v.kind) && viewEnabled(v.kind) && this.knownList(v);
+  }
+
+  /**
+   * Pull checklist item `id` out into its own to-do: next to its parent (`v` null) or in sidebar
+   * list `v` (see checklistToTask). The item leaves the checklist. One undo step.
+   */
+  checklistToTask(id: ID, v: ViewKey | null): ID | null {
+    const c = this.checklist.find((x) => x.id === id);
+    const parent = c && this.task(c.task_id);
+    if (!c || !parent || (v && !this.acceptsChecklistDrop(v))) return null;
+    const f = checklistToTask(c, parent, v, this.day);
+    if (!f) return null;
+    const nid = db.uuid7();
+    this.bulk('make to-do', () => {
+      db.insert('tasks', {
+        id: nid, title: c.title, notes: '', project_id: null, area_id: null, heading_id: null, when_date: null, evening: 0, someday: 0,
+        deadline: null, completed_at: c.done ? new Date().toISOString() : null, created_at: new Date().toISOString(), sort: this.nextSort(),
+        urgent: 0, important: 0, estimate_min: null, rrule: null, dump: 0, dump_section_id: null, deleted_at: null, reminder_at: null, reminder_sent_at: null,
+        ...f,
+      } as unknown as db.Row & { id: string });
+      db.remove('checklist', c.id);
+      this.undoStack.push('make to-do', () => {
+        this.hardDelete(nid);
+        db.insert('checklist', { id: db.uuid7(), task_id: c.task_id, title: c.title, done: c.done, sort: c.sort });
+      });
+    });
+    this.notify(v ? `Made a to-do in ${this.listName(v)}` : 'Made a to-do');
+    return nid;
   }
 
   /**
@@ -1159,7 +1257,35 @@ class Store {
   dropOnView(ids: ID[], v: ViewKey) {
     if (!ids.length || !this.acceptsDrop(v)) return;
     const n = ids.length === 1 ? '' : ` ${ids.length} to-dos`;
+    const from = this.view.kind;
+    if (from === 'logbook' || from === 'trash') {
+      // Restore (gap 5): back to open, with that list's state.
+      const moves = ids.flatMap((id) => {
+        const t = from === 'trash' ? this.trashed.find((x) => x.id === id) : this.task(id);
+        const f = t && restoreFields(t, from, v, this.day);
+        return t && f ? [[t, f] as const] : [];
+      });
+      if (!moves.length) return;
+      this.bulk('restore', () => moves.forEach(([t, f]) => this.writeUndoable('tasks', t, f, 'restore')));
+      for (const [t] of moves) this.keep.delete(t.id);
+      if (from === 'trash') this.selectedId = null;
+      this.notify(`Restored${n} to ${this.listName(v)}`);
+      return;
+    }
     switch (v.kind) {
+      case 'upcoming':
+      case 'week': {
+        // Gap 4: scheduled tomorrow (This Week: tomorrow, or today on Sunday), like Brain Dump drops.
+        const moves = ids.flatMap((id) => {
+          const t = this.task(id);
+          const f = t && scheduleDropFields(t, v, this.day);
+          return f ? [[id, t?.dump ? { ...f, dump: 0, dump_section_id: null } : f] as const] : [];
+        });
+        if (!moves.length) return;
+        this.bulk('move', () => moves.forEach(([id, f]) => this.update(id, f, 'move')));
+        this.notify(`Moved${n} to ${this.listName(v)}`);
+        break;
+      }
       case 'inbox':
       case 'today':
       case 'anytime':

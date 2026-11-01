@@ -45,15 +45,21 @@ export class ServerDb {
   constructor(path = ':memory:') {
     this.sql = new Database(path, { create: true });
     this.sql.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
+    const before = new Set(this.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'").map((r) => r.name));
     this.sql.exec(SCHEMA);
+    const added: [string, string][] = [];
     for (const [tbl, col, decl] of ADDED_COLUMNS) {
-      if (!this.columns(tbl).has(col)) this.sql.exec(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${decl}`);
+      if (!this.columns(tbl).has(col)) {
+        this.sql.exec(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${decl}`);
+        added.push([tbl, col]);
+      }
       this.columnCache.delete(tbl);
     }
     const tagsSql = this.one<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tags'")?.sql ?? '';
     if (/unique/i.test(tagsSql)) this.sql.transaction(() => this.sql.exec(TAGS_DROP_UNIQUE))();
     this.sql.exec('CREATE UNIQUE INDEX IF NOT EXISTS ops_hlc_device ON ops (hlc, device)');
     this.sql.exec('CREATE INDEX IF NOT EXISTS ops_row ON ops (tbl, row_id)');
+    if (before.has('ops')) this.replayStored(SYNC_TABLES.filter((t) => !before.has(t)), added);
     this.device = this.metaGet('device') ?? this.metaInit('device', `srv${uuid7().slice(-9)}`);
     this.epoch = this.metaGet('epoch') ?? this.metaInit('epoch', uuid7().replaceAll('-', '').slice(-16));
     this.clock = new Hlc(this.device);
@@ -152,6 +158,36 @@ export class ServerDb {
       JSON.stringify(op.payload),
       op.device === this.device ? 0 : 1,
     ]);
+  }
+
+  /**
+   * After an upgrade, materialize what older code relayed but couldn't apply: ops for tables it
+   * didn't have, and fields for columns it didn't have. The ops are stored; only the tables lag.
+   */
+  private replayStored(tables: string[], columns: [string, string][]) {
+    const cols = columns.filter(([tbl]) => !tables.includes(tbl));
+    if (!tables.length && !cols.length) return;
+    this.sql.transaction(() => {
+      for (const tbl of tables) {
+        const rows = this.all<Omit<Op, 'payload'> & { payload: string }>('SELECT hlc, device, tbl, row_id, kind, payload FROM ops WHERE tbl = ? ORDER BY hlc', [tbl]);
+        for (const o of rows) {
+          try {
+            this.materialize({ ...o, payload: JSON.parse(o.payload) });
+          } catch (e) {
+            console.warn(`Skipped stored ${o.kind} ${o.tbl}/${o.row_id}: ${(e as Error).message}`);
+          }
+        }
+      }
+      // Oldest first, so the newest value of each field is the one left.
+      for (const [tbl, col] of cols) {
+        const path = `$.${col}`;
+        const sets = this.all<{ row_id: string; v: SqlValue }>(
+          "SELECT row_id, json_extract(payload, ?) AS v FROM ops WHERE tbl = ? AND kind IN ('insert','update') AND json_type(payload, ?) IS NOT NULL ORDER BY hlc",
+          [path, tbl, path],
+        );
+        for (const o of sets) this.run(`UPDATE ${tbl} SET ${col} = ? WHERE id = ?`, [o.v, o.row_id]);
+      }
+    })();
   }
 
   /** Apply one op to the materialized tables (it is not in the ops table yet). */

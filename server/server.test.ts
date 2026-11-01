@@ -3,7 +3,7 @@ import { Database } from 'bun:sqlite';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Op } from '../src/lib/schema';
+import { SCHEMA, type Op } from '../src/lib/schema';
 import { createApp } from './app';
 import { ServerDb } from './db';
 import { Service } from './service';
@@ -128,6 +128,25 @@ describe('sync', () => {
     const db = new ServerDb(path);
     db.push([op('devA', 'tags', 'g2', 'insert', { id: 'g2', name: 'home' })]);
     expect(db.all('SELECT id FROM tags ORDER BY id')).toEqual([{ id: 'g1' }, { id: 'g2' }]);
+    db.close();
+  });
+
+  it('materializes relayed ops for a table and a column it gained in an upgrade (#130)', () => {
+    const path = join(mkdtempSync(join(tmpdir(), 'ot-')), 'old.sqlite');
+    const old = new Database(path);
+    old.exec(SCHEMA.replace(/CREATE TABLE IF NOT EXISTS project_links[^;]*;/, ''));
+    old.exec("INSERT INTO projects (id, name, sort) VALUES ('p1', 'Truck', 1)");
+    const put = (o: Op) => old.query('INSERT INTO ops (hlc, device, tbl, row_id, kind, payload) VALUES (?, ?, ?, ?, ?, ?)').run(o.hlc, o.device, o.tbl, o.row_id, o.kind, JSON.stringify(o.payload));
+    const link = (id: string) => ({ id, project_id: 'p1', type: 'github', label: '', url: `https://github.com/a/${id}`, sort: 1, created_at: '2026-10-31T00:00:00Z' });
+    put(op('devA', 'projects', 'p1', 'update', { color: '#e5484d' }));
+    put(op('devA', 'projects', 'p1', 'update', { color: '#30a46c' }));
+    put(op('devA', 'project_links', 'l1', 'insert', link('l1')));
+    put(op('devA', 'project_links', 'l2', 'insert', link('l2')));
+    put(op('devA', 'project_links', 'l2', 'delete', {}));
+    old.close();
+    const db = new ServerDb(path);
+    expect(db.one('SELECT color FROM projects WHERE id = ?', ['p1'])).toEqual({ color: '#30a46c' });
+    expect(db.all('SELECT id FROM project_links')).toEqual([{ id: 'l1' }]);
     db.close();
   });
 

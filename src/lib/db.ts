@@ -31,15 +31,24 @@ export function onWrite(fn: () => void): () => void {
   return () => writeListeners.delete(fn);
 }
 
-/** Additive schema migrations for databases created by older versions. */
-function migrate() {
+/** Additive schema migrations for databases created by older versions. Returns the columns it added. */
+function migrate(): [string, string][] {
+  const added: [string, string][] = [];
   for (const [tbl, col, decl] of ADDED_COLUMNS) {
     const have = all<{ name: string }>(`PRAGMA table_info(${tbl})`).map((c) => c.name);
-    if (!have.includes(col)) db.run(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${decl}`);
+    if (!have.includes(col)) {
+      db.run(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${decl}`);
+      added.push([tbl, col]);
+    }
   }
   const tagsSql = one<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tags'")?.sql ?? '';
   if (/unique/i.test(tagsSql)) db.exec(`BEGIN; ${TAGS_DROP_UNIQUE} COMMIT;`);
   columnCache.clear();
+  return added;
+}
+
+function tableNames(): Set<string> {
+  return new Set(all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'").map((r) => r.name));
 }
 
 export function deviceId(): string {
@@ -84,7 +93,8 @@ async function idbPut(data: Uint8Array): Promise<void> {
   });
 }
 
-export async function openDb(opts: { memory?: boolean } = {}): Promise<{ fresh: boolean }> {
+/** `data` opens a saved database instead of IndexedDB's (tests: upgrading an older database). */
+export async function openDb(opts: { memory?: boolean; data?: Uint8Array } = {}): Promise<{ fresh: boolean }> {
   const SQL = opts.memory ? await initSqlJs() : await initSqlJs({ locateFile: () => wasmUrl });
   let existing: Uint8Array | undefined;
   if (!opts.memory) {
@@ -94,10 +104,12 @@ export async function openDb(opts: { memory?: boolean } = {}): Promise<{ fresh: 
       existing = undefined;
     }
   }
+  existing ??= opts.data;
   memoryOnly = !!opts.memory;
   db = existing ? new SQL.Database(existing) : new SQL.Database();
+  const before = existing ? tableNames() : null;
   db.exec(SCHEMA);
-  migrate();
+  const addedColumns = migrate();
   const d = one('SELECT value FROM meta WHERE key = ?', ['device']);
   if (d) {
     device = String(d.value);
@@ -106,6 +118,7 @@ export async function openDb(opts: { memory?: boolean } = {}): Promise<{ fresh: 
     db.run('INSERT INTO meta (key, value) VALUES (?, ?)', ['device', device]);
   }
   clock = new Hlc(device);
+  if (before) replayStoredOps(SYNC_TABLES.filter((t) => !before.has(t)), addedColumns);
   return { fresh: !existing };
 }
 
@@ -240,19 +253,9 @@ export function applyRemoteOps(ops: Op[]): number {
       if (op.device === device) continue;
       if (one('SELECT 1 AS x FROM ops WHERE hlc = ? AND device = ?', [op.hlc, op.device])) continue; // already have it
       observeHlc(op.hlc);
-      if (!(SYNC_TABLES as readonly string[]).includes(op.tbl)) continue;
-      // One op that can't apply (a constraint, a bad value) must not block every later sync:
-      // undo just that op's changes, keep the op so it isn't fetched again, and move on.
-      db.run('SAVEPOINT op');
-      let changedRow = false;
-      try {
-        changedRow = applyOne(op);
-        db.run('RELEASE op');
-      } catch (e) {
-        db.run('ROLLBACK TO op');
-        db.run('RELEASE op');
-        console.warn(`Skipped remote ${op.kind} ${op.tbl}/${op.row_id}: ${(e as Error).message}`);
-      }
+      // A table from a newer version isn't applied, but the op is kept: it won't be fetched
+      // again, and replayStoredOps applies it once an upgrade adds the table.
+      const changedRow = (SYNC_TABLES as readonly string[]).includes(op.tbl) && applySafely(op);
       db.run('INSERT INTO ops (hlc, device, tbl, row_id, kind, payload, remote) VALUES (?, ?, ?, ?, ?, ?, 1)', [
         op.hlc,
         op.device,
@@ -270,6 +273,57 @@ export function applyRemoteOps(ops: Op[]): number {
   }
   scheduleSave();
   return applied;
+}
+
+/**
+ * Apply one op inside a savepoint. One op that can't apply (a constraint, a bad value) must not
+ * block every later sync: undo just that op's changes and move on (the caller keeps the op).
+ */
+function applySafely(op: Op): boolean {
+  db.run('SAVEPOINT op');
+  try {
+    const changed = applyOne(op);
+    db.run('RELEASE op');
+    return changed;
+  } catch (e) {
+    db.run('ROLLBACK TO op');
+    db.run('RELEASE op');
+    console.warn(`Skipped remote ${op.kind} ${op.tbl}/${op.row_id}: ${(e as Error).message}`);
+    return false;
+  }
+}
+
+/**
+ * After an upgrade, apply what this device received from newer devices but couldn't use: ops for
+ * tables it didn't have, and fields for columns it didn't have (applyOne skips unknown columns but
+ * keeps the op). Those ops are never fetched again, so without this the data would never show up.
+ */
+function replayStoredOps(tables: string[], columns: [string, string][]) {
+  const cols = columns.filter(([tbl]) => !tables.includes(tbl));
+  if (!tables.length && !cols.length) return;
+  type Stored = Omit<Op, 'payload'> & { payload: string };
+  db.run('BEGIN');
+  try {
+    for (const tbl of tables) {
+      for (const o of all<Stored>('SELECT hlc, device, tbl, row_id, kind, payload FROM ops WHERE tbl = ? ORDER BY hlc', [tbl])) {
+        applySafely({ ...o, payload: JSON.parse(o.payload) });
+      }
+    }
+    // Oldest first, so the newest value of each field is the one left.
+    for (const [tbl, col] of cols) {
+      const path = `$.${col}`;
+      const sets = all<{ row_id: string; v: SqlValue }>(
+        "SELECT row_id, json_extract(payload, ?) AS v FROM ops WHERE tbl = ? AND kind IN ('insert','update') AND json_type(payload, ?) IS NOT NULL ORDER BY hlc",
+        [path, tbl, path],
+      );
+      for (const o of sets) db.run(`UPDATE ${tbl} SET ${col} = ? WHERE id = ?`, [o.v, o.row_id]);
+    }
+    db.run('COMMIT');
+    scheduleSave();
+  } catch (e) {
+    db.run('ROLLBACK');
+    throw e;
+  }
 }
 
 /** Apply one remote op to the data tables. Returns true if local data changed. */

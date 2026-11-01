@@ -1308,29 +1308,55 @@ class Store {
     this.load();
   }
 
-  /** Sidebar drag and drop (#126): put a project in an area (or none), before another project. */
   // ---------- project details (#130) ----------
   linksOf(projectId: ID): ProjectLink[] {
     return this.projectLinks.filter((l) => l.project_id === projectId);
   }
   /** Add a link to a project. Returns false (and says why) if the URL isn't valid. */
   addProjectLink(projectId: ID, url: string, label = ''): boolean {
-    let ok = false;
-    this.bulk('Add link', () => (ok = !!Links.addLink(projectId, url, label)));
-    if (!ok) this.notify('That doesn’t look like a link or path');
-    return ok;
+    const row = Links.addLink(projectId, url, label);
+    if (!row) {
+      this.notify('That doesn’t look like a link or path');
+      return false;
+    }
+    this.undoStack.push('add link', () => Links.removeLink(row.id));
+    this.load();
+    return true;
   }
+  /** Remove a link. Undo adds it back under a new id, because a synced delete is final. */
   removeProjectLink(id: ID) {
-    this.bulk('Remove link', () => Links.removeLink(id));
+    const l = this.projectLinks.find((x) => x.id === id);
+    if (!l) return;
+    Links.removeLink(id);
+    this.undoStack.push('remove link', () => {
+      if (db.one('SELECT 1 AS x FROM projects WHERE id = ?', [l.project_id])) db.insert('project_links', { ...l, id: db.uuid7() });
+    });
+    this.load();
     this.notify('Link removed', { undo: true });
   }
   moveProjectLink(id: ID, dir: -1 | 1) {
-    this.bulk('Move link', () => Links.moveLink(id, dir));
+    const l = this.projectLinks.find((x) => x.id === id);
+    if (!l) return;
+    const before = this.linksOf(l.project_id).map((x) => [x.id, x.sort] as const);
+    if (!Links.moveLink(id, dir)) return;
+    this.undoStack.push('move link', () => {
+      for (const [lid, sort] of before) {
+        const now = db.one<{ sort: number }>('SELECT sort FROM project_links WHERE id = ?', [lid]);
+        if (now && now.sort !== sort) db.update('project_links', lid, { sort });
+      }
+    });
+    this.load();
   }
   setProjectColor(id: ID, color: string | null) {
-    this.bulk('Project color', () => db.update('projects', id, { color }));
+    const p = this.projects.find((x) => x.id === id);
+    if (!p || (p.color ?? null) === color) return;
+    const prev = p.color ?? null;
+    db.update('projects', id, { color });
+    this.undoStack.push('project color', () => db.update('projects', id, { color: prev }));
+    this.load();
   }
 
+  /** Sidebar drag and drop (#126): put a project in an area (or none), before another project. */
   dropProject(id: ID, slot: ProjectSlot): boolean {
     const fields = projectDrop(this.projects, this.areas.map((a) => a.id), id, slot);
     if (!fields) return false;

@@ -8,7 +8,8 @@
   import { cubicOut } from 'svelte/easing';
   import { store } from '../store.svelte';
   import type { Project } from '../types';
-  import { LINK_TYPE_NAMES, linkTitle, normalizeLink, type LinkType } from '../projectLinks';
+  import { LINK_TYPE_NAMES, isPath, linkTitle, normalizeLink, safeHref, type LinkType } from '../projectLinks';
+  import { isDesktop, openLink } from '../native/desktop';
 
   let { project }: { project: Project } = $props();
 
@@ -48,13 +49,25 @@
     }
   }
 
-  /** Web links open in a new tab. Paths and app schemes go to the OS, which may or may not handle them. */
-  function href(u: string): string {
-    if (/^(~|\/(?!\/)|[a-zA-Z]:[\\/]|\\\\)/.test(u)) return `file://${u.replace(/\\/g, '/').replace(/^(?=[a-zA-Z]:)/, '/')}`;
-    return u;
+  function copy(u: string, msg = 'Copied') {
+    navigator.clipboard?.writeText(u).then(() => store.notify(msg), () => store.notify('Couldn’t copy'));
   }
-  function copy(u: string) {
-    navigator.clipboard?.writeText(u).then(() => store.notify('Copied'), () => {});
+
+  /**
+   * The desktop webview doesn't hand links to the system, so the shell opens them (and refuses
+   * schemes it doesn't know). In a browser, web links open normally; local paths can't be opened
+   * from a web page, so they're copied instead.
+   */
+  function open(e: MouseEvent, u: string) {
+    if (isDesktop) {
+      e.preventDefault();
+      openLink(u).catch(() => copy(u, 'Couldn’t open that here; copied it'));
+      return;
+    }
+    if (!safeHref(u)) {
+      e.preventDefault();
+      copy(u, isPath(u) ? 'Path copied; browsers can’t open local folders' : 'Copied');
+    }
   }
 </script>
 
@@ -89,11 +102,16 @@
       <ul class="links">
         {#each links as l, i (l.id)}
           {@const t = typeOf(l.type)}
+          {@const h = safeHref(l.url)}
           <li>
             <svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" style:color={tint[t]}>
               <path d={glyph[t]} fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            <a href={href(l.url)} target="_blank" rel="noopener noreferrer" title={`${LINK_TYPE_NAMES[t]} · ${l.url}`}>{linkTitle(l)}</a>
+            {#if h}
+              <a class="link" href={h} target="_blank" rel="noopener noreferrer" title={`${LINK_TYPE_NAMES[t]} · ${l.url}`} onclick={(e) => open(e, l.url)}>{linkTitle(l)}</a>
+            {:else}
+              <button class="link" title={`${LINK_TYPE_NAMES[t]} · ${l.url}${isDesktop ? '' : ' (click to copy)'}`} onclick={(e) => open(e, l.url)}>{linkTitle(l)}</button>
+            {/if}
             <span class="acts">
               <button onclick={() => copy(l.url)} aria-label="Copy link" title="Copy">⧉</button>
               <button onclick={() => store.moveProjectLink(l.id, -1)} disabled={i === 0} aria-label="Move up" title="Move up">↑</button>
@@ -156,8 +174,8 @@
   .links li { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; min-width: 0; }
   .links li:hover { background: var(--accent-soft); }
   .ico { flex: none; }
-  .links a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); text-decoration: none; font-size: 14px; }
-  .links a:hover { text-decoration: underline; }
+  .links .link { flex: 1; text-align: left; padding: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); text-decoration: none; font-size: 14px; }
+  .links .link:hover { text-decoration: underline; }
   .acts { display: flex; gap: 0; opacity: 0; transition: opacity 0.12s; }
   .links li:hover .acts, .links li:focus-within .acts { opacity: 1; }
   @media (hover: none) { .acts { opacity: 1; } }

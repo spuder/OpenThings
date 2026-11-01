@@ -25,7 +25,7 @@ export const LINK_TYPE_NAMES: Record<LinkType, string> = {
 const hostIs = (host: string, ...domains: string[]) => domains.some((d) => host === d || host.endsWith(`.${d}`));
 
 /** A local path: /abs, ~/home, C:\ or C:/, \\server\share or file://. */
-function isPath(s: string): boolean {
+export function isPath(s: string): boolean {
   return /^(~(\/|$)|\/(?!\/)|[a-zA-Z]:[\\/]|\\\\[^\\]+\\)/.test(s) || /^file:/i.test(s);
 }
 
@@ -85,6 +85,16 @@ export function normalizeLink(raw: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The href to render for a link, or null when it shouldn't be a plain link: local paths (browsers
+ * won't open file:// from a web page) and anything normalizeLink rejects. Links that arrive by sync
+ * never went through normalizeLink, so this check runs again at render time.
+ */
+export function safeHref(url: string): string | null {
+  if (isPath(url.trim())) return null;
+  return normalizeLink(url) === url ? url : null;
 }
 
 /** The text to show for a link: its label, or a short form of the URL. */

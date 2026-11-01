@@ -360,6 +360,7 @@ export const commands: Command[] = [
     run: () => {
       if (store.isMulti) store.clearMulti();
       else if (store.expandedId) store.expandedId = null;
+      else if (store.detailsOpen) store.detailsOpen = false;
       else store.selectedId = null;
     },
   },
@@ -434,6 +435,14 @@ export const commands: Command[] = [
       if (v.kind === 'area') openListMenu({ kind: 'area', id: v.id });
       if (v.kind === 'project') openListMenu({ kind: 'project', id: v.id });
     },
+  },
+  {
+    id: 'list.details',
+    title: 'Project details (links, color)',
+    group: 'App',
+    keys: ['mod+i'],
+    when: () => store.view.kind === 'project',
+    run: () => (store.detailsOpen = !store.detailsOpen),
   },
   // Outside a text field; inside one, ⌘Z / Ctrl+Z is the field's own text undo.
   { id: 'app.undo', title: 'Undo', group: 'App', keys: ['mod+z'], when: () => !typingNow(), run: () => store.undo() },

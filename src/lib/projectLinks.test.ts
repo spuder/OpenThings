@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as db from './db';
-import { addLink, detectLinkType, linkTitle, listLinks, moveLink, normalizeLink, removeLink, updateLink } from './projectLinks';
+import { addLink, detectLinkType, linkTitle, listLinks, moveLink, normalizeLink, removeLink, safeHref, updateLink } from './projectLinks';
 
 describe('detectLinkType', () => {
   it.each([
@@ -42,6 +42,16 @@ describe('normalizeLink', () => {
   it('rejects empty, unsafe or malformed input', () => {
     for (const bad of ['', '   ', 'hello world', 'notalink', 'javascript:alert(1)', 'data:text/html,x', 'https://', 'mailto:']) {
       expect(normalizeLink(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe('safeHref', () => {
+  it('keeps web and app links, not paths or unsafe links that arrived by sync', () => {
+    expect(safeHref('https://github.com/a/b')).toBe('https://github.com/a/b');
+    expect(safeHref('vscode://file/x')).toBe('vscode://file/x');
+    for (const u of ['~/code/x', '/Users/me', 'file:///home/me/a.md', 'javascript:alert(1)', 'JavaScript:alert(1)', 'data:text/html,x', 'not a link']) {
+      expect(safeHref(u), u).toBeNull();
     }
   });
 });

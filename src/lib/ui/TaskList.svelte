@@ -5,6 +5,29 @@
   import TaskRow from './TaskRow.svelte';
   import Icon from './Icon.svelte';
   import { dropLine } from './drag.svelte';
+  import { beforeAt, sortable, sortDrag, sortLine, viewAt, type SortSlot } from './sortDrag.svelte';
+  import { headingMove, reorderSort } from '../dragRules';
+
+  /**
+   * Heading drag (gap 2): over another heading of this project, where it would land; over a
+   * project in the sidebar, that project (the heading and its to-dos move there).
+   */
+  function headingSlot(id: string, x: number, y: number): SortSlot | null {
+    const h = store.headings.find((x) => x.id === id);
+    if (!h) return null;
+    const v = viewAt(x, y);
+    if (v) return v.kind === 'project' && headingMove(h, store.headings, store.projects, v.id) ? { kind: 'view', view: v } : null;
+    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('section[data-heading]');
+    if (!el) return null;
+    const rows = [...document.querySelectorAll<HTMLElement>('section[data-heading]')];
+    const before = beforeAt(rows, el, y, 'data-heading');
+    const list = store.headings.filter((x) => x.project_id === h.project_id);
+    return reorderSort(list, id, before) === null ? null : { kind: 'before', before };
+  }
+  function headingDrop(id: string, s: SortSlot) {
+    if (s.kind === 'view' && s.view.kind === 'project') store.moveHeadingToProject(id, s.view.id);
+    else if (s.kind === 'before') store.reorderHeading(id, s.before);
+  }
 
   let { groups, showWhen = false, showContainer = false, empty = 'Nothing here.' }: {
     groups: Group[];
@@ -13,6 +36,7 @@
     empty?: string;
   } = $props();
 
+  const headed = $derived(groups.filter((g) => g.headingId));
   const total = $derived(groups.reduce((n, g) => n + g.items.length, 0));
 
   /** In a multi-selection, a picked row whose neighbour is picked too joins it into one block. */
@@ -27,8 +51,14 @@
 {/if}
 
 {#each groups as g (g.key)}
-  <section class="group" class:titled={!!g.title} data-group={g.key}>
-    {#if g.title}
+  <section class="group" class:titled={!!g.title} data-group={g.key} data-heading={g.headingId} class:drop-before={!!g.headingId && sortLine('heading', g.headingId)} class:drop-end={!!g.headingId && sortLine('heading', null) && g === headed[headed.length - 1]} class:heading-dragged={!!g.headingId && sortDrag.kind === 'heading' && sortDrag.id === g.headingId}>
+    {#if g.title && g.headingId}
+      <header class="draggable-heading" title="Drag to reorder, or onto a project in the sidebar to move it there" {@attach sortable({ kind: 'heading', id: g.headingId, label: () => g.title ?? 'Heading', slotAt: (x, y) => headingSlot(g.headingId!, x, y), drop: (s) => headingDrop(g.headingId!, s), skip: 'button' })}>
+        <h2>{g.title}</h2>
+        {#if g.subtitle}<span class="sub">{g.subtitle}</span>{/if}
+        <button class="remove" onclick={() => store.deleteHeading(g.headingId!)} aria-label={`Remove ${g.title} heading`} title="Remove heading">×</button>
+      </header>
+    {:else if g.title}
       <header class:evening={g.key === 'evening'}>
         {#if g.key === 'evening'}<Icon name="evening" size={15} />{/if}
         <h2>{g.title}</h2>
@@ -50,10 +80,18 @@
 
 <style>
   .group {
+    position: relative;
     margin-bottom: 18px;
   }
   .group.titled {
     margin-top: 26px;
+  }
+  .heading-dragged {
+    opacity: 0.45;
+  }
+  .draggable-heading {
+    cursor: grab;
+    touch-action: pan-y;
   }
   header {
     display: flex;

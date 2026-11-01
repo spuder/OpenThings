@@ -9,6 +9,8 @@
   import Checkbox from './Checkbox.svelte';
   import { isTouch } from '../env';
   import { drag, draggable } from './drag.svelte';
+  import { beforeAt, sortable, sortLine, sortDrag, viewAt, type SortSlot } from './sortDrag.svelte';
+  import { reorderSort } from '../dragRules';
   import { swipeable } from './swipe.svelte';
   import { isMac } from '../commands';
 
@@ -45,6 +47,29 @@
   let el: HTMLElement | undefined = $state();
   let titleInput: HTMLInputElement | undefined = $state();
   let newItem = $state('');
+
+  /**
+   * Checklist drag (gap 3): within the checklist, where it would land; over a sidebar list, that
+   * list; anywhere else on the task list, a new to-do next to this one.
+   */
+  function checkSlot(id: string, x: number, y: number): SortSlot | null {
+    const v = viewAt(x, y);
+    if (v) return store.acceptsChecklistDrop(v) ? { kind: 'view', view: v } : null;
+    const el = document.elementFromPoint(x, y);
+    const own = el?.closest('ul.checklist');
+    if (own && own === document.querySelector(`[data-id="${task.id}"] ul.checklist`)) {
+      const row = el!.closest<HTMLElement>('li[data-check-id]');
+      if (!row) return null;
+      const rows = [...own.querySelectorAll<HTMLElement>('li[data-check-id]')];
+      const before = beforeAt(rows, row, y, 'data-check-id');
+      return reorderSort(items, id, before) === null ? null : { kind: 'before', before };
+    }
+    return el?.closest('[data-group]') ? { kind: 'tasks' } : null;
+  }
+  function checkDrop(id: string, s: SortSlot) {
+    if (s.kind === 'before') store.reorderChecklist(id, s.before);
+    else store.checklistToTask(id, s.kind === 'view' ? s.view : null);
+  }
 
   $effect(() => {
     if (store.selectedId === task.id && el && !drag.active) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -137,7 +162,7 @@
   ondblclick={openOnDouble}
   oncontextmenu={contextMenu}
   onkeydown={() => {}}
-  {@attach draggable(task.id)}
+  {@attach draggable(task.id, store.view.kind === 'trash' ? 'trash' : 'tasks')}
   {@attach swipeable(task.id)}
 >
   <div class="row">
@@ -192,8 +217,8 @@
       <textarea class="notes" placeholder="Notes" value={task.notes} onblur={saveNotes} onkeydown={fieldKey} rows="3"></textarea>
 
       <ul class="checklist">
-        {#each items as c (c.id)}
-          <li>
+        {#each items as c, ci (c.id)}
+          <li data-check-id={c.id} class:drop-before={sortLine('checklist', c.id)} class:drop-end={sortLine('checklist', null) && ci === items.length - 1} class:check-dragged={sortDrag.kind === 'checklist' && sortDrag.id === c.id} title="Drag to reorder, or out of the checklist to make it a to-do" {@attach sortable({ kind: 'checklist', id: c.id, label: () => c.title, slotAt: (x, y) => checkSlot(c.id, x, y), drop: (s) => checkDrop(c.id, s), skip: 'button, input' })}>
             <Checkbox small checked={!!c.done} onToggle={() => store.toggleChecklist(c.id)} />
             <span class:checked={c.done}>{c.title}</span>
             <button class="x" onclick={() => store.removeChecklist(c.id)} aria-label="Remove item">×</button>
@@ -492,6 +517,12 @@
     color: var(--text-2);
     font-size: 13.5px;
     padding: 2px 0 6px;
+  }
+  .checklist li[data-check-id] {
+    position: relative;
+  }
+  .check-dragged {
+    opacity: 0.45;
   }
   .checklist {
     list-style: none;

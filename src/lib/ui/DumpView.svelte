@@ -6,6 +6,7 @@
   import { dumpAgeFraction, DUMP_TTL_MS } from '../views';
   import { prompt } from '../commands';
   import type { Task } from '../types';
+  import { draggable } from './drag.svelte';
 
   let drafts = $state<Record<string, string>>({});
   const selectedDump = $derived(store.task(store.selectedId)?.dump ? store.task(store.selectedId) : undefined);
@@ -83,6 +84,8 @@
               onkeydown={() => {}}
               role="option"
               aria-selected={store.selectedId === t.id}
+              title="Drag onto a list in the sidebar to keep it there"
+              {@attach draggable(t.id, 'dump')}
             >
               <button class="mark" onclick={(e) => { e.stopPropagation(); store.toggleComplete(t.id); }} aria-label="Check off">
                 <svg viewBox="0 0 24 24" aria-hidden="true">

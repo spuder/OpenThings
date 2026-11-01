@@ -12,6 +12,7 @@ import type {
   Heading,
   ID,
   Project,
+  ProjectLink,
   Tag,
   Task,
   TaskTag,
@@ -28,6 +29,7 @@ import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
 import { projectDrop, type ProjectSlot } from './projectMove';
+import * as Links from './projectLinks';
 import * as Sel from './selection';
 import type { MenuOption } from './menu';
 import { features, viewEnabled, type FeatureId } from './features.svelte';
@@ -95,6 +97,9 @@ class Store {
   ready = $state(false);
   areas = $state<Area[]>([]);
   projects = $state<Project[]>([]);
+  projectLinks = $state<ProjectLink[]>([]);
+  /** The project details panel (links, color) is open. */
+  detailsOpen = $state(false);
   headings = $state<Heading[]>([]);
   tasks = $state<Task[]>([]);
   /** Tasks in the Trash, newest first. */
@@ -257,6 +262,7 @@ class Store {
     this.loadPending = false;
     this.areas = db.all<Area>('SELECT * FROM areas ORDER BY sort');
     this.projects = db.all<Project>('SELECT * FROM projects ORDER BY sort');
+    this.projectLinks = db.all<ProjectLink>('SELECT * FROM project_links ORDER BY sort, id');
     this.headings = db.all<Heading>('SELECT * FROM headings ORDER BY sort');
     this.tasks = db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NULL');
     this.trashed = db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC');
@@ -1303,6 +1309,28 @@ class Store {
   }
 
   /** Sidebar drag and drop (#126): put a project in an area (or none), before another project. */
+  // ---------- project details (#130) ----------
+  linksOf(projectId: ID): ProjectLink[] {
+    return this.projectLinks.filter((l) => l.project_id === projectId);
+  }
+  /** Add a link to a project. Returns false (and says why) if the URL isn't valid. */
+  addProjectLink(projectId: ID, url: string, label = ''): boolean {
+    let ok = false;
+    this.bulk('Add link', () => (ok = !!Links.addLink(projectId, url, label)));
+    if (!ok) this.notify('That doesn’t look like a link or path');
+    return ok;
+  }
+  removeProjectLink(id: ID) {
+    this.bulk('Remove link', () => Links.removeLink(id));
+    this.notify('Link removed', { undo: true });
+  }
+  moveProjectLink(id: ID, dir: -1 | 1) {
+    this.bulk('Move link', () => Links.moveLink(id, dir));
+  }
+  setProjectColor(id: ID, color: string | null) {
+    this.bulk('Project color', () => db.update('projects', id, { color }));
+  }
+
   dropProject(id: ID, slot: ProjectSlot): boolean {
     const fields = projectDrop(this.projects, this.areas.map((a) => a.id), id, slot);
     if (!fields) return false;
@@ -1332,6 +1360,7 @@ class Store {
       db.update('tasks', t.id, { deleted_at: now });
     }
     for (const h of this.headings.filter((h) => h.project_id === id)) db.remove('headings', h.id);
+    for (const l of this.projectLinks.filter((l) => l.project_id === id)) db.remove('project_links', l.id);
     db.remove('projects', id);
     this.load();
     if (this.view.kind === 'project' && this.view.id === id) this.go({ kind: 'inbox' });

@@ -3,6 +3,7 @@
   import { store } from './lib/store.svelte';
   import { commands, handleKey, openListMenu, trackModifier } from './lib/commands';
   import { formatDuration, longLabel } from './lib/dates';
+  import ProjectDetails from './lib/ui/ProjectDetails.svelte';
   import Sidebar from './lib/ui/Sidebar.svelte';
   import TaskList from './lib/ui/TaskList.svelte';
   import DumpView from './lib/ui/DumpView.svelte';
@@ -151,13 +152,16 @@
           {#key store.view}
             <header class="view-head" in:fly={{ y: 6, duration: 200 }}>
               {#if project}
-                <ProgressPie value={store.projectProgress(project.id)} size={26} />
+                <ProgressPie value={store.projectProgress(project.id)} size={26} color={project.color} />
               {:else}
                 <Icon name={iconName} size={28} />
               {/if}
               <h1>{store.viewTitle}</h1>
               {#if v.kind === 'today'}<span class="date">{longLabel(store.day)}</span>{/if}
               {#if v.kind === 'area' || v.kind === 'project'}
+                {#if project}
+                  <button class="head-more details-btn" class:on={store.detailsOpen} onclick={() => (store.detailsOpen = !store.detailsOpen)} title="Details: links, paths, color" aria-label="Project details" aria-expanded={store.detailsOpen}>ⓘ</button>
+                {/if}
                 <button class="head-more" onclick={() => openListMenu({ kind: v.kind as 'area' | 'project', id: (v as { id: string }).id })} title="Rename, move, delete (⇧L)" aria-label="List actions">⋯</button>
               {/if}
             </header>
@@ -187,6 +191,7 @@
         </div>
       </div>
 
+      {#if project && store.detailsOpen}<ProjectDetails {project} />{/if}
       {#if store.isMulti && store.canMulti}<SelectionBar />{/if}
       <BottomBar />
     </main>

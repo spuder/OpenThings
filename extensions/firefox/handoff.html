@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Opening OpenThings…</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>body { width: auto; display: grid; place-items: center; min-height: 80vh; } main { max-width: 420px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }</style>
+  <script type="module" src="handoff.js"></script>
+</head>
+<body>
+  <main>
+    <img src="icons/icon-64.png" alt="" width="48" height="48" />
+    <h1 style="font-size: 16px; margin: 0">Opening OpenThings…</h1>
+    <p id="msg">If Firefox asks, allow it to open <b>openthings</b> links with OpenThings (tick <i>Always allow</i> so it won't ask again). Then press <b>It worked</b>: later to-dos are sent without opening a tab.</p>
+    <div class="buttons" style="gap: 8px">
+      <button type="button" id="retry" class="secondary">Try again</button>
+      <button type="button" id="close" class="secondary">Close</button>
+      <button type="button" id="worked">It worked</button>
+    </div>
+    <p class="hint" style="font-size: 12px; color: var(--muted)">Nothing happened? Install the OpenThings desktop app, or use your server in the extension's Settings.</p>
+  </main>
+</body>
+</html>

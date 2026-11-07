@@ -2,6 +2,16 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.14.0](https://github.com/spuder/OpenThings/releases/tag/v0.14.0) - 2026-11-06
+
+### What's Changed
+
+* Idle projects: a project can be active, idle or completed. Idle projects wait in Someday and in a folded Idle section of the sidebar, and their undated to-dos leave Anytime and the Matrix. Make one idle from its menu, with ⇧I, or by dragging it onto Idle or Someday. Scheduling one of its to-dos makes it active again, and a project with nothing scheduled for 14 days drifts to idle (Settings → Features). Also in the REST API and MCP (`set_project_status`), and Someday projects from Things import as idle. By @spuder in https://github.com/spuder/OpenThings/pull/137
+* Drag Brain Dump items onto lists in the sidebar to move them out of the Brain Dump. By @spuder in https://github.com/spuder/OpenThings/pull/135 (https://github.com/spuder/OpenThings/issues/132)
+* Docs updated for the v0.13.0 sidebar and quick add changes, with accuracy fixes. By @spuder in https://github.com/spuder/OpenThings/pull/133
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.13.0...v0.14.0
+
 ## [v0.13.0](https://github.com/spuder/OpenThings/releases/tag/v0.13.0) - 2026-10-30
 
 ### What's Changed

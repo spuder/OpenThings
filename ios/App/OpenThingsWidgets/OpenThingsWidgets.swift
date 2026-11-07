@@ -292,10 +292,100 @@ struct SyncWidget: Widget {
     }
 }
 
+// MARK: - Quick-add widgets
+//
+// A widget can't take text input, and an App Intent run from a widget button runs in the
+// background with no prompt, so these open the app straight into quick add instead.
+// Voice capture goes through Siri / the Action Button with the Add To-Do intent (docs/ios.md).
+
+private struct QuickAddEntry: TimelineEntry { let date: Date }
+
+/// Static content: one entry, never refreshed, and no snapshot read.
+private struct QuickAddProvider: TimelineProvider {
+    func placeholder(in context: Context) -> QuickAddEntry { QuickAddEntry(date: Date()) }
+    func getSnapshot(in context: Context, completion: @escaping (QuickAddEntry) -> Void) {
+        completion(QuickAddEntry(date: Date()))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<QuickAddEntry>) -> Void) {
+        completion(Timeline(entries: [QuickAddEntry(date: Date())], policy: .never))
+    }
+}
+
+private struct QuickAddView: View {
+    @Environment(\.widgetFamily) private var family
+    let title: String
+    let symbol: String
+    let url: URL?
+
+    var body: some View {
+        content
+            .widgetURL(url)
+            .otWidgetBackground()
+    }
+
+    @ViewBuilder private var content: some View {
+        switch family {
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: symbol).font(.title2.weight(.semibold))
+            }
+        default:
+            VStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundStyle(OTColors.accent)
+                Text(title)
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+private func quickAddConfiguration(kind: String, title: String, symbol: String, url: String, description: String) -> some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: QuickAddProvider()) { _ in
+        QuickAddView(title: title, symbol: symbol, url: URL(string: url))
+    }
+    .configurationDisplayName(title)
+    .description(description)
+    .supportedFamilies([.systemSmall, .accessoryCircular])
+}
+
+/// Opens quick add with the to-do bound for the Inbox (`@inbox`), whatever list the app was on.
+struct AddInboxWidget: Widget {
+    var body: some WidgetConfiguration {
+        quickAddConfiguration(
+            kind: "OpenThingsAddInbox",
+            title: "Add to Inbox",
+            symbol: "plus",
+            url: "openthings://add?when=inbox",
+            description: "Opens quick add for a new Inbox to-do."
+        )
+    }
+}
+
+/// Opens the plain Brain Dump box. With Brain Dump turned off, the app opens quick add for the Inbox.
+struct AddBrainDumpWidget: Widget {
+    var body: some WidgetConfiguration {
+        quickAddConfiguration(
+            kind: "OpenThingsAddBrainDump",
+            title: "Brain Dump",
+            symbol: "bolt",
+            url: "openthings://add?dump=1",
+            description: "Opens the Brain Dump box to get something out of your head."
+        )
+    }
+}
+
 @main
 struct OpenThingsWidgets: WidgetBundle {
     var body: some Widget {
         TodayWidget()
         SyncWidget()
+        AddInboxWidget()
+        AddBrainDumpWidget()
     }
 }

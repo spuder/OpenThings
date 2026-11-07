@@ -26,6 +26,9 @@ export interface When {
   inbox: boolean;
 }
 
+/** What opens quick add as the plain Brain Dump box (the B key, the Brain Dump widget). */
+export const DUMP_PREFILL = '@dump ';
+
 export type TokenKind = 'tag' | 'project' | 'when' | 'deadline' | 'estimate' | 'repeat' | 'matrix' | 'dump' | 'reminder';
 
 export interface Parsed {

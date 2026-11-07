@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { describeWhen, dumpGroups, expiredDumpSections, thisWeek } from './views';
-import type { DumpSection, Task } from './types';
+import { anytime, describeWhen, driftingProjects, dumpGroups, expiredDumpSections, isParked, matrix, thisWeek, wakesProject } from './views';
+import type { DumpSection, Project, Task } from './types';
 
 const base = {
   notes: '', project_id: null, area_id: null, heading_id: null, someday: 0, evening: 0, dump: 0, dump_section_id: null,
@@ -113,5 +113,58 @@ describe('describeWhen', () => {
     expect(describeWhen(t('a', { when_date: '2026-10-15' }), day)).toBe('Moved to Upcoming · Tomorrow');
     expect(describeWhen(t('a', { when_date: '2026-10-16' }), day)).toBe('Moved to Upcoming · Friday');
     expect(describeWhen(t('a', { when_date: '2026-11-02' }), day)).toBe('Moved to Upcoming · Nov 2');
+  });
+});
+
+describe('idle projects', () => {
+  const day = '2026-10-14';
+  const idle = new Set(['P']);
+  const tasks = [
+    t('parked', { project_id: 'P' }),
+    t('dated', { project_id: 'P', when_date: day }),
+    t('due', { project_id: 'P', deadline: '2026-10-30', important: 1 }),
+    t('active', { project_id: 'Q' }),
+  ];
+
+  it('parks only the undated to-dos of an idle project', () => {
+    expect(tasks.filter((x) => isParked(x, idle)).map((x) => x.id)).toEqual(['parked']);
+    expect(tasks.filter((x) => isParked(x, new Set())).map((x) => x.id)).toEqual([]);
+  });
+
+  it('leaves parked to-dos out of Anytime and the Matrix', () => {
+    expect(anytime(tasks, day, new Set(), idle).map((x) => x.id)).toEqual(['dated', 'due', 'active']);
+    const m = matrix(tasks, new Set(), idle);
+    expect([...m.do, ...m.schedule, ...m.delegate, ...m.drop].map((x) => x.id).sort()).toEqual(['active', 'dated', 'due']);
+  });
+});
+
+describe('idle drift and wake-up', () => {
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.parse('2026-11-06T12:00:00Z');
+  const P = (id: string, extra: Partial<Project> = {}): Project => ({ id, area_id: null, name: id, notes: '', sort: 0, completed_at: null, ...extra });
+
+  it('idles active projects with nothing scheduled after 14 quiet days', () => {
+    const projects = [P('stale'), P('recent'), P('dated'), P('due'), P('idle', { status: 'idle' }), P('done', { completed_at: '2026-10-01' }), P('unknown')];
+    const tasks = [
+      t('a', { project_id: 'stale' }),
+      t('b', { project_id: 'dated', when_date: '2026-12-01' }),
+      t('c', { project_id: 'due', deadline: '2026-12-01' }),
+      t('d', { project_id: 'stale', when_date: '2026-10-01', completed_at: '2026-10-01T00:00:00Z' }),
+    ];
+    const at = new Map(['stale', 'dated', 'due', 'idle', 'done'].map((id) => [id, now - 15 * day]));
+    at.set('recent', now - 13 * day);
+    expect(driftingProjects(projects, tasks, at, now).map((p) => p.id)).toEqual(['stale']);
+  });
+
+  it('wakes on a new date or deadline, or a dated to-do moving in', () => {
+    const plain = t('x', { project_id: 'P' });
+    expect(wakesProject(plain, { when_date: '2026-11-06' })).toBe(true);
+    expect(wakesProject(plain, { deadline: '2026-11-20' })).toBe(true);
+    expect(wakesProject(plain, { notes: 'hi' })).toBe(false);
+    expect(wakesProject(plain, { someday: 1, when_date: null })).toBe(false);
+    const dated = t('y', { when_date: '2026-11-06' });
+    expect(wakesProject(dated, { project_id: 'P' })).toBe(true);
+    expect(wakesProject(dated, { when_date: '2026-11-06' })).toBe(false);
+    expect(wakesProject({ ...dated, completed_at: '2026-11-01T00:00:00Z' }, { project_id: 'P' })).toBe(false);
   });
 });

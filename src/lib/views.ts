@@ -1,5 +1,5 @@
 /** Pure view filters over task rows, so they can be unit tested. */
-import type { DumpSection, Task } from './types';
+import type { DumpSection, Project, Task } from './types';
 import { addDays, parseYmd, relLabel } from './dates';
 
 export const DUMP_TTL_MS = 48 * 60 * 60 * 1000;
@@ -10,6 +10,48 @@ function visible(t: Task, keep: Set<string>): boolean {
 }
 
 const bySort = (a: Task, b: Task) => a.sort - b.sort;
+
+/**
+ * A to-do parked with its idle project: hidden from Anytime and the Matrix. One with a When date
+ * or deadline isn't, since a date the user set still counts.
+ */
+export function isParked(t: Task, idle: Set<string>): boolean {
+  return t.project_id !== null && idle.has(t.project_id) && t.when_date === null && t.deadline === null;
+}
+
+/** An active project with nothing scheduled goes idle after this many days without activity. */
+export const IDLE_AFTER_DAYS = 14;
+
+const scheduled = (t: Task) => t.completed_at === null && !t.deleted_at && (t.when_date !== null || t.deadline !== null);
+
+/**
+ * Active projects that drift to idle: no open to-do with a When date or deadline, and no change to
+ * the project, its to-dos, headings, checklists or timers for IDLE_AFTER_DAYS. `lastActivity` maps
+ * a project to its latest change (ms); a project missing from it is left alone.
+ */
+export function driftingProjects(projects: Project[], tasks: Task[], lastActivity: Map<string, number>, now: number): Project[] {
+  const busy = new Set(tasks.filter(scheduled).map((t) => t.project_id));
+  const cutoff = now - IDLE_AFTER_DAYS * 24 * 60 * 60 * 1000;
+  return projects.filter((p) => {
+    const at = lastActivity.get(p.id);
+    return !p.completed_at && p.status !== 'idle' && !busy.has(p.id) && at !== undefined && at < cutoff;
+  });
+}
+
+/**
+ * Should a change to to-do `t` wake its idle project? Yes when the user gives it a When date or
+ * deadline, or moves a dated to-do into the project. `fields` is the change; repeats creating their
+ * next to-do don't come through here, so they never wake a project.
+ */
+export function wakesProject(t: Task, fields: Partial<Task>): boolean {
+  const after = { ...t, ...fields };
+  if (after.completed_at !== null || (after.when_date === null && after.deadline === null)) return false;
+  return (
+    ('when_date' in fields && fields.when_date !== null && fields.when_date !== t.when_date) ||
+    ('deadline' in fields && fields.deadline !== null && fields.deadline !== t.deadline) ||
+    ('project_id' in fields && fields.project_id !== t.project_id)
+  );
+}
 
 export function dumpAgeFraction(t: Task, now: number): number {
   const age = now - Date.parse(t.created_at);
@@ -113,13 +155,14 @@ export function thisWeek(tasks: Task[], day: string, keep: Set<string>): { date:
 }
 
 /** Anytime: everything actionable now that isn't in the Inbox, Someday, or scheduled for later. */
-export function anytime(tasks: Task[], day: string, keep: Set<string>): Task[] {
+export function anytime(tasks: Task[], day: string, keep: Set<string>, idle: Set<string> = new Set()): Task[] {
   return tasks
     .filter(
       (t) =>
         visible(t, keep) &&
         !t.dump &&
         !t.someday &&
+        !isParked(t, idle) &&
         (t.when_date === null || t.when_date <= day) &&
         (t.project_id !== null || t.area_id !== null || t.when_date !== null),
     )
@@ -151,10 +194,10 @@ export function quadrantOf(t: Task): Quadrant {
   return 'drop';
 }
 
-/** Matrix shows open, non-dump, non-someday tasks. */
-export function matrix(tasks: Task[], keep: Set<string>): Record<Quadrant, Task[]> {
+/** Matrix shows open, non-dump, non-someday tasks, leaving out those parked in idle projects. */
+export function matrix(tasks: Task[], keep: Set<string>, idle: Set<string> = new Set()): Record<Quadrant, Task[]> {
   const out: Record<Quadrant, Task[]> = { do: [], schedule: [], delegate: [], drop: [] };
-  for (const t of tasks.filter((t) => visible(t, keep) && !t.dump && !t.someday).sort(bySort)) {
+  for (const t of tasks.filter((t) => visible(t, keep) && !t.dump && !t.someday && !isParked(t, idle)).sort(bySort)) {
     out[quadrantOf(t)].push(t);
   }
   return out;

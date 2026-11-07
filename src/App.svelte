@@ -151,17 +151,37 @@
           {#key store.view}
             <header class="view-head" in:fly={{ y: 6, duration: 200 }}>
               {#if project}
-                <ProgressPie value={store.projectProgress(project.id)} size={26} />
+                <ProgressPie value={store.projectProgress(project.id)} size={26} idle={project.status === 'idle'} />
               {:else}
                 <Icon name={iconName} size={28} />
               {/if}
               <h1>{store.viewTitle}</h1>
+              {#if project?.status === 'idle'}<span class="idle-badge">Idle</span>{/if}
               {#if v.kind === 'today'}<span class="date">{longLabel(store.day)}</span>{/if}
               {#if v.kind === 'area' || v.kind === 'project'}
                 <button class="head-more" onclick={() => openListMenu({ kind: v.kind as 'area' | 'project', id: (v as { id: string }).id })} title="Rename, move, delete (⇧L)" aria-label="List actions">⋯</button>
               {/if}
             </header>
             {#if project?.notes}<p class="notes">{project.notes}</p>{/if}
+            {#if project?.status === 'idle' && !project.completed_at}
+              <div class="idle-note">
+                <span>Idle: waiting in Someday. Its to-dos without a date stay out of Anytime and the Matrix; scheduling one makes it active.</span>
+                <button onclick={() => store.setProjectIdle(project.id, false)} title="Make active (⇧I)">Make active</button>
+              </div>
+            {/if}
+            {#if v.kind === 'someday' && store.idleProjects.length}
+              <section class="idle-projects" aria-label="Idle projects">
+                <h2><ProgressPie value={0} size={15} idle /> Idle projects</h2>
+                {#each store.idleProjects as p (p.id)}
+                  {@const n = store.openCount({ kind: 'project', id: p.id })}
+                  <button class="idle-project" onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => { e.preventDefault(); openListMenu({ kind: 'project', id: p.id }); }}>
+                    <ProgressPie value={store.projectProgress(p.id)} idle />
+                    <span class="name">{p.name}</span>
+                    <span class="meta">{[store.areas.find((x) => x.id === p.area_id)?.name, `${n} to-do${n === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}</span>
+                  </button>
+                {/each}
+              </section>
+            {/if}
 
             <div in:fade={{ duration: 160 }}>
               {#if v.kind === 'dump'}
@@ -177,6 +197,7 @@
               {:else}
                 <TaskList
                   groups={store.groups}
+                  hideEmpty={v.kind === 'someday' && store.idleProjects.length > 0}
                   showWhen={['anytime', 'someday', 'project', 'area', 'inbox'].includes(v.kind)}
                   showContainer={['today', 'week', 'upcoming', 'logbook', 'inbox', 'anytime'].includes(v.kind)}
                   empty={empty[v.kind]}
@@ -345,6 +366,76 @@
     color: var(--text-2);
     margin: -8px 0 16px 40px;
     font-size: 13.5px;
+  }
+  .idle-badge {
+    align-self: center;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--idle);
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 1px 9px;
+  }
+  .idle-note {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 16px;
+    padding: 8px 8px 8px 14px;
+    border-radius: 9px;
+    background: var(--chip);
+    color: var(--text-2);
+    font-size: 13px;
+  }
+  .idle-note button {
+    margin-left: auto;
+    flex: none;
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 7px;
+    background: var(--card);
+    color: var(--text);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+  .idle-projects {
+    margin-bottom: 18px;
+  }
+  .idle-projects h2 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 4px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .idle-project {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 8px;
+    border-radius: var(--radius);
+    text-align: left;
+    color: var(--text);
+  }
+  .idle-project:hover {
+    background: var(--chip);
+  }
+  .idle-project .name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .idle-project .meta {
+    font-size: 12px;
+    color: var(--text-3);
+    white-space: nowrap;
   }
   .toast {
     position: fixed;

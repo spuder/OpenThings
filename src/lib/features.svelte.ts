@@ -1,6 +1,6 @@
 /** Optional features the user can turn on or off in Settings → Features. Saved per device. */
 
-export type FeatureId = 'dump' | 'week';
+export type FeatureId = 'dump' | 'week' | 'autoIdle';
 
 export const FEATURES: { id: FeatureId; label: string; icon: string; description: string; default: boolean }[] = [
   {
@@ -16,6 +16,13 @@ export const FEATURES: { id: FeatureId; label: string; icon: string; description
     icon: 'week',
     description: 'A list of everything scheduled or due from today through Sunday, grouped by day.',
     default: false,
+  },
+  {
+    id: 'autoIdle',
+    label: 'Idle projects drift to Someday',
+    icon: 'someday',
+    description: 'A project with nothing scheduled goes idle after 14 days without changes. Scheduling one of its to-dos makes it active again.',
+    default: true,
   },
 ];
 

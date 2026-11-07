@@ -54,6 +54,7 @@ A to-do in responses is the stored row plus `tags` (names), `project` and `area`
 | --- | --- | --- |
 | GET | `/api/v1/projects` | With area name and open to-do count. |
 | POST | `/api/v1/projects` | `{"name": "…", "area": "…"}` |
+| PATCH | `/api/v1/projects/:id` | `{"status": "idle"}` parks it in Someday; `"active"` brings it back. `:id` may be a name. Giving one of its to-dos a When date or deadline also makes it active. |
 | GET | `/api/v1/areas` | |
 | POST | `/api/v1/areas` | `{"name": "…"}` |
 | GET | `/api/v1/tags` | With open to-do count. |
@@ -108,6 +109,7 @@ Clients that only run local commands can bridge with `npx -y mcp-remote https://
 | `brain_dump` | Capture into the Brain Dump |
 | `add_checklist_item`, `check_checklist_item` | Checklists |
 | `list_projects`, `add_project`, `add_area` | Areas, projects and tags (`add_area` returns an existing area with the same name) |
+| `set_project_status` | Make a project idle (parked in Someday) or active |
 | `list_habits`, `check_habit` | Habits and check-ins |
 | `start_timer`, `stop_timer`, `current_timer` | Time tracking |
 

@@ -42,6 +42,8 @@ export const ADDED_COLUMNS: [string, string, string][] = [
   ['habits', 'start_date', 'TEXT'],
   // Habit schedule: daily | days:1,2,3,4,5 | times:5 (see views.ts).
   ['habits', 'schedule', 'TEXT'],
+  // Project state: 'idle' parks it in Someday; null = active. Completed stays completed_at.
+  ['projects', 'status', 'TEXT'],
 ];
 
 /**

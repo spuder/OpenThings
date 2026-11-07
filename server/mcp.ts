@@ -225,12 +225,12 @@ export const TOOLS: Tool[] = [
   {
     name: 'list_projects',
     title: 'List projects, areas and tags',
-    description: 'The structure of the to-do list: areas, projects (with open to-do counts) and tags.',
+    description: 'The structure of the to-do list: areas, projects (with open to-do counts; status "idle" when parked in Someday) and tags.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     run: (s) => ({
       areas: s.areas().map((a) => ({ id: a.id, name: a.name })),
-      projects: s.projects().map((p) => ({ id: p.id, name: p.name, area: p.area, open: p.open, ...(p.completed_at ? { completed_at: p.completed_at } : {}) })),
+      projects: s.projects().map((p) => ({ id: p.id, name: p.name, area: p.area, open: p.open, ...(p.status ? { status: p.status } : {}), ...(p.completed_at ? { completed_at: p.completed_at } : {}) })),
       tags: s.tags().map((t) => ({ name: t.name, open: t.open })),
     }),
   },
@@ -241,6 +241,23 @@ export const TOOLS: Tool[] = [
     inputSchema: { type: 'object', properties: { name: str('Project name'), area: str('Area name or id') }, required: ['name'] },
     annotations: { readOnlyHint: false, destructiveHint: false },
     run: (s, a) => s.addProject(nameArg(a), opt(a, 'area')),
+  },
+  {
+    name: 'set_project_status',
+    title: 'Make a project idle or active',
+    description:
+      'Park a project in Someday ("idle") or bring it back ("active"). An idle project\'s to-dos without a When date or deadline ' +
+      'leave Anytime and the Matrix; dated ones still show in Today and Upcoming. Giving one of its to-dos a When date or deadline makes it active again.',
+    inputSchema: {
+      type: 'object',
+      properties: { project: str('Project name or id'), status: { type: 'string', enum: ['idle', 'active'], description: 'idle or active' } },
+      required: ['project', 'status'],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    run: (s, a) => {
+      const p = s.setProjectStatus(String(a.project ?? ''), a.status);
+      return { id: p.id, name: p.name, status: p.status === 'idle' ? 'idle' : 'active' };
+    },
   },
   {
     name: 'add_area',

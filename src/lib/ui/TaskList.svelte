@@ -6,11 +6,13 @@
   import Icon from './Icon.svelte';
   import { dropLine } from './drag.svelte';
 
-  let { groups, showWhen = false, showContainer = false, empty = 'Nothing here.' }: {
+  let { groups, showWhen = false, showContainer = false, empty = 'Nothing here.', hideEmpty = false }: {
     groups: Group[];
     showWhen?: boolean;
     showContainer?: boolean;
     empty?: string;
+    /** No empty-state message: the view shows something else above the list (Someday's idle projects). */
+    hideEmpty?: boolean;
   } = $props();
 
   const total = $derived(groups.reduce((n, g) => n + g.items.length, 0));
@@ -19,7 +21,7 @@
   const joined = (items: Group['items'], i: number, dir: -1 | 1) => store.isMulti && store.isPicked(items[i].id) && !!items[i + dir] && store.isPicked(items[i + dir].id);
 </script>
 
-{#if total === 0 && !groups.some((g) => g.title)}
+{#if total === 0 && !hideEmpty && !groups.some((g) => g.title)}
   <div class="empty" in:fade={{ duration: 200 }}>
     <Icon name={store.view.kind === 'today' ? 'today' : 'logbook'} size={40} />
     <p>{empty}</p>

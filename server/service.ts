@@ -173,13 +173,13 @@ export class Service {
       }
       case 'week': out = this.present(flat(V.thisWeek(tasks, day, keep)), (t) => groupBy.get(t.id)); break;
       case 'upcoming': out = this.present(flat(V.upcoming(tasks, day, keep)), (t) => groupBy.get(t.id)); break;
-      case 'anytime': out = this.present(V.anytime(tasks, day, keep)); break;
+      case 'anytime': out = this.present(V.anytime(tasks, day, keep, this.idleProjectIds())); break;
       case 'someday': out = this.present(V.someday(tasks, keep)); break;
       case 'logbook': out = this.present(V.logbook(tasks)); break;
       case 'dump': out = this.present(V.dump(tasks, keep, Date.now())); break;
       case 'trash': out = this.present(this.db.all<Task>('SELECT * FROM tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC')); break;
       case 'matrix': {
-        const m = V.matrix(tasks, keep);
+        const m = V.matrix(tasks, keep, this.idleProjectIds());
         const all = (Object.keys(m) as V.Quadrant[]).flatMap((q) => m[q].map((t) => (groupBy.set(t.id, q), t)));
         out = this.present(all, (t) => groupBy.get(t.id));
         break;
@@ -374,6 +374,7 @@ export class Service {
         row.dump_section_id = section ? this.dumpSectionId(section) : null;
       }
       this.db.insert('tasks', row as unknown as Row & { id: string });
+      this.wakeProject({ ...row, project_id: null, when_date: null, deadline: null }, row);
       const seen = new Set<string>();
       for (const name of tags) {
         const tagId = this.tagId(name);
@@ -415,6 +416,7 @@ export class Service {
     this.db.tx(() => {
       if (input.project !== undefined || input.area !== undefined) Object.assign(fields, this.placement(t, { project: input.project, area: input.area }));
       if (Object.keys(fields).length) this.db.update('tasks', id, fields as Row);
+      this.wakeProject(t, fields);
       const current = this.tagData().links.filter((l) => l.task_id === id);
       let want: Set<string> | null = null;
       if (input.tags) want = new Set(input.tags.map((n) => this.tagId(n)));
@@ -453,10 +455,21 @@ export class Service {
       if (to.dump) {
         this.db.update('tasks', id, { dump: 1, dump_section_id: to.dump_section ? this.dumpSectionId(to.dump_section) : null });
       } else {
-        this.db.update('tasks', id, this.placement(t, to) as Row);
+        const fields = this.placement(t, to);
+        this.db.update('tasks', id, fields as Row);
+        this.wakeProject(t, fields);
       }
     });
     return this.getTask(id);
+  }
+
+  /** As in the app: giving a to-do in an idle project a date (or moving a dated one in) makes the project active. */
+  private wakeProject(t: Task, fields: Partial<Task>) {
+    const pid = 'project_id' in fields ? fields.project_id : t.project_id;
+    if (!pid || !V.wakesProject(t, fields)) return;
+    if (this.db.one("SELECT 1 AS x FROM projects WHERE id = ? AND status = 'idle' AND completed_at IS NULL", [pid])) {
+      this.db.update('projects', pid, { status: null });
+    }
   }
 
   /** Check off a to-do. A repeating one schedules its next occurrence, as in the app. */
@@ -546,6 +559,20 @@ export class Service {
     const areaId = area ? this.findArea(area).id : null;
     this.db.tx(() => this.db.insert('projects', { id, area_id: areaId, name: name.trim(), notes: '', sort: nextSort(), completed_at: null }));
     return this.db.one<Project>('SELECT * FROM projects WHERE id = ?', [id])!;
+  }
+
+  /** Make a project idle (parked in Someday) or active again, like the app's Make idle / Make active. */
+  setProjectStatus(ref: string, status: unknown): Project {
+    if (status !== 'idle' && status !== 'active') throw new UserError('status must be "idle" or "active"');
+    const p = this.findProject(ref);
+    if (p.completed_at) throw new UserError(`"${p.name}" is completed`);
+    const value = status === 'idle' ? 'idle' : null;
+    if ((p.status ?? null) !== value) this.db.tx(() => this.db.update('projects', p.id, { status: value }));
+    return this.db.one<Project>('SELECT * FROM projects WHERE id = ?', [p.id])!;
+  }
+
+  private idleProjectIds(): Set<string> {
+    return new Set(this.db.all<{ id: string }>("SELECT id FROM projects WHERE status = 'idle' AND completed_at IS NULL").map((r) => r.id));
   }
 
   /** The area with exactly this name (ignoring case and spacing); no id or prefix matches. */

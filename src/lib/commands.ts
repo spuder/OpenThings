@@ -180,6 +180,9 @@ export function openListMenu(target: { kind: 'area' | 'project'; id: string }) {
               },
             ]
           : []),
+        p.status === 'idle'
+          ? { label: 'Make active', key: 'i', icon: 'anytime', hint: 'back to its area', run: () => store.setProjectIdle(p.id, false) }
+          : { label: 'Make idle', key: 'i', icon: 'someday', hint: 'park it in Someday', run: () => store.setProjectIdle(p.id, true) },
         { label: 'Complete project', key: 'c', icon: 'complete', run: () => store.completeProject(p.id) },
         {
           label: 'Delete project',
@@ -424,6 +427,19 @@ export const commands: Command[] = [
   { id: 'time.stop', title: 'Stop timer', group: 'Time', keys: ['shift+x'], when: () => !!store.tracking, run: () => store.stopTracking() },
 
   {
+    id: 'project.idle',
+    title: 'Make project idle / active',
+    group: 'App',
+    // Shift+I is also Keep in the Brain Dump, which never shows in a project.
+    keys: ['shift+i'],
+    when: () => store.view.kind === 'project',
+    run: () => {
+      const v = store.view;
+      const p = v.kind === 'project' ? store.projects.find((x) => x.id === v.id) : undefined;
+      if (p) store.setProjectIdle(p.id, p.status !== 'idle');
+    },
+  },
+  {
     id: 'list.menu',
     title: 'List actions (rename, delete…)',
     group: 'App',
@@ -452,6 +468,7 @@ export const commands: Command[] = [
     },
   },
   { id: 'area.collapseAll', title: 'Collapse all areas', group: 'App', keys: ['z m'], when: anyAreaOpen, run: () => store.setAreasCollapsed(true) },
+  { id: 'idle.fold', title: 'Collapse / expand Idle projects in the sidebar', group: 'App', keys: ['z i'], when: () => store.idleProjects.length > 0, run: () => store.toggleIdleSection() },
   { id: 'area.expandAll', title: 'Expand all areas', group: 'App', keys: ['z r'], when: anyAreaFolded, run: () => store.setAreasCollapsed(false) },
   { id: 'app.palette', title: 'Command palette', group: 'App', keys: ['mod+k', 'mod+shift+p', ':'], run: () => openPalette('commands'), hidden: true },
   { id: 'app.help', title: 'Keyboard shortcuts', group: 'App', keys: ['?'], run: () => (store.overlay = store.overlay === 'help' ? null : 'help') },

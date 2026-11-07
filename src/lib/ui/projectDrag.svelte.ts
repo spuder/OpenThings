@@ -20,22 +20,31 @@ export const projectDrag = $state({
 const DRAG_PX = 5;
 const TOUCH_SLOP = 8;
 
-/** Is the drop line just before project `before` in `area` (before null: at the end of that list)? */
-export function projectDropLine(area: ID | null, before: ID | null): boolean {
+/**
+ * Is the drop line just before project `before` in `area` (before null: at the end of that list)?
+ * With `idle`, in the Idle section instead.
+ */
+export function projectDropLine(area: ID | null, before: ID | null, idle = false): boolean {
   const s = projectDrag.slot;
-  return projectDrag.active && !!s && s.area === area && s.before === before;
+  return projectDrag.active && !!s && !!s.idle === idle && (idle || s.area === area) && s.before === before;
 }
 
 /** The spot under a point in the sidebar, if dropping the dragged project there is allowed. */
 export function slotAt(x: number, y: number, id: ID): ProjectSlot | null {
   const el = document.elementFromPoint(x, y);
+  // On Someday in the sidebar: make it idle, at the end of the Idle section.
+  if (el?.closest<HTMLElement>('[data-drop-view]')?.dataset.dropView === JSON.stringify({ kind: 'someday' })) {
+    const slot = { area: null, before: null, idle: true };
+    return projectDrop(store.projects, store.areas.map((a) => a.id), id, slot) ? slot : null;
+  }
   const list = el?.closest<HTMLElement>('[data-project-list]');
   if (!el || !list) return null;
-  const area = list.dataset.projectList || null;
+  const idle = 'idleList' in list.dataset;
+  const area = idle ? null : list.dataset.projectList || null;
   const rows = [...list.querySelectorAll<HTMLElement>('[data-project-id]')];
   let slot: ProjectSlot;
   if (el.closest('[data-area-head]')) {
-    // On the area's own row: into the area, at the top.
+    // On the area's own row (or the Idle heading): into it, at the top.
     slot = { area, before: rows[0]?.dataset.projectId ?? null };
   } else {
     const row = el.closest<HTMLElement>('[data-project-id]');
@@ -46,6 +55,7 @@ export function slotAt(x: number, y: number, id: ID): ProjectSlot | null {
       slot = { area, before: target?.dataset.projectId ?? null };
     } else slot = { area, before: null };
   }
+  if (idle) slot.idle = true;
   return projectDrop(store.projects, store.areas.map((a) => a.id), id, slot) ? slot : null;
 }
 

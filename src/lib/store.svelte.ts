@@ -27,7 +27,7 @@ import { isNativeShell } from './native/shell';
 import { dueReminders, notifier, upcomingReminders } from './reminders.svelte';
 import { reminderLabel } from './parse';
 import { previousValues, UndoStack } from './undo';
-import { projectDrop, type ProjectSlot } from './projectMove';
+import { isIdle, projectDrop, type ProjectSlot } from './projectMove';
 import { DUMP_DROP_KINDS, dumpDropFields } from './dumpDrop';
 import * as Sel from './selection';
 import type { MenuOption } from './menu';
@@ -76,6 +76,29 @@ function loadRecent(): ViewKey[] {
   }
 }
 
+/**
+ * Each project's latest change (ms), from the op log: the project row, its to-dos and headings, and
+ * its to-dos' checklist items and time entries. An op's hlc starts with its time in ms (15 digits).
+ */
+const LAST_ACTIVITY_SQL = `
+WITH owner(row_id, project_id) AS (
+  SELECT id, id FROM projects
+  UNION ALL SELECT id, project_id FROM tasks WHERE project_id IS NOT NULL
+  UNION ALL SELECT id, project_id FROM headings
+  UNION ALL SELECT c.id, t.project_id FROM checklist c JOIN tasks t ON t.id = c.task_id WHERE t.project_id IS NOT NULL
+  UNION ALL SELECT e.id, t.project_id FROM time_entries e JOIN tasks t ON t.id = e.task_id WHERE t.project_id IS NOT NULL
+)
+SELECT owner.project_id AS id, MAX(substr(ops.hlc, 1, 15)) AS at FROM ops JOIN owner ON owner.row_id = ops.row_id GROUP BY owner.project_id`;
+
+function loadFlag(key: string): boolean | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? 'null');
+    return typeof v === 'boolean' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 function loadCollapsedAreas(): ID[] {
   try {
     const v = JSON.parse(localStorage.getItem('openthings.collapsedAreas') ?? '[]');
@@ -96,6 +119,11 @@ class Store {
   ready = $state(false);
   areas = $state<Area[]>([]);
   projects = $state<Project[]>([]);
+  /** Open projects that aren't idle: the ones in the sidebar's areas. */
+  activeProjects = $derived(this.projects.filter((p) => !p.completed_at && !isIdle(p)));
+  /** Open idle projects, in sidebar order: the Idle section and the top of Someday. */
+  idleProjects = $derived(this.projects.filter((p) => !p.completed_at && isIdle(p)));
+  private idleIds = $derived(new Set(this.idleProjects.map((p) => p.id)));
   headings = $state<Heading[]>([]);
   tasks = $state<Task[]>([]);
   /** Tasks in the Trash, newest first. */
@@ -169,7 +197,19 @@ class Store {
 
   /** Areas with open projects to show or hide; folding an empty area does nothing. */
   get foldableAreas(): Area[] {
-    return this.areas.filter((a) => this.projects.some((p) => p.area_id === a.id && !p.completed_at));
+    return this.areas.filter((a) => this.activeProjects.some((p) => p.area_id === a.id));
+  }
+
+  /** The sidebar's Idle section is folded. Per device; folded until opened. */
+  idleCollapsed = $state(loadFlag('openthings.idleOpen') !== true);
+
+  toggleIdleSection() {
+    this.idleCollapsed = !this.idleCollapsed;
+    try {
+      localStorage.setItem('openthings.idleOpen', JSON.stringify(!this.idleCollapsed));
+    } catch {
+      /* ignore */
+    }
   }
 
   private saveCollapsedAreas() {
@@ -244,6 +284,34 @@ class Store {
       this.lastPurge = this.now;
       if (this.purgeDump() || this.purgeTrash()) this.load();
     }
+    if (this.now - this.lastDrift > 60 * 60_000) this.driftIdle();
+  }
+
+  private readonly startedAt = Date.now();
+  private lastDrift = 0;
+
+  /**
+   * Projects with nothing scheduled and no changes for 14 days go idle (Settings → Features). With
+   * sync on, only once this session has synced, so a device back from a long time offline doesn't
+   * judge projects by stale data.
+   */
+  driftIdle() {
+    if (!features.enabled('autoIdle')) return;
+    if (sync.enabled && !(sync.lastSyncedAt && Date.parse(sync.lastSyncedAt) >= this.startedAt)) return;
+    this.lastDrift = this.now;
+    const at = new Map(db.all<{ id: ID; at: string }>(LAST_ACTIVITY_SQL).map((r) => [r.id, Number(r.at)]));
+    const drifting = V.driftingProjects(this.projects, this.tasks, at, Date.now());
+    if (!drifting.length) return;
+    this.bulk('Idle projects', () => {
+      for (const p of drifting) db.update('projects', p.id, { status: 'idle' });
+    });
+    const days = V.IDLE_AFTER_DAYS;
+    this.notify(
+      drifting.length === 1
+        ? `“${drifting[0].name}” went idle: nothing scheduled for ${days} days`
+        : `${drifting.length} projects went idle: nothing scheduled for ${days} days`,
+      { undo: true },
+    );
   }
 
   /** While > 0, load() is postponed so a bulk action reloads once at the end. */
@@ -548,7 +616,7 @@ class Store {
           items: g.tasks,
         }));
       case 'anytime':
-        return this.groupByContainer(V.anytime(ts, day, keep));
+        return this.groupByContainer(V.anytime(ts, day, keep, this.idleIds));
       case 'someday':
         return this.groupByContainer(V.someday(ts, keep));
       case 'logbook': {
@@ -572,7 +640,7 @@ class Store {
         ];
       }
       case 'matrix': {
-        const m = V.matrix(ts, keep);
+        const m = V.matrix(ts, keep, this.idleIds);
         return [
           { key: 'do', title: 'Do', subtitle: 'Urgent · Important', items: m.do },
           { key: 'schedule', title: 'Schedule', subtitle: 'Important', items: m.schedule },
@@ -591,7 +659,7 @@ class Store {
         return out;
       }
       case 'area': {
-        const projIds = new Set(this.projects.filter((p) => p.area_id === v.id).map((p) => p.id));
+        const projIds = new Set(this.projects.filter((p) => p.area_id === v.id && !isIdle(p)).map((p) => p.id));
         const items = ts
           .filter((t) => !t.dump && (t.completed_at === null || keep.has(t.id)) && (t.area_id === v.id || (t.project_id && projIds.has(t.project_id))))
           .sort((a, b) => a.sort - b.sort);
@@ -648,10 +716,10 @@ class Store {
       case 'dump': return V.dump(ts, none, this.now).length;
       case 'trash': return this.trashed.length;
       case 'area': {
-        const projIds = new Set(this.projects.filter((p) => p.area_id === v.id).map((p) => p.id));
+        const projIds = new Set(this.projects.filter((p) => p.area_id === v.id && !isIdle(p)).map((p) => p.id));
         return ts.filter((t) => !t.completed_at && !t.dump && (t.area_id === v.id || (t.project_id && projIds.has(t.project_id)))).length;
       }
-      case 'anytime': return V.anytime(ts, this.day, none).length;
+      case 'anytime': return V.anytime(ts, this.day, none, this.idleIds).length;
       case 'upcoming': return V.upcoming(ts, this.day, none).reduce((n, g) => n + g.tasks.length, 0);
       case 'week': return V.thisWeek(ts, this.day, none).reduce((n, g) => n + g.tasks.length, 0);
       case 'someday': return V.someday(ts, none).length;
@@ -778,18 +846,48 @@ class Store {
     }
     db.insert('tasks', row as unknown as db.Row & { id: string });
     for (const name of p.tags) db.insert('task_tags', { id: db.uuid7(), task_id: id, tag_id: this.tagId(name) });
+    const idle = this.idleProjectToWake({ ...row, project_id: null, when_date: null, deadline: null }, row);
+    if (idle) this.wake(idle);
     this.load();
     return id;
   }
 
   update(id: ID, fields: Partial<Task>, label = 'change') {
     const t = this.task(id);
+    const idle = t ? this.idleProjectToWake(t, fields) : null;
     if (t) {
       const prev = previousValues(t, fields);
-      this.undoStack.push(label, () => db.update('tasks', id, prev as db.Row));
+      this.undoStack.push(label, () => {
+        db.update('tasks', id, prev as db.Row);
+        if (idle) db.update('projects', idle.id, { status: 'idle' });
+      });
     }
     db.update('tasks', id, fields as db.Row);
+    if (idle) this.wake(idle);
     this.load();
+  }
+
+  /** Projects woken during the current action, so a bulk change wakes each one once. */
+  private waking = new Set<ID>();
+
+  /** The idle project that `fields` (a change to to-do `t`) should make active, if any. */
+  private idleProjectToWake(t: Task, fields: Partial<Task>): Project | null {
+    const pid = 'project_id' in fields ? fields.project_id : t.project_id;
+    const p = pid ? this.projects.find((x) => x.id === pid) : undefined;
+    return p && isIdle(p) && !p.completed_at && !this.waking.has(p.id) && V.wakesProject(t, fields) ? p : null;
+  }
+
+  /** Scheduling a to-do brings its idle project back. Said after the action's own toast, in one line. */
+  private wake(p: Project) {
+    db.update('projects', p.id, { status: null });
+    this.waking.add(p.id);
+    const stamp = Date.now();
+    queueMicrotask(() => {
+      this.waking.delete(p.id);
+      const shown = this.toast;
+      const note = `“${p.name}” is active again`;
+      this.notify(shown && shown.id >= stamp ? `${shown.text} · ${note}` : note, { undo: shown?.undo });
+    });
   }
 
   /** Complete every to-do in `ids`, or uncheck them all if all are already done. One sound, one undo step. */
@@ -1365,6 +1463,15 @@ class Store {
     this.load();
     if (this.view.kind === 'project' && this.view.id === id) this.go({ kind: 'inbox' });
     this.notify('Project deleted — its to-dos are in the Trash');
+  }
+
+  /** Park a project in Someday (idle) or bring it back to its area (active). One undo step. */
+  setProjectIdle(id: ID, idle: boolean) {
+    const p = this.projects.find((x) => x.id === id);
+    if (!p || p.completed_at || isIdle(p) === idle) return;
+    // Area and sort stay as they are, so an active-again project is back in its old place.
+    this.bulk(idle ? 'Make idle' : 'Make active', () => db.update('projects', id, { status: idle ? 'idle' : null }));
+    this.notify(idle ? `“${p.name}” is idle: it waits in Someday` : `“${p.name}” is active again`);
   }
 
   completeProject(id: ID) {

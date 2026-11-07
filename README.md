@@ -59,9 +59,10 @@
 
 - **Lists:** Inbox, Today with This Evening, Upcoming, Anytime, Someday, Logbook.
 - **Structure:** Areas of responsibility → Projects → Headings → To-dos, with notes, checklists, tags, deadlines and repeats.
+- **Idle projects:** a project is active, idle or completed. An idle project is parked: it waits in Someday and in a folded Idle section of the sidebar, and its to-dos without a date stay out of Anytime and the Matrix (dated ones still show in Today and Upcoming). Make one idle from its menu (`⇧L` then `I`), with `⇧I`, or by dragging it onto Idle or Someday; drag it back to an area to make it active. Giving one of its to-dos a When date or deadline makes it active again on its own, and a project with nothing scheduled and no changes for 14 days drifts to idle (Settings → Features).
 - **Repeating to-dos:** every N days, weeks, months or years; chosen days of the week; days of the month (the 1st and 15th, the last day) or an ordinal weekday (the 2nd Tuesday, the last Friday); ending never, after N times or on a date. Set it in quick add (`*mon,thu`) or in the repeat editor (`⇧W`, the repeat button on an open to-do, or right-click), which previews the next dates. Checking one off schedules the next.
 - **This Week** (optional, off by default): everything scheduled or due from today through Sunday, grouped by day; overdue items fold into today. `G W` to open.
-- **Features** in Settings turn optional lists on or off per device: Brain Dump (on by default) and This Week (off).
+- **Features** in Settings turn optional features on or off per device: Brain Dump (on by default), This Week (off) and idle projects drifting to Someday after 14 days (on).
 - **Brain Dump:** a paper-styled scratch list. Unchecked items fade over 48 hours, then are deleted for good. Check them off, or keep them by moving to the Inbox, Today or any list. Supports sections.
 - **Habits** with a 21-day grid (7 on phones) and streaks. Optional **challenges** of a fixed length: 30, 60, 75 days or any number, with day count, missed days and end date. Press `C` on a habit, or name it `Cold shower 75d`. **Schedules:** every day, weekdays, specific days, or N times a week on any days (`W` on a habit, or name it `Gym 5x` / `Journal weekdays`); streaks and missed days follow the schedule.
 - **Matrix:** Eisenhower quadrants from urgent / important flags.
@@ -134,7 +135,8 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `U` / `I` | Toggle urgent / important |
 | `F` | Focus mode (Pomodoro on the selected to-do) |
 | `P` / `⇧P` | Timer / quick Pomodoro |
-| `⇧L` | Rename / move / delete the current area or project, or remove one of its headings. In that menu, each option's underlined letter runs it (`R` rename, `M` move, `H` new heading, `E` remove heading, `C` complete, `D` delete) |
+| `⇧L` | Rename / move / delete the current area or project, or remove one of its headings. In that menu, each option's underlined letter runs it (`R` rename, `M` move, `H` new heading, `E` remove heading, `I` make idle / active, `C` complete, `D` delete) |
+| `⇧I` | Make the current project idle / active |
 | `⇧D` | Toggle dark mode |
 | `⇧T` | Theme switcher (Omarchy themes, desktop) |
 | `Alt+↑` / `Alt+↓` | Reorder |
@@ -146,6 +148,7 @@ Example: `Photograph products +Launch-storefront @fri !next-week ~45m #shop #imp
 | `Ctrl/⌘ /` | Show / hide sidebar |
 | `z a` | Collapse / expand the current area in the sidebar |
 | `z m` / `z r` | Collapse / expand all areas |
+| `z i` | Collapse / expand Idle projects in the sidebar |
 | `Ctrl/⌘ K` | Command palette |
 | `?` | All shortcuts |
 

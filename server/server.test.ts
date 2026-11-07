@@ -252,6 +252,37 @@ describe('REST API', () => {
     expect((await call('PATCH', `/api/v1/tasks/${u.id}`, { notes: 'still here' })).body).toMatchObject({ dump: 1 });
   });
 
+  it('parks a project as idle and brings it back', async () => {
+    const { call } = setup();
+    const { body: p } = await call('POST', '/api/v1/projects', { name: 'Website' });
+    await call('POST', '/api/v1/tasks', { text: 'Pick a CMS +Website' });
+    await call('POST', '/api/v1/tasks', { text: 'Launch post +Website @today' });
+    const anytime = async () => (await call('GET', '/api/v1/tasks?view=anytime')).body.tasks.map((t: { title: string }) => t.title);
+    expect(await anytime()).toEqual(['Pick a CMS', 'Launch post']);
+    expect((await call('PATCH', '/api/v1/projects/website', { status: 'idle' })).body.status).toBe('idle');
+    // Undated to-dos are parked; a dated one still shows.
+    expect(await anytime()).toEqual(['Launch post']);
+    expect((await call('GET', '/api/v1/tasks?view=today')).body.tasks.length).toBe(1);
+    expect((await call('PATCH', `/api/v1/projects/${p.id}`, { status: 'active' })).body.status).toBeNull();
+    expect(await anytime()).toEqual(['Pick a CMS', 'Launch post']);
+    expect((await call('PATCH', `/api/v1/projects/${p.id}`, { status: 'paused' })).status).toBe(400);
+  });
+
+  it('wakes an idle project when one of its to-dos gets a date', async () => {
+    const { call } = setup();
+    const status = async () => (await call('GET', '/api/v1/projects')).body.projects[0].status;
+    await call('POST', '/api/v1/projects', { name: 'Garden' });
+    const { body: t } = await call('POST', '/api/v1/tasks', { text: 'Prune roses +Garden' });
+    await call('PATCH', '/api/v1/projects/garden', { status: 'idle' });
+    await call('PATCH', `/api/v1/tasks/${t.id}`, { notes: 'the old ones' });
+    expect(await status()).toBe('idle');
+    await call('PATCH', `/api/v1/tasks/${t.id}`, { when: 'today' });
+    expect(await status()).toBeNull();
+    await call('PATCH', '/api/v1/projects/garden', { status: 'idle' });
+    await call('POST', '/api/v1/tasks', { text: 'Mulch +Garden !friday' });
+    expect(await status()).toBeNull();
+  });
+
   it('checks habits in and out', async () => {
     const { call } = setup();
     const { body: h } = await call('POST', '/api/v1/habits', { text: 'Gym 4x 60d' });

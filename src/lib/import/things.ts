@@ -297,6 +297,8 @@ export function parseThingsDatabase(db: Database): ThingsImport {
       notes: str(row.notes),
       sort: out.projects.length,
       completed_at: status !== 0 ? (unixIso(row.stopDate) ?? unixIso(row.userModificationDate) ?? new Date().toISOString()) : null,
+      // An open project in Someday becomes an idle project.
+      status: status === 0 && num(row.start) === 2 ? 'idle' : null,
     });
     projectIds.add(uuid);
     projectInfo.set(uuid, { id, area: area || null, trashed: false });

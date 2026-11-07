@@ -42,3 +42,28 @@ describe('projectDrop', () => {
     expect(projectDrop(projects, areas, 'done', { area: null, before: null })).toBeNull();
   });
 });
+
+describe('projectDrop and the Idle section', () => {
+  const idle = (p: Project): Project => ({ ...p, status: 'idle' });
+  const list = [P('a', null, 1), P('x', 'A1', 1), idle(P('i', 'A1', 2)), idle(P('j', null, 3))];
+
+  it('makes a project idle, keeping its area, ordered among the idle ones', () => {
+    expect(projectDrop(list, areas, 'x', { area: null, idle: true, before: null })).toEqual({ area_id: 'A1', sort: 4, status: 'idle' });
+    expect(projectDrop(list, areas, 'a', { area: null, idle: true, before: 'i' })).toEqual({ area_id: null, sort: 1, status: 'idle' });
+  });
+
+  it('makes an idle project active where it is dropped', () => {
+    expect(projectDrop(list, areas, 'i', { area: 'A2', before: null })).toEqual({ area_id: 'A2', sort: 0, status: null });
+    expect(projectDrop(list, areas, 'j', { area: 'A1', before: 'x' })).toEqual({ area_id: 'A1', sort: 0, status: null });
+  });
+
+  it('reorders idle projects without changing their state', () => {
+    expect(projectDrop(list, areas, 'j', { area: null, idle: true, before: 'i' })).toEqual({ area_id: null, sort: 1 });
+    expect(projectDrop(list, areas, 'i', { area: null, idle: true, before: 'j' })).toBeNull();
+  });
+
+  it('keeps idle projects out of the active lists', () => {
+    // i is idle, so it isn't a valid "before" in A1's active list.
+    expect(projectDrop(list, areas, 'a', { area: 'A1', before: 'i' })).toBeNull();
+  });
+});

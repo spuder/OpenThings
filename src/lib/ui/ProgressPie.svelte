@@ -1,5 +1,7 @@
 <script lang="ts">
-  let { value, size = 16 }: { value: number; size?: number } = $props();
+  // idle: an idle project, drawn in grey with a dashed ring instead of the accent color.
+  let { value, size = 16, idle = false }: { value: number; size?: number; idle?: boolean } = $props();
+  const color = $derived(idle ? 'var(--idle)' : 'var(--accent)');
   const r = 5.2;
   const path = $derived.by(() => {
     if (value <= 0) return '';
@@ -13,6 +15,6 @@
 </script>
 
 <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
-  <circle cx="8" cy="8" r="6.6" fill="none" stroke="var(--accent)" stroke-width="1.5" />
-  {#if path}<path d={path} fill="var(--accent)" />{/if}
+  <circle cx="8" cy="8" r="6.6" fill="none" stroke={color} stroke-width="1.5" stroke-dasharray={idle ? '2.2 1.6' : undefined} />
+  {#if path}<path d={path} fill={color} />{/if}
 </svg>

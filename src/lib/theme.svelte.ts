@@ -58,6 +58,7 @@ export function paletteVars(p: OmarchyPalette): Record<string, string> {
     '--evening': p.blue,
     '--deadline': p.red,
     '--someday': mix(p.yellow, 55, p.foreground),
+    '--idle': mix(p.foreground, 55, p.background),
     '--logbook': p.green,
     '--upcoming': p.red,
     '--week': mix(p.blue, 60, p.magenta),

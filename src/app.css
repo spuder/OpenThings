@@ -25,6 +25,8 @@
   --evening: #5a78d1;
   --deadline: #e0453c;
   --someday: #b8a27a;
+  /* Idle projects: a quiet grey, readable on light and dark sidebars. Not green: that's Logbook (done). */
+  --idle: #9b9ba3;
   --logbook: #3fa66b;
   --upcoming: #e0453c;
   --week: #5e5ce6;

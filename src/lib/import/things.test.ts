@@ -42,7 +42,7 @@ async function fixture(): Promise<Database> {
     notes: 'Project notes', index: 0, area: 'area-work', creationDate: 1700000000,
   });
   insert(db, 'TMTask', { uuid: 'project-gone', type: 1, status: 0, trashed: 1, title: 'Gone project', index: 1, area: 'area-work' });
-  insert(db, 'TMTask', { uuid: 'project-blank', type: 1, status: 0, trashed: 0, title: '  ', index: 2 });
+  insert(db, 'TMTask', { uuid: 'project-blank', type: 1, status: 0, trashed: 0, title: '  ', index: 2, start: 2 });
 
   insert(db, 'TMTask', {
     uuid: 'heading-phase', type: 2, status: 0, trashed: 0, title: 'Phase 1',
@@ -151,7 +151,9 @@ describe('parseThingsDatabase', () => {
     expect(launch.area_id).toBe(work.id);
     expect(launch.notes).toBe('Project notes');
     expect(launch.completed_at).toBeNull();
-    expect(plan.projects.some((p) => p.name === 'Untitled project')).toBe(true);
+    expect(launch.status).toBeNull();
+    // A Someday project comes in idle.
+    expect(plan.projects.find((p) => p.name === 'Untitled project')?.status).toBe('idle');
 
     const heading = plan.headings[0];
     expect(heading.name).toBe('Phase 1');

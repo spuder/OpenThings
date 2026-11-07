@@ -13,7 +13,11 @@ export interface Project {
   notes: string;
   sort: number;
   completed_at: string | null;
+  /** 'idle': parked in Someday, its undated to-dos hidden from Anytime and the Matrix. null = active. */
+  status?: ProjectStatus | null;
 }
+
+export type ProjectStatus = 'idle';
 
 export interface Heading {
   id: ID;

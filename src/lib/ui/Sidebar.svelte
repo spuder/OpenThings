@@ -63,8 +63,9 @@
     { v: { kind: 'trash' }, label: 'Trash', icon: 'trash', count: true },
   ];
 
-  const looseProjects = $derived(store.projects.filter((p) => !p.area_id && !p.completed_at));
-  const projectsIn = (areaId: string) => store.projects.filter((p) => p.area_id === areaId && !p.completed_at);
+  const looseProjects = $derived(store.activeProjects.filter((p) => !p.area_id));
+  const projectsIn = (areaId: string) => store.activeProjects.filter((p) => p.area_id === areaId);
+  const areaName = (id: string | null) => store.areas.find((a) => a.id === id)?.name ?? '';
 </script>
 
 <svelte:window onkeydown={(e) => { if (newListOpen && e.key === 'Escape') { e.stopPropagation(); newListOpen = false; } }} />
@@ -72,7 +73,7 @@
 {#snippet navRow(item: NavItem)}
   {@const n = item.count ? store.openCount(item.v) : 0}
   <li>
-    <button class="row" class:active={store.isView(item.v)} class:drop-ok={dropOn(item.v) === 'ok'} data-drop-view={JSON.stringify(item.v)} onclick={() => store.go(item.v)}>
+    <button class="row" class:active={store.isView(item.v)} class:drop-ok={dropOn(item.v) === 'ok' || (item.v.kind === 'someday' && !!projectDrag.slot?.idle)} data-drop-view={JSON.stringify(item.v)} onclick={() => store.go(item.v)}>
       <Icon name={item.icon} />
       <span class="label">{item.label}</span>
       {#if n}<span class="count" class:today={item.v.kind === 'today'}>{n}</span>{/if}
@@ -148,6 +149,41 @@
       </ul>
     {/each}
 
+    {#if store.idleProjects.length || projectDrag.active}
+      <!-- Idle projects, parked in Someday: one folded section across areas. Dropping a project here makes it idle. -->
+      {@const idle = store.idleProjects}
+      {@const folded = store.idleCollapsed}
+      <ul class="area idle" data-project-list="" data-idle-list="" class:drop-end={projectDropLine(null, null, true) && (!idle.length || folded)} class:drop-zone={!idle.length}>
+        <li class="has-menu" data-area-head>
+          {#if idle.length}
+            <button class="fold" class:folded onclick={() => store.toggleIdleSection()} aria-expanded={!folded} aria-label={`${folded ? 'Expand' : 'Collapse'} Idle`} title={`${folded ? 'Expand' : 'Collapse'} (z i)`}>
+              <Icon name="chevron" size={14} />
+            </button>
+          {/if}
+          <button class="row area-row idle-head" class:drop-ok={!!projectDrag.slot?.idle} onclick={() => store.toggleIdleSection()} aria-expanded={!folded} title="Projects parked in Someday">
+            <ProgressPie value={0} idle />
+            <span class="label">Idle</span>
+            {#if idle.length}<span class="count">{idle.length}</span>{/if}
+          </button>
+        </li>
+        {#if idle.length && !folded}
+          <li class="projects" in:unfold={{ duration: 220 }} out:unfold={{ duration: 180 }}>
+            <ul>
+              {#each idle as p (p.id)}
+                <li class="has-menu" data-project-id={p.id} class:drop-before={projectDropLine(null, p.id, true)} class:drop-after={projectDropLine(null, null, true) && p === idle[idle.length - 1]} class:dragged={projectDrag.id === p.id}>
+                  <button class="row in-area idle-row" class:active={store.isView({ kind: 'project', id: p.id })} class:drop-ok={dropOn({ kind: 'project', id: p.id }) === 'ok'} data-drop-view={JSON.stringify({ kind: 'project', id: p.id })} onclick={() => store.go({ kind: 'project', id: p.id })} oncontextmenu={(e) => menu(e, 'project', p.id)} {@attach projectDraggable(p.id)}>
+                    <ProgressPie value={store.projectProgress(p.id)} idle />
+                    <span class="label">{p.name}</span>
+                    {#if p.area_id}<span class="area-name">{areaName(p.area_id)}</span>{/if}
+                  </button>
+                  <button class="more" onclick={(e) => menu(e, 'project', p.id)} aria-label={`Actions for ${p.name}`} title="Rename, make active, delete">⋯</button>
+                </li>
+              {/each}
+            </ul>
+          </li>
+        {/if}
+      </ul>
+    {/if}
   </div>
 
   {@render section(bottom, 'bottom')}
@@ -289,6 +325,22 @@
   }
   .area {
     margin-top: 2px;
+  }
+  /* Idle: set apart from the areas above, in quieter text. */
+  .idle {
+    margin-top: 12px;
+  }
+  .idle-head,
+  .idle-row {
+    color: var(--text-2);
+  }
+  .area-name {
+    font-size: 11.5px;
+    color: var(--text-3);
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   ul.bottom {
     margin: 0;

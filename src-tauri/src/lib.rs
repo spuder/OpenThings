@@ -129,6 +129,46 @@ struct Shell {
     hotkeys_available: AtomicBool,
     hotkey_error: Mutex<Option<String>>,
     tray_status: Mutex<Option<MenuItem<tauri::Wry>>>,
+    /// Links that arrived before the main window's store was loaded (a cold start by a link).
+    links: Mutex<LinkQueue>,
+}
+
+/// Holds `openthings://` links until the main window says it's ready (`main_ready`): an event
+/// emitted before its listener exists is dropped, which lost the to-do of a link that started the app.
+#[derive(Default)]
+struct LinkQueue {
+    ready: bool,
+    held: Vec<String>,
+}
+
+impl LinkQueue {
+    /// Some(link): send it now. None: held until `take`.
+    fn offer(&mut self, link: String) -> Option<String> {
+        if self.ready {
+            return Some(link);
+        }
+        self.held.push(link);
+        None
+    }
+    /// The window is ready: later links go straight through; returns the held ones in order.
+    fn take(&mut self) -> Vec<String> {
+        self.ready = true;
+        std::mem::take(&mut self.held)
+    }
+}
+
+/// Send an `openthings://` link to the main window, or hold it until the window is ready.
+fn send_link<R: Runtime>(app: &AppHandle<R>, link: String) {
+    let now = app.state::<Arc<Shell>>().links.lock().unwrap().offer(link);
+    if let Some(link) = now {
+        let _ = app.emit_to(MAIN, "ot://open-url", link);
+    }
+}
+
+/// From the main window once its store is loaded: the links that arrived before.
+#[tauri::command]
+fn main_ready(shell: tauri::State<Arc<Shell>>) -> Vec<String> {
+    shell.links.lock().unwrap().take()
 }
 
 // ---------- windows ----------
@@ -242,16 +282,15 @@ fn handle_url<R: Runtime>(app: &AppHandle<R>, url: &url::Url) {
     }
     let (action, link, save) = link_parts(url);
     match action.as_str() {
-        // Added by the main window without showing anything but a notice.
-        "add" if save => {
-            let _ = app.emit_to(MAIN, "ot://open-url", link);
-        }
+        // Saved in the background: the main window adds it without being shown or focused (it
+        // shows a native notification when it's hidden). Browser extensions send these.
+        "add" if save => send_link(app, link),
         "add" => show_quick_add(app, QuickAddOpen { text: String::new(), url: Some(link) }),
         "" | "show" => show_main(app),
         // Lists, tasks, pairing: the main window opens them.
         _ => {
             show_main(app);
-            let _ = app.emit_to(MAIN, "ot://open-url", link);
+            send_link(app, link);
         }
     }
 }
@@ -811,6 +850,7 @@ pub fn run() {
             submit_quick_add,
             hide_quick_add,
             show_main_window,
+            main_ready,
             open_self_hosting_docs,
             omarchy_theme,
             quit_now,
@@ -942,7 +982,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{link_parts, parse_iso_ms};
+    use super::{link_parts, parse_iso_ms, LinkQueue};
 
     fn parts(s: &str) -> (String, String, bool) {
         link_parts(&url::Url::parse(s).unwrap())
@@ -959,6 +999,25 @@ mod tests {
         assert_eq!(parts("openthings://today"), ("today".into(), "openthings://today".into(), false));
         assert_eq!(parts("openthings:///task/abc-1"), ("task".into(), "openthings://task/abc-1".into(), false));
         assert_eq!(parts("openthings://show").0, "show");
+    }
+
+    #[test]
+    fn links_wait_for_the_main_window() {
+        let mut q = LinkQueue::default();
+        assert_eq!(q.offer("openthings://add?title=A&save=1".into()), None);
+        assert_eq!(q.offer("openthings://today".into()), None);
+        assert_eq!(q.take(), vec!["openthings://add?title=A&save=1".to_string(), "openthings://today".into()]);
+        assert_eq!(q.offer("openthings://add?title=B&save=1".into()).as_deref(), Some("openthings://add?title=B&save=1"));
+        assert!(q.take().is_empty());
+    }
+
+    #[test]
+    fn save_flag_only_for_yes_values() {
+        assert!(parts("openthings://add?title=A&save=true").2);
+        assert!(parts("openthings://add?title=A&save=YES").2);
+        assert!(!parts("openthings://add?title=A").2);
+        assert!(!parts("openthings://add?title=A&save=0").2);
+        assert!(!parts("openthings://today?save=1").0.eq("add"));
     }
 
     #[test]

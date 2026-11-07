@@ -241,3 +241,17 @@ export function addLinkPrefill(r: AddLink): string {
   const text = parts.join(' ');
   return r.notes ? `${text} // ${r.notes}` : text;
 }
+
+/** Where a to-do saved by an add link lands, for the "Added to …" notification. */
+export function addedTo(p: Pick<Parsed, 'dump' | 'when' | 'project'>): string {
+  if (p.dump) return 'Brain Dump';
+  if (p.project) return p.project;
+  if (!p.when) return 'Inbox';
+  return 'OpenThings';
+}
+
+/** True for an add link that saves without showing quick add (`save=1`): nothing on screen changes. */
+export function isBackgroundAdd(url: string): boolean {
+  const r = parseRoute(url);
+  return !!r && r.kind === 'add' && !!r.save;
+}

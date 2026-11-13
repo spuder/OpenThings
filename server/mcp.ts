@@ -260,6 +260,17 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'complete_project',
+    title: 'Complete a project',
+    description: 'Mark a project completed (it moves to the Logbook). Its to-dos are left as they are. undo: true opens it again.',
+    inputSchema: { type: 'object', properties: { project: str('Project name or id'), undo: bool('Open the project again') }, required: ['project'] },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    run: (s, a) => {
+      const p = s.completeProject(String(a.project ?? ''), !a.undo);
+      return { id: p.id, name: p.name, ...(p.completed_at ? { completed_at: p.completed_at } : {}) };
+    },
+  },
+  {
     name: 'add_area',
     title: 'Add an area',
     description:

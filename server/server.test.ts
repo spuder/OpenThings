@@ -365,6 +365,24 @@ describe('MCP', () => {
     expect(listed.areas).toEqual([{ id: area.id, name: 'Health' }]);
   });
 
+  it('completes a project and opens it again', async () => {
+    const { call } = setup();
+    const project = JSON.parse((await tool(call, 'add_project', { name: 'Website' })).text);
+    const done = JSON.parse((await tool(call, 'complete_project', { project: 'website' })).text);
+    const at = done.completed_at;
+    expect(at).toBeTruthy();
+    expect(done).toEqual({ id: project.id, name: 'Website', completed_at: at });
+    // Completing again keeps the first time.
+    expect(JSON.parse((await tool(call, 'complete_project', { project: project.id })).text).completed_at).toBe(at);
+    const listed = JSON.parse((await tool(call, 'list_projects', {})).text);
+    expect(listed.projects[0].completed_at).toBe(at);
+    const reopened = JSON.parse((await tool(call, 'complete_project', { project: project.id, undo: true })).text);
+    expect(reopened).toEqual({ id: project.id, name: 'Website' });
+    expect((await tool(call, 'complete_project', { project: 'Nope' })).isError).toBe(true);
+    expect((await call('POST', '/api/v1/projects/website/complete')).body.completed_at).toBeTruthy();
+    expect((await call('POST', `/api/v1/projects/${project.id}/uncomplete`)).body.completed_at).toBeNull();
+  });
+
   it('reuses an area with the same name instead of adding a duplicate', async () => {
     const { call } = setup();
     const area = JSON.parse((await tool(call, 'add_area', { name: 'Health' })).text);

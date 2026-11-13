@@ -254,10 +254,12 @@ export class Service {
 
   /** Quick add's rule: a project or area by name, else a new project. */
   private resolveContainer(name: string): { project_id: string | null; area_id: string | null } {
-    const p = this.findByName(this.db.all<Project>('SELECT * FROM projects ORDER BY sort'), name);
-    if (p) return { project_id: p.id, area_id: null };
-    const a = this.findByName(this.db.all<Area>('SELECT * FROM areas ORDER BY sort'), name);
-    if (a) return { project_id: null, area_id: a.id };
+    const found = V.matchContainer(
+      this.db.all<Project>('SELECT * FROM projects ORDER BY sort'),
+      this.db.all<Area>('SELECT * FROM areas ORDER BY sort'),
+      name,
+    );
+    if (found) return found;
     const id = uuid7();
     this.db.insert('projects', { id, area_id: null, name, notes: '', sort: nextSort(), completed_at: null });
     return { project_id: id, area_id: null };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { anytime, describeWhen, driftingProjects, dumpGroups, expiredDumpSections, isParked, matrix, thisWeek, wakesProject } from './views';
-import type { DumpSection, Project, Task } from './types';
+import { anytime, describeWhen, driftingProjects, dumpGroups, expiredDumpSections, isParked, matchContainer, matrix, thisWeek, wakesProject } from './views';
+import type { Area, DumpSection, Project, Task } from './types';
 
 const base = {
   notes: '', project_id: null, area_id: null, heading_id: null, someday: 0, evening: 0, dump: 0, dump_section_id: null,
@@ -166,5 +166,27 @@ describe('idle drift and wake-up', () => {
     expect(wakesProject(dated, { project_id: 'P' })).toBe(true);
     expect(wakesProject(dated, { when_date: '2026-11-06' })).toBe(false);
     expect(wakesProject({ ...dated, completed_at: '2026-11-01T00:00:00Z' }, { project_id: 'P' })).toBe(false);
+  });
+});
+
+describe('matchContainer', () => {
+  const proj = (id: string, name: string, p: Partial<Project> = {}): Project => ({ id, name, area_id: 'home', notes: '', sort: 0, completed_at: null, ...p });
+  const areas: Area[] = [{ id: 'home', name: 'Home', sort: 0 }];
+
+  it('prefers the project you are in when names repeat', () => {
+    const projects = [proj('old', 'Home Assistant', { completed_at: '2026-01-01' }), proj('a', 'Home Assistant'), proj('b', 'Home Assistant')];
+    expect(matchContainer(projects, areas, 'Home Assistant', 'b')).toEqual({ project_id: 'b', area_id: null });
+  });
+
+  it('prefers an open project over a completed one of the same name', () => {
+    const projects = [proj('old', 'Home Assistant', { completed_at: '2026-01-01' }), proj('new', 'Home Assistant')];
+    expect(matchContainer(projects, areas, 'home-assistant')).toEqual({ project_id: 'new', area_id: null });
+  });
+
+  it('exact names beat prefixes, projects beat areas, then areas, else null', () => {
+    const projects = [proj('long', 'Home Assistant'), proj('short', 'Home')];
+    expect(matchContainer(projects, areas, 'Home')).toEqual({ project_id: 'short', area_id: null });
+    expect(matchContainer([proj('x', 'Garage')], areas, 'Home')).toEqual({ project_id: null, area_id: 'home' });
+    expect(matchContainer([proj('x', 'Garage')], areas, 'Kitchen')).toBeNull();
   });
 });

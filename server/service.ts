@@ -573,6 +573,13 @@ export class Service {
     return this.db.one<Project>('SELECT * FROM projects WHERE id = ?', [p.id])!;
   }
 
+  /** Mark a project completed, or open again with done = false, like the app's Complete project. Its to-dos are left as they are. */
+  completeProject(ref: string, done = true): Project {
+    const p = this.findProject(ref);
+    if (!!p.completed_at !== done) this.db.tx(() => this.db.update('projects', p.id, { completed_at: done ? new Date().toISOString() : null }));
+    return this.db.one<Project>('SELECT * FROM projects WHERE id = ?', [p.id])!;
+  }
+
   private idleProjectIds(): Set<string> {
     return new Set(this.db.all<{ id: string }>("SELECT id FROM projects WHERE status = 'idle' AND completed_at IS NULL").map((r) => r.id));
   }

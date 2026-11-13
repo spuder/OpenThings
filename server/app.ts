@@ -142,6 +142,9 @@ export function createApp(opts: AppOptions) {
     if (res === 'projects' && id && !action && m === 'PATCH') {
       return json(service.setProjectStatus(id, (await readObject(req)).status));
     }
+    if (res === 'projects' && id && m === 'POST' && (action === 'complete' || action === 'uncomplete')) {
+      return json(service.completeProject(id, action === 'complete'));
+    }
     if (res === 'areas' && !id) {
       if (m === 'GET') return json({ areas: service.areas() });
       if (m === 'POST') return json(service.addArea(String((await readObject(req)).name ?? '')), 201);

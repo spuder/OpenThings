@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.14.1](https://github.com/spuder/OpenThings/releases/tag/v0.14.1) - 2026-11-12
+
+### What's Changed
+
+* Quick add from inside a project (⌘N) puts the to-do in that project even when another project has the same name, such as an older completed one. Open projects also win over completed ones of the same name in quick add, the REST API and MCP. By @spuder in https://github.com/spuder/OpenThings/pull/139
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.14.0...v0.14.1
+
 ## [v0.14.0](https://github.com/spuder/OpenThings/releases/tag/v0.14.0) - 2026-11-06
 
 ### What's Changed

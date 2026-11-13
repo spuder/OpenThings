@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.15.0](https://github.com/spuder/OpenThings/releases/tag/v0.15.0) - 2026-11-12
+
+### What's Changed
+
+* Complete a project, or open it again, from MCP (`complete_project`, `undo: true` to reopen) and the REST API (`POST /api/v1/projects/:id/complete` and `/uncomplete`). Like Complete project in the app, its to-dos are left as they are. By @spuder in https://github.com/spuder/OpenThings/pull/141
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.14.1...v0.15.0
+
 ## [v0.14.1](https://github.com/spuder/OpenThings/releases/tag/v0.14.1) - 2026-11-12
 
 ### What's Changed

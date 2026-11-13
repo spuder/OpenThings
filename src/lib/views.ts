@@ -1,5 +1,5 @@
 /** Pure view filters over task rows, so they can be unit tested. */
-import type { DumpSection, Project, Task } from './types';
+import type { Area, DumpSection, Project, Task } from './types';
 import { addDays, parseYmd, relLabel } from './dates';
 
 export const DUMP_TTL_MS = 48 * 60 * 60 * 1000;
@@ -10,6 +10,37 @@ function visible(t: Task, keep: Set<string>): boolean {
 }
 
 const bySort = (a: Task, b: Task) => a.sort - b.sort;
+
+/** Name comparison for `+Project`: case, hyphens, underscores and spacing don't matter. */
+export function normName(s: string): string {
+  return s.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
+}
+
+/**
+ * The project or area a quick-add `+Name` refers to, or null if none does. Names needn't be unique,
+ * so ties go to the list you're in (`current`, a project or area id), then to an open project over
+ * a completed one, and only then to the first by sort. Exact names beat prefixes; projects beat areas.
+ */
+export function matchContainer(
+  projects: Project[],
+  areas: Area[],
+  name: string,
+  current: string | null = null,
+): { project_id: string | null; area_id: string | null } | null {
+  const n = normName(name);
+  if (!n) return null;
+  const rank = <T extends { id: string; completed_at?: string | null }>(xs: T[]) =>
+    [...xs].sort((a, b) => Number(b.id === current) - Number(a.id === current) || Number(!!a.completed_at) - Number(!!b.completed_at));
+  const find = <T extends { id: string; name: string; completed_at?: string | null }>(xs: T[]) => {
+    const ranked = rank(xs);
+    return ranked.find((x) => normName(x.name) === n) ?? ranked.find((x) => normName(x.name).startsWith(n));
+  };
+  const p = find(projects);
+  if (p) return { project_id: p.id, area_id: null };
+  const a = find(areas);
+  if (a) return { project_id: null, area_id: a.id };
+  return null;
+}
 
 /**
  * A to-do parked with its idle project: hidden from Anytime and the Matrix. One with a When date

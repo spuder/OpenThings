@@ -745,11 +745,11 @@ class Store {
 
   /** Find-or-create a project or area by name; returns placement fields. */
   private resolveContainer(name: string): { project_id: ID | null; area_id: ID | null } {
-    const n = norm(name);
-    const p = this.projects.find((x) => norm(x.name) === n) ?? this.projects.find((x) => norm(x.name).startsWith(n));
-    if (p) return { project_id: p.id, area_id: null };
-    const a = this.areas.find((x) => norm(x.name) === n) ?? this.areas.find((x) => norm(x.name).startsWith(n));
-    if (a) return { project_id: null, area_id: a.id };
+    // The list you're in wins a tie: quick add pre-fills its name, which another list may share.
+    const v = this.view;
+    const current = v.kind === 'project' || v.kind === 'area' ? v.id : null;
+    const found = V.matchContainer(this.projects, this.areas, name, current);
+    if (found) return found;
     const id = db.uuid7();
     db.insert('projects', { id, area_id: null, name: name, notes: '', sort: this.nextSort(), completed_at: null });
     this.notify(`Created project “${name}”`);

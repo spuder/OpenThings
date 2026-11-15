@@ -178,6 +178,15 @@ describe('stepTarget', () => {
   });
 });
 
+describe('groupFields: project Completed section', () => {
+  it('refuses drops into, out of and within it', () => {
+    const task = { id: 'x' } as unknown as Parameters<typeof groupFields>[3];
+    expect(groupFields('project', 'p-loose', 'p-completed', task, '2026-11-14')).toBeNull();
+    expect(groupFields('project', 'p-completed', 'p-loose', task, '2026-11-14')).toBeNull();
+    expect(groupFields('project', 'p-completed', 'p-completed', task, '2026-11-14')).toBeNull();
+  });
+});
+
 describe('groupFields', () => {
   const t = { when_date: null, evening: 0 } as unknown as Task;
   const day = '2026-10-19';

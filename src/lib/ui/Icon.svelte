@@ -24,6 +24,8 @@
     unheading: 'var(--text-2)',
     complete: 'var(--logbook)',
     delete: 'var(--deadline)',
+    // Follows the text color of the button it sits in.
+    caret: 'currentColor',
   };
 
   /** The color an icon is drawn in; menus reuse it for the item's letter. */
@@ -134,6 +136,9 @@
     <path d="M7 10.2l2.2 2.2L13.4 8" />
   {:else if name === 'chevron'}
     <path d="M8 5.5l4.5 4.5L8 14.5" />
+  {:else if name === 'caret'}
+    <!-- A soft, filled disclosure triangle with rounded corners. -->
+    <path d="M7.5 5.6c0-.9 1-1.4 1.7-.9l5.3 4.4c.5.4.5 1.3 0 1.7l-5.3 4.4c-.7.5-1.7 0-1.7-.9z" fill={color} stroke-width="1" />
   {:else if name === 'search'}
     <circle cx="9" cy="9" r="5" />
     <path d="M13 13l3.5 3.5" />

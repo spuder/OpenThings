@@ -30,7 +30,14 @@
 
 {#each groups as g (g.key)}
   <section class="group" class:titled={!!g.title} data-group={g.key}>
-    {#if g.title}
+    {#if g.completedCount !== undefined}
+      <div class="completed-bar">
+        <button class="completed-toggle" class:open={store.showCompleted} onclick={() => store.toggleShowCompleted()} aria-expanded={store.showCompleted} title={`${store.showCompleted ? 'Hide' : 'Show'} completed (z c)`}>
+          <span class="caret"><Icon name="caret" size={14} /></span>
+          <span>{g.completedCount} completed</span>
+        </button>
+      </div>
+    {:else if g.title}
       <header class:evening={g.key === 'evening'}>
         {#if g.key === 'evening'}<Icon name="evening" size={15} />{/if}
         <h2>{g.title}</h2>
@@ -94,6 +101,43 @@
   .remove:focus-visible {
     opacity: 1;
     color: var(--text);
+  }
+  /* A quiet, centered divider: hairlines either side of a small toggle. */
+  .completed-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-3);
+  }
+  .completed-bar::before,
+  .completed-bar::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+  .completed-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 44px;
+    padding: 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: inherit;
+    opacity: 0.75;
+    transition: opacity 0.15s;
+  }
+  .completed-toggle:hover,
+  .completed-toggle:focus-visible {
+    opacity: 1;
+  }
+  .caret {
+    display: inline-flex;
+    transition: transform 0.2s ease;
+  }
+  .completed-toggle.open .caret {
+    transform: rotate(90deg);
   }
   .items {
     /* Something to drop on when a group (an empty heading) has no rows. */

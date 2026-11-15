@@ -16,6 +16,7 @@
   import { nativeStatus } from '../native/status.svelte';
   import { MAX_SCHEDULED } from '../native/snapshot';
   import { isTouch } from '../env';
+  import { BACKGROUNDS, background } from '../background.svelte';
   import { FEATURES, features } from '../features.svelte';
   import Icon from './Icon.svelte';
 
@@ -410,6 +411,12 @@ curl '${base}/api/v1/tasks?view=today'`);
           <button class="btn" onclick={() => (store.overlay = 'themes')}>Choose theme… <kbd>⇧T</kbd></button>
         </div>
       {/if}
+      <div class="segmented" role="radiogroup" aria-label="Animated background">
+        {#each BACKGROUNDS as [value, label]}
+          <button role="radio" aria-checked={background.style === value} class:on={background.style === value} onclick={() => background.set(value)}>{label}</button>
+        {/each}
+      </div>
+      <p class="note">Animated backgrounds follow your theme, stay still if your device prefers reduced motion, and pause when the tab is hidden.</p>
       <p class="note">System follows your device's light/dark setting. Choices are saved on this device only.</p>
     {/if}
   </section>

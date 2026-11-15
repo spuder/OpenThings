@@ -17,7 +17,7 @@ function load(): BackgroundStyle {
   } catch {
     /* ignore */
   }
-  return 'none';
+  return 'waves';
 }
 
 class Background {

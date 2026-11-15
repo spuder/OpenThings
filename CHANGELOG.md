@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.16.0](https://github.com/spuder/OpenThings/releases/tag/v0.16.0) - 2026-11-14
+
+### What's Changed
+
+* Projects keep completed to-dos: a checked-off to-do stays in place, crossed out, until midnight, then moves to a Completed section at the bottom that you can show or hide (Z C). Completed to-dos are struck through in every list. By @spuder in https://github.com/spuder/OpenThings/pull/145
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.15.1...v0.16.0
+
 ## [v0.15.1](https://github.com/spuder/OpenThings/releases/tag/v0.15.1) - 2026-11-14
 
 ### What's Changed

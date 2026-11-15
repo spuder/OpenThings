@@ -19,6 +19,8 @@
   import FocusView from './lib/ui/FocusView.svelte';
   import BottomBar from './lib/ui/BottomBar.svelte';
   import QuickFind from './lib/ui/QuickFind.svelte';
+  import AnimatedBackground from './lib/ui/AnimatedBackground.svelte';
+  import { background } from './lib/background.svelte';
   import { isNarrow } from './lib/env';
   import { classifySwipe, swipeIgnored } from './lib/gesture';
   import { installKeyboardInset } from './lib/keyboard';
@@ -114,6 +116,7 @@
 <svelte:window onkeydown={handleKey} onkeydowncapture={trackModifier} onkeyupcapture={trackModifier} onblur={trackModifier} ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={() => (touch = null)} onpointerdown={onPointerDown} onpointerup={onPointerUp} onpointercancel={() => (outside = null)} />
 
 {#if store.ready}
+  {#if background.style !== 'none'}<AnimatedBackground style={background.style} />{/if}
   <div class="app">
     <Sidebar />
     {#if store.sidebarOpen}
@@ -246,6 +249,8 @@
 <style>
   .app {
     display: flex;
+    position: relative;
+    z-index: 1;
     height: 100vh;
   }
   main {

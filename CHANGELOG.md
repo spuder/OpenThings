@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.15.1](https://github.com/spuder/OpenThings/releases/tag/v0.15.1) - 2026-11-14
+
+### What's Changed
+
+* Sounds keep playing on the macOS app after the Mac sleeps or the audio output changes; before, completion chimes could go silent until the app was relaunched. By @spuder in https://github.com/spuder/OpenThings/pull/143
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.15.0...v0.15.1
+
 ## [v0.15.0](https://github.com/spuder/OpenThings/releases/tag/v0.15.0) - 2026-11-12
 
 ### What's Changed

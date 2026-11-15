@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.17.0](https://github.com/spuder/OpenThings/releases/tag/v0.17.0) - 2026-11-15
+
+### What's Changed
+
+* Animated backgrounds: pick Aurora, Particles or Waves in Settings → Appearance (None turns it off). Waves is the default. They follow your theme, stay still with reduced motion, and pause when the tab is hidden. By @spuder in https://github.com/spuder/OpenThings/pull/147 and https://github.com/spuder/OpenThings/pull/148
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.16.0...v0.17.0
+
 ## [v0.16.0](https://github.com/spuder/OpenThings/releases/tag/v0.16.0) - 2026-11-14
 
 ### What's Changed

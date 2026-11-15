@@ -1,6 +1,7 @@
 /** Synthesized UI sounds (Web Audio) — no audio files to ship. */
 let ctx: AudioContext | null = null;
 let muted = false;
+let reverb: ConvolverNode | null = null;
 
 try {
   muted = localStorage.getItem('openthings.muted') === '1';
@@ -21,15 +22,59 @@ export function setMuted(m: boolean) {
   }
 }
 
-function audio(): AudioContext | null {
-  if (muted) return null;
+function fresh(): AudioContext | null {
   try {
-    ctx ??= new AudioContext();
-    if (ctx.state === 'suspended') void ctx.resume();
-    return ctx;
+    void ctx?.close().catch(() => {});
   } catch {
-    return null;
+    /* already closed */
   }
+  reverb = null; // nodes belong to one context
+  try {
+    ctx = new AudioContext();
+  } catch {
+    ctx = null;
+  }
+  return ctx;
+}
+
+/** Set when a resume didn't take: the next sound starts from a new context. */
+let stale = false;
+
+/** Resolves true if `ac` is running within `ms`; a hung `resume()` counts as failed. */
+function wake(ac: AudioContext, ms = 300): Promise<boolean> {
+  return Promise.race([
+    ac.resume().then(
+      () => ac.state === 'running',
+      () => false,
+    ),
+    new Promise<boolean>((r) => setTimeout(() => r(false), ms)),
+  ]);
+}
+
+/**
+ * Run `fn` once the context can make sound. WebKit (the macOS and iOS shells, Safari) can leave a
+ * long-lived context 'suspended' or 'interrupted' after sleep or an output-device change, and
+ * `resume()` may never take; then a new context replaces it. The swap happens here, synchronously,
+ * when possible, so it stays inside the click that asked for the sound (autoplay rules).
+ * `fn` reads `currentTime` itself, so a late start is fine.
+ */
+function play(fn: (ac: AudioContext) => void) {
+  if (muted) return;
+  const state = ctx?.state as string | undefined;
+  const ac = !ctx || stale || state === 'closed' || state === 'interrupted' ? fresh() : ctx;
+  stale = false;
+  if (!ac) return;
+  if (ac.state === 'running') return fn(ac);
+  void wake(ac).then(async (ok) => {
+    if (ok) return fn(ac);
+    if (ctx !== ac) return; // another sound already replaced it
+    stale = true;
+    const next = fresh();
+    if (next && (next.state === 'running' || (await wake(next)))) {
+      stale = false;
+      fn(next);
+    }
+  });
 }
 
 function tone(ac: AudioContext, freq: number, start: number, dur: number, gain = 0.18, type: OscillatorType = 'sine') {
@@ -44,8 +89,6 @@ function tone(ac: AudioContext, freq: number, start: number, dur: number, gain =
   osc.start(start);
   osc.stop(start + dur + 0.02);
 }
-
-let reverb: ConvolverNode | null = null;
 
 /** A short synthetic room so chimes ring instead of clicking off. */
 function room(ac: AudioContext): AudioNode {
@@ -99,50 +142,50 @@ function bell(ac: AudioContext, freq: number, start: number, gain: number, decay
 
 /** Task complete: a two-note rising chime (G5 then C6 + E6) that rings out. */
 export function playComplete() {
-  const ac = audio();
-  if (!ac) return;
-  const t = ac.currentTime + 0.01;
-  bell(ac, 783.99, t, 0.17, 1.3);
-  bell(ac, 1046.5, t + 0.11, 0.16, 1.9);
-  bell(ac, 1318.5, t + 0.11, 0.07, 1.6);
+  play((ac) => {
+    const t = ac.currentTime + 0.01;
+    bell(ac, 783.99, t, 0.17, 1.3);
+    bell(ac, 1046.5, t + 0.11, 0.16, 1.9);
+    bell(ac, 1318.5, t + 0.11, 0.07, 1.6);
+  });
 }
 
 /** Un-complete: a single soft lower note. */
 export function playUncheck() {
-  const ac = audio();
-  if (!ac) return;
-  tone(ac, 659.3, ac.currentTime, 0.12, 0.08);
+  play((ac) => {
+    tone(ac, 659.3, ac.currentTime, 0.12, 0.08);
+  });
 }
 
 /** Habit check-in: a warmer three-note arpeggio of bells. */
 export function playHabit() {
-  const ac = audio();
-  if (!ac) return;
-  const t = ac.currentTime + 0.01;
-  [523.25, 659.25, 783.99].forEach((f, i) => bell(ac, f, t + i * 0.08, 0.16, 1.4 + i * 0.2));
+  play((ac) => {
+    const t = ac.currentTime + 0.01;
+    [523.25, 659.25, 783.99].forEach((f, i) => bell(ac, f, t + i * 0.08, 0.16, 1.4 + i * 0.2));
+  });
 }
 
 /** Brain dump check: a short pencil scratch (filtered noise). */
 export function playScratch() {
-  const ac = audio();
-  if (!ac) return;
-  const len = 0.16;
-  const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < data.length; i++) {
-    const env = Math.sin((Math.PI * i) / data.length);
-    data[i] = (Math.random() * 2 - 1) * env * (0.6 + 0.4 * Math.sin(i / 90));
-  }
-  const src = ac.createBufferSource();
-  src.buffer = buf;
-  const bp = ac.createBiquadFilter();
-  bp.type = 'bandpass';
-  bp.frequency.value = 3200;
-  bp.Q.value = 0.8;
-  const g = ac.createGain();
-  g.gain.value = 0.22;
-  src.connect(bp).connect(g).connect(ac.destination);
-  src.start();
+  play((ac) => {
+    const len = 0.16;
+    const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const env = Math.sin((Math.PI * i) / data.length);
+      data[i] = (Math.random() * 2 - 1) * env * (0.6 + 0.4 * Math.sin(i / 90));
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 3200;
+    bp.Q.value = 0.8;
+    const g = ac.createGain();
+    g.gain.value = 0.22;
+    src.connect(bp).connect(g).connect(ac.destination);
+    src.start();
+  });
 }
 
 /**
@@ -150,43 +193,43 @@ export function playScratch() {
  * thinning out, through a band-pass so it reads as crinkling rather than hiss.
  */
 export function playCrumple() {
-  const ac = audio();
-  if (!ac) return;
-  const len = 0.32;
-  const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let k = 0; k < 70; k++) {
-    // Square the random offset so crackles bunch up early, like the first squeeze of the ball.
-    const at = Math.floor(Math.random() ** 2 * data.length * 0.85);
-    const dur = Math.floor(ac.sampleRate * (0.002 + Math.random() * 0.007));
-    const amp = (0.3 + Math.random() * 0.7) * (1 - at / data.length);
-    for (let i = 0; i < dur && at + i < data.length; i++) data[at + i] += (Math.random() * 2 - 1) * amp * Math.exp((-5 * i) / dur);
-  }
-  const src = ac.createBufferSource();
-  src.buffer = buf;
-  const bp = ac.createBiquadFilter();
-  bp.type = 'bandpass';
-  bp.frequency.value = 2600;
-  bp.Q.value = 0.6;
-  const g = ac.createGain();
-  g.gain.value = 0.3;
-  src.connect(bp).connect(g).connect(ac.destination);
-  src.start();
+  play((ac) => {
+    const len = 0.32;
+    const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let k = 0; k < 70; k++) {
+      // Square the random offset so crackles bunch up early, like the first squeeze of the ball.
+      const at = Math.floor(Math.random() ** 2 * data.length * 0.85);
+      const dur = Math.floor(ac.sampleRate * (0.002 + Math.random() * 0.007));
+      const amp = (0.3 + Math.random() * 0.7) * (1 - at / data.length);
+      for (let i = 0; i < dur && at + i < data.length; i++) data[at + i] += (Math.random() * 2 - 1) * amp * Math.exp((-5 * i) / dur);
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2600;
+    bp.Q.value = 0.6;
+    const g = ac.createGain();
+    g.gain.value = 0.3;
+    src.connect(bp).connect(g).connect(ac.destination);
+    src.start();
+  });
 }
 
 /** Pomodoro finished: three slow, low bells. */
 export function playBell() {
-  const ac = audio();
-  if (!ac) return;
-  const t = ac.currentTime + 0.01;
-  for (let i = 0; i < 3; i++) bell(ac, 587.33, t + i * 0.7, 0.24, 2.4);
+  play((ac) => {
+    const t = ac.currentTime + 0.01;
+    for (let i = 0; i < 3; i++) bell(ac, 587.33, t + i * 0.7, 0.24, 2.4);
+  });
 }
 
 /** Reminder: two descending bells, distinct from the completion chime. */
 export function playReminder() {
-  const ac = audio();
-  if (!ac) return;
-  const t = ac.currentTime + 0.01;
-  bell(ac, 1174.66, t, 0.18, 1.4);
-  bell(ac, 880, t + 0.22, 0.2, 2.0);
+  play((ac) => {
+    const t = ac.currentTime + 0.01;
+    bell(ac, 1174.66, t, 0.18, 1.4);
+    bell(ac, 880, t + 0.22, 0.2, 2.0);
+  });
 }

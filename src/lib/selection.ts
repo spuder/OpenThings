@@ -145,6 +145,8 @@ export function canReorder(kind: ViewKey['kind']): boolean {
  */
 export function groupFields(kind: ViewKey['kind'], fromKey: string, toKey: string, t: Task, day: string): Partial<Task> | null {
   if (!canReorder(kind)) return null;
+  // A project's Completed section is ordered by completion date: no drops into, out of or within it.
+  if (kind === 'project' && (toKey === 'p-completed' || fromKey === 'p-completed')) return null;
   if (fromKey === toKey) return {};
   switch (kind) {
     case 'today':

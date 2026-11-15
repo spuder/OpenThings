@@ -467,6 +467,14 @@ export const commands: Command[] = [
       if (id) store.toggleArea(id);
     },
   },
+  {
+    id: 'project.toggleCompleted',
+    title: 'Show / hide completed to-dos in projects',
+    group: 'App',
+    keys: ['z c'],
+    when: () => store.view.kind === 'project',
+    run: () => store.toggleShowCompleted(),
+  },
   { id: 'area.collapseAll', title: 'Collapse all areas', group: 'App', keys: ['z m'], when: anyAreaOpen, run: () => store.setAreasCollapsed(true) },
   { id: 'idle.fold', title: 'Collapse / expand Idle projects in the sidebar', group: 'App', keys: ['z i'], when: () => store.idleProjects.length > 0, run: () => store.toggleIdleSection() },
   { id: 'area.expandAll', title: 'Expand all areas', group: 'App', keys: ['z r'], when: anyAreaFolded, run: () => store.setAreasCollapsed(false) },

@@ -354,6 +354,7 @@
   }
   .done .title {
     color: var(--text-3);
+    text-decoration: line-through;
   }
   .container {
     font-size: 12px;

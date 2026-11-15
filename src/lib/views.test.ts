@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anytime, describeWhen, driftingProjects, dumpGroups, expiredDumpSections, isParked, matchContainer, matrix, thisWeek, wakesProject } from './views';
+import { anytime, describeWhen, driftingProjects, dumpGroups, expiredDumpSections, isParked, matchContainer, matrix, projectTasks, thisWeek, wakesProject } from './views';
 import type { Area, DumpSection, Project, Task } from './types';
 
 const base = {
@@ -188,5 +188,31 @@ describe('matchContainer', () => {
     expect(matchContainer(projects, areas, 'Home')).toEqual({ project_id: 'short', area_id: null });
     expect(matchContainer([proj('x', 'Garage')], areas, 'Home')).toEqual({ project_id: null, area_id: 'home' });
     expect(matchContainer([proj('x', 'Garage')], areas, 'Kitchen')).toBeNull();
+  });
+});
+
+describe('projectTasks', () => {
+  // Local-time timestamps, so the test passes in any time zone.
+  const at = (y: number, m: number, d: number, h: number) => new Date(y, m - 1, d, h).toISOString();
+  const ids = (ts: Task[]) => ts.map((x) => x.id);
+  const tasks = [
+    t('open', { project_id: 'p', sort: 2 }),
+    t('doneToday', { project_id: 'p', sort: 1, completed_at: at(2026, 11, 14, 0) }),
+    t('doneYesterday', { project_id: 'p', sort: 0, completed_at: at(2026, 11, 13, 23) }),
+    t('doneEarlier', { project_id: 'p', sort: 3, completed_at: at(2026, 11, 1, 9) }),
+    t('otherProject', { project_id: 'q', completed_at: at(2026, 11, 1, 9) }),
+    t('dump', { project_id: 'p', dump: 1 }),
+  ];
+
+  it('keeps to-dos checked off today in place, crossed out, until midnight', () => {
+    const r = projectTasks(tasks, 'p', '2026-11-14');
+    expect(ids(r.open)).toEqual(['doneToday', 'open']);
+    expect(ids(r.completed)).toEqual(['doneYesterday', 'doneEarlier']);
+  });
+
+  it('moves them to Completed once the day changes', () => {
+    const r = projectTasks(tasks, 'p', '2026-11-15');
+    expect(ids(r.open)).toEqual(['open']);
+    expect(ids(r.completed)).toEqual(['doneToday', 'doneYesterday', 'doneEarlier']);
   });
 });

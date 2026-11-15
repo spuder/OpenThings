@@ -42,6 +42,8 @@ export interface Group {
   sectionId?: ID | null;
   /** For project headings: the heading id. */
   headingId?: ID;
+  /** A project's Completed section: how many it holds (its items are empty while hidden). */
+  completedCount?: number;
   items: Task[];
 }
 
@@ -150,6 +152,24 @@ class Store {
   selecting = $state(false);
   /** Tasks checked this session stay visible until you leave the view (like Things). */
   keep = new SvelteSet<ID>();
+  /** Show a project's Completed section (to-dos checked off before today). Per device. */
+  showCompleted = $state(
+    (() => {
+      try {
+        return localStorage.getItem('openthings.showCompleted') !== '0';
+      } catch {
+        return true;
+      }
+    })(),
+  );
+  toggleShowCompleted() {
+    this.showCompleted = !this.showCompleted;
+    try {
+      localStorage.setItem('openthings.showCompleted', this.showCompleted ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }
   /** Ticks every 30s so brain-dump fade and timers update. */
   now = $state(Date.now());
   day = $state(todayFn());
@@ -649,12 +669,15 @@ class Store {
         ];
       }
       case 'project': {
-        const items = ts.filter((t) => t.project_id === v.id && !t.dump && (t.completed_at === null || keep.has(t.id))).sort((a, b) => a.sort - b.sort);
+        const { open: items, completed } = V.projectTasks(ts, v.id, day);
         const hs = this.headings.filter((h) => h.project_id === v.id);
         // A to-do whose heading no longer exists (removed, or on another device) shows without one.
         const out: Group[] = [{ key: 'p-loose', items: items.filter((t) => !t.heading_id || !hs.some((h) => h.id === t.heading_id)) }];
         for (const h of hs) {
           out.push({ key: h.id, title: h.name, headingId: h.id, items: items.filter((t) => t.heading_id === h.id) });
+        }
+        if (completed.length) {
+          out.push({ key: 'p-completed', title: 'Completed', completedCount: completed.length, items: this.showCompleted ? completed : [] });
         }
         return out;
       }

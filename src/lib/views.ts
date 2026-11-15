@@ -1,6 +1,6 @@
 /** Pure view filters over task rows, so they can be unit tested. */
 import type { Area, DumpSection, Project, Task } from './types';
-import { addDays, parseYmd, relLabel } from './dates';
+import { addDays, parseYmd, relLabel, ymd } from './dates';
 
 export const DUMP_TTL_MS = 48 * 60 * 60 * 1000;
 
@@ -82,6 +82,28 @@ export function wakesProject(t: Task, fields: Partial<Task>): boolean {
     ('deadline' in fields && fields.deadline !== null && fields.deadline !== t.deadline) ||
     ('project_id' in fields && fields.project_id !== t.project_id)
   );
+}
+
+/** Local `YYYY-MM-DD` a to-do was completed on (completed_at is a UTC timestamp). */
+export function completedDay(t: Task): string | null {
+  return t.completed_at ? ymd(new Date(t.completed_at)) : null;
+}
+
+/**
+ * A project's to-dos: open ones plus those checked off today (shown crossed out in place until
+ * midnight), and the earlier completed ones, newest first, for the Completed section.
+ */
+export function projectTasks(tasks: Task[], projectId: string, day: string): { open: Task[]; completed: Task[] } {
+  const open: Task[] = [];
+  const completed: Task[] = [];
+  for (const t of tasks) {
+    if (t.project_id !== projectId || t.dump) continue;
+    if (t.completed_at === null || completedDay(t) === day) open.push(t);
+    else completed.push(t);
+  }
+  open.sort(bySort);
+  completed.sort((a, b) => b.completed_at!.localeCompare(a.completed_at!));
+  return { open, completed };
 }
 
 export function dumpAgeFraction(t: Task, now: number): number {

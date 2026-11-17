@@ -29,12 +29,39 @@ function fresh(): AudioContext | null {
     /* already closed */
   }
   reverb = null; // nodes belong to one context
+  playing = 0;
+  clearTimeout(idleTimer);
   try {
     ctx = new AudioContext();
   } catch {
     ctx = null;
   }
   return ctx;
+}
+
+/**
+ * A running context keeps an output stream open and feeds silence to the audio server for as long
+ * as it lives (a constant CPU cost on Linux / PipeWire). So once every source has ended and the
+ * reverb tail has died away, the context is suspended; `play()` resumes it for the next sound.
+ */
+const TAIL_MS = 2000; // the reverb impulse in room() is 1.6 s
+let playing = 0;
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+function track(ac: AudioContext, src: AudioScheduledSourceNode) {
+  playing++;
+  clearTimeout(idleTimer);
+  src.onended = () => {
+    if (ctx !== ac || --playing > 0) return; // a replaced context's sources don't count
+    idleTimer = setTimeout(() => {
+      if (ctx !== ac || playing > 0 || ac.state !== 'running') return;
+      // A sound that starts while the suspend is in flight would otherwise be silenced.
+      ac.suspend().then(
+        () => void (ctx === ac && playing > 0 && ac.resume().catch(() => {})),
+        () => {},
+      );
+    }, TAIL_MS);
+  };
 }
 
 /** Set when a resume didn't take: the next sound starts from a new context. */
@@ -86,6 +113,7 @@ function tone(ac: AudioContext, freq: number, start: number, dur: number, gain =
   g.gain.linearRampToValueAtTime(gain, start + 0.008);
   g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
   osc.connect(g).connect(ac.destination);
+  track(ac, osc);
   osc.start(start);
   osc.stop(start + dur + 0.02);
 }
@@ -135,6 +163,7 @@ function bell(ac: AudioContext, freq: number, start: number, gain: number, decay
     g.gain.linearRampToValueAtTime(level, start + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, start + d);
     osc.connect(g).connect(out);
+    track(ac, osc);
     osc.start(start);
     osc.stop(start + d + 0.05);
   }
@@ -184,6 +213,7 @@ export function playScratch() {
     const g = ac.createGain();
     g.gain.value = 0.22;
     src.connect(bp).connect(g).connect(ac.destination);
+    track(ac, src);
     src.start();
   });
 }
@@ -213,6 +243,7 @@ export function playCrumple() {
     const g = ac.createGain();
     g.gain.value = 0.3;
     src.connect(bp).connect(g).connect(ac.destination);
+    track(ac, src);
     src.start();
   });
 }

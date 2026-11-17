@@ -5,6 +5,23 @@
   let { style }: { style: Exclude<BackgroundStyle, 'none'> } = $props();
   let canvas = $state<HTMLCanvasElement>();
 
+  // Animate only while the window is visible and focused. Desktop shells (WebKitGTK on Linux) keep
+  // document.hidden false and fire rAF at vblank rate when the window is on another workspace or
+  // covered, so visibility alone never stops the loop. Unfocused, the backdrop holds still.
+  const isLive = () => !document.hidden && document.hasFocus();
+  let live = $state(isLive());
+  $effect(() => {
+    const update = () => (live = isLive());
+    addEventListener('focus', update);
+    addEventListener('blur', update);
+    document.addEventListener('visibilitychange', update);
+    return () => {
+      removeEventListener('focus', update);
+      removeEventListener('blur', update);
+      document.removeEventListener('visibilitychange', update);
+    };
+  });
+
   const FPS = 30;
   const MAX_DPR = 1.5;
 
@@ -110,7 +127,7 @@
         last = t;
         draw(t);
       }
-      if (!reduce.matches && !document.hidden) raf = requestAnimationFrame(loop);
+      if (!reduce.matches && isLive()) raf = requestAnimationFrame(loop);
     };
     const start = () => {
       cancelAnimationFrame(raf);
@@ -139,6 +156,8 @@
     addEventListener('pointermove', onMove, { passive: true });
     addEventListener('pointerup', onLeave);
     document.addEventListener('visibilitychange', start);
+    addEventListener('focus', start);
+    addEventListener('blur', start);
     reduce.addEventListener('change', start);
     const mo = new MutationObserver(redraw);
     mo.observe(document.documentElement, { attributes: true });
@@ -151,6 +170,8 @@
       removeEventListener('pointermove', onMove);
       removeEventListener('pointerup', onLeave);
       document.removeEventListener('visibilitychange', start);
+      removeEventListener('focus', start);
+      removeEventListener('blur', start);
       reduce.removeEventListener('change', start);
       dark.removeEventListener('change', redraw);
       mo.disconnect();
@@ -159,7 +180,7 @@
 </script>
 
 {#if style === 'aurora'}
-  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="aurora" class:paused={!live} aria-hidden="true"><i></i><i></i><i></i></div>
 {:else}
   <canvas bind:this={canvas} aria-hidden="true"></canvas>
 {/if}
@@ -211,6 +232,9 @@
     to {
       transform: translate3d(18vmax, 12vmax, 0) scale(1.2);
     }
+  }
+  .aurora.paused i {
+    animation-play-state: paused;
   }
   @media (prefers-reduced-motion: reduce) {
     .aurora i {

@@ -2,6 +2,15 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.17.1](https://github.com/spuder/OpenThings/releases/tag/v0.17.1) - 2026-11-17
+
+### What's Changed
+
+* Lower idle CPU: sounds no longer keep the audio output open between plays. The audio context is suspended once a sound has finished ringing and resumed for the next one. By @spuder in https://github.com/spuder/OpenThings/pull/152 (fixes https://github.com/spuder/OpenThings/issues/150)
+* The animated background pauses while the window is unfocused or hidden, including on another workspace on Linux, and picks up where it left off when you come back. By @spuder in https://github.com/spuder/OpenThings/pull/153 (fixes https://github.com/spuder/OpenThings/issues/151)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.17.0...v0.17.1
+
 ## [v0.17.0](https://github.com/spuder/OpenThings/releases/tag/v0.17.0) - 2026-11-15
 
 ### What's Changed

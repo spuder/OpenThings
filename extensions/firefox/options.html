@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenThings Quick Add settings</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>body { width: auto; max-width: 520px; } fieldset { border: 1px solid var(--border); border-radius: 6px; } label { display: block; margin: 4px 0; } input[type=url] { width: 100%; font: inherit; padding: 6px; } code { font-size: 12px; }</style>
+  <script type="module" src="options.js"></script>
+</head>
+<body>
+  <form id="form">
+    <fieldset>
+      <legend>Send to-dos to</legend>
+      <label><input type="radio" name="mode" value="app" checked /> <b>The OpenThings app</b> (desktop or phone) with <code>openthings://</code> links. Firefox asks the first time.</label>
+      <label><input type="radio" name="mode" value="server" /> <b>My OpenThings server</b> with the REST API. Works without the app installed.</label>
+    </fieldset>
+    <fieldset>
+      <legend>Lists</legend>
+      <label><input type="checkbox" id="dump" checked /> <b>Brain Dump</b>: show the Inbox / Brain Dump switch in the popup. Turn it off if Brain Dump is off in OpenThings (Settings → Features); then everything goes to the Inbox.</label>
+    </fieldset>
+    <fieldset>
+      <legend>App links</legend>
+      <label><input type="checkbox" id="handoffGranted" /> <b>Send silently</b>: Firefox already opens <code>openthings://</code> links with OpenThings (you chose <i>Always allow</i>). To-dos are sent without opening or touching a tab. Turn it off if nothing reaches the app; it will show Firefox's prompt again.</label>
+    </fieldset>
+    <label>Server URL
+      <input type="url" id="serverUrl" placeholder="https://openthings.example.ts.net" />
+    </label>
+    <p class="hint" id="originHint">The server only accepts this extension if its origin is listed: <code>OPENTHINGS_ALLOWED_ORIGINS=<span id="origin"></span></code></p>
+    <div class="buttons"><button type="button" id="test" class="secondary">Test connection</button><button type="submit">Save</button></div>
+    <p id="status" role="status"></p>
+  </form>
+</body>
+</html>

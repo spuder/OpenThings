@@ -5,7 +5,8 @@
  */
 import { store } from '../store.svelte';
 import { pairing } from '../sync/pairing.svelte';
-import { addLinkParsed, addLinkPrefill, parseRoute } from './snapshot';
+import { notifyNative } from './desktop';
+import { addedTo, addLinkParsed, addLinkPrefill, parseRoute } from './snapshot';
 
 /** Returns false when the link isn't one OpenThings knows. */
 export function openRoute(url: string): boolean {
@@ -25,6 +26,8 @@ export function openRoute(url: string): boolean {
     // From outside the app: a to-do without a list goes to the Inbox, not the list on screen.
     store.addParsed(p, { useContext: false });
     store.notify(`Added “${p.title}”`);
+    // Saved in the background (the desktop app doesn't show its window): say so natively.
+    if (typeof document !== 'undefined' && (document.hidden || !document.hasFocus())) notifyNative(`Added to ${addedTo(p)}`, p.title);
   } else {
     store.quickAddPrefill = addLinkPrefill(r);
     store.overlay = 'quickadd';

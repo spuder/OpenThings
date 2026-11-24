@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.17.2](https://github.com/spuder/OpenThings/releases/tag/v0.17.2) - 2026-11-24
+
+### What's Changed
+
+* macOS: typing into a to-do no longer turns into keyboard shortcuts after ⌘ was used (⌘Tab, Spotlight, screenshots, the quick-add hotkey). A ⌘ key-up that macOS never delivered used to leave ⌘ counted as held. By @spuder in https://github.com/spuder/OpenThings/pull/158
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.17.1...v0.17.2
+
 ## [v0.17.1](https://github.com/spuder/OpenThings/releases/tag/v0.17.1) - 2026-11-17
 
 ### What's Changed

@@ -83,6 +83,17 @@
     const v = (e.target as HTMLTextAreaElement).value;
     if (v !== task.notes) store.update(task.id, { notes: v });
   }
+  // Grow the notes box with its content so long notes stay visible; it only
+  // scrolls internally past the max-height set in CSS.
+  function autosize(el: HTMLTextAreaElement) {
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight + 2}px`;
+    };
+    fit();
+    el.addEventListener('input', fit);
+    return { destroy: () => el.removeEventListener('input', fit) };
+  }
   function fieldKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       (e.target as HTMLElement).blur();
@@ -189,7 +200,7 @@
 
   {#if expanded}
     <div class="detail" transition:slide={{ duration: 160 }}>
-      <textarea class="notes" placeholder="Notes" value={task.notes} onblur={saveNotes} onkeydown={fieldKey} rows="3"></textarea>
+      <textarea class="notes" placeholder="Notes" value={task.notes} onblur={saveNotes} onkeydown={fieldKey} rows="5" use:autosize></textarea>
 
       <ul class="checklist">
         {#each items as c (c.id)}
@@ -492,7 +503,10 @@
     background: transparent;
     color: var(--text-2);
     font-size: 13.5px;
+    line-height: 1.5;
     padding: 2px 0 6px;
+    max-height: 60vh;
+    overflow-y: auto;
   }
   .checklist {
     list-style: none;

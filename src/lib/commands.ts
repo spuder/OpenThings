@@ -8,6 +8,7 @@ import { theme } from './theme.svelte';
 import { isNarrow, isTouch } from './env';
 import type { ViewKey } from './types';
 import { features, viewEnabled } from './features.svelte';
+import { modifierTracker } from './modifier';
 
 export interface Command {
   id: string;
@@ -497,17 +498,16 @@ export const commands: Command[] = [
 
 // ---------- key matching ----------
 
-/**
- * Whether Ctrl (⌘ on macOS) is held, from its own key events. On Wayland, fcitx5 drops a held
- * modifier from key events once a text field loses focus, so holding Ctrl and pressing K again
- * would arrive as a plain K. The Ctrl key-up still arrives, so trust the key over the flag.
- */
-let modHeld = false;
+const modifier = modifierTracker(isMac);
 
-/** Feed window keydown / keyup / blur here to keep `modHeld` current. */
+/** Feed window keydown / keyup / blur here to keep the held-Ctrl fallback current. */
 export function trackModifier(e: KeyboardEvent | FocusEvent) {
-  if (e.type === 'blur') modHeld = false;
-  else if ((e as KeyboardEvent).key === (isMac ? 'Meta' : 'Control')) modHeld = e.type === 'keydown';
+  modifier.track({ type: e.type, key: (e as KeyboardEvent).key });
+}
+
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
 /** Normalise a keyboard event to a key string like "mod+k", "alt+1", "shift+p", "?". */
@@ -518,7 +518,7 @@ export function eventKey(e: KeyboardEvent): string {
   if (e.altKey && /^Digit\d$/.test(e.code)) key = e.code.slice(5);
   if (e.altKey && /^Key[A-Z]$/.test(e.code)) key = e.code.slice(3).toLowerCase();
   const parts: string[] = [];
-  const mod = (isMac ? e.metaKey : e.ctrlKey) || modHeld;
+  const mod = (isMac ? e.metaKey : e.ctrlKey) || modifier.held(isTyping(e.target));
   if (mod) parts.push('mod');
   if (isMac && e.ctrlKey) parts.push('ctrl');
   if (!isMac && e.metaKey) parts.push('meta');
@@ -568,8 +568,7 @@ function applicable(c: Command) {
 /** Global keydown handler. Returns true if a command ran. */
 export function handleKey(e: KeyboardEvent): boolean {
   if (e.isComposing) return false;
-  const target = e.target as HTMLElement | null;
-  const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+  const typing = isTyping(e.target);
   const k = eventKey(e);
   if (['shift', 'alt', 'control', 'meta', 'mod+meta', 'ctrl+control'].some((m) => k.endsWith(m))) return false;
 

@@ -7,7 +7,7 @@
 # pacman repo.
 pkgname=openthings-bin
 _pkgname=openthings
-pkgver=0.17.3
+pkgver=0.18.0
 pkgrel=1
 pkgdesc='Self-hosted, local-first task manager with a calm, keyboard-first design (prebuilt)'
 arch=('x86_64')

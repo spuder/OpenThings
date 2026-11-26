@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.18.0](https://github.com/spuder/OpenThings/releases/tag/v0.18.0) - 2026-11-26
+
+### What's Changed
+
+* Completing a project is celebrated: confetti, a spinning gold coin stamped with the OpenThings logo, the project's name and a short fanfare that ends in a "woo-hoo". Tap, click or press any key to skip it. Turn it off in Settings → Features → Celebrate finished projects; with reduced motion on, the coin just fades in and there is no confetti. By @spuder in https://github.com/spuder/OpenThings/pull/163 (fixes https://github.com/spuder/OpenThings/issues/156)
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.17.3...v0.18.0
+
 ## [v0.17.3](https://github.com/spuder/OpenThings/releases/tag/v0.17.3) - 2026-11-26
 
 ### What's Changed

@@ -1501,8 +1501,19 @@ class Store {
     const p = this.projects.find((x) => x.id === id);
     if (!p) return;
     db.update('projects', id, { completed_at: p.completed_at ? null : new Date().toISOString() });
-    sound.playComplete();
+    if (p.completed_at) sound.playUncheck();
+    else if (features.enabled('celebrate')) {
+      sound.playFanfare();
+      this.celebration = { id: Date.now(), name: p.name };
+    } else sound.playComplete();
     this.load();
+  }
+
+  /** The project-complete celebration on screen, if any (Celebration.svelte). */
+  celebration = $state<{ id: number; name: string } | null>(null);
+
+  endCelebration() {
+    this.celebration = null;
   }
 
   // ---------- habits ----------

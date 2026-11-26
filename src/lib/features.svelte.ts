@@ -1,6 +1,6 @@
 /** Optional features the user can turn on or off in Settings → Features. Saved per device. */
 
-export type FeatureId = 'dump' | 'week' | 'autoIdle';
+export type FeatureId = 'dump' | 'week' | 'autoIdle' | 'celebrate';
 
 export const FEATURES: { id: FeatureId; label: string; icon: string; description: string; default: boolean }[] = [
   {
@@ -22,6 +22,13 @@ export const FEATURES: { id: FeatureId; label: string; icon: string; description
     label: 'Idle projects drift to Someday',
     icon: 'someday',
     description: 'A project with nothing scheduled goes idle after 14 days without changes. Scheduling one of its to-dos makes it active again.',
+    default: true,
+  },
+  {
+    id: 'celebrate',
+    label: 'Celebrate finished projects',
+    icon: 'celebrate',
+    description: 'Completing a project sets off confetti, a spinning gold coin and a fanfare for a few seconds. Tap or press any key to skip it.',
     default: true,
   },
 ];

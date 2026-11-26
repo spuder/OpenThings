@@ -30,6 +30,7 @@
   import { drag } from './lib/ui/drag.svelte';
   import RepeatEditor from './lib/ui/RepeatEditor.svelte';
   import SwipeSheet from './lib/ui/SwipeSheet.svelte';
+  import Celebration from './lib/ui/Celebration.svelte';
 
   store.init().then(() => store.start());
   installKeyboardInset();
@@ -224,6 +225,10 @@
   {#if store.overlay === 'themes' && !theme.following}<ThemePicker />{/if}
   {#if store.overlay === 'repeat'}<RepeatEditor />{/if}
   {#if store.overlay === 'swipe'}<SwipeSheet />{/if}
+
+  {#if store.celebration}
+    {#key store.celebration.id}<Celebration name={store.celebration.name} onclose={() => store.endCelebration()} />{/key}
+  {/if}
 
   {#if drag.active}
     {@const first = store.task(drag.ids[0] ?? null)}

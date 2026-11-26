@@ -25,6 +25,7 @@
     heading: 'var(--matrix)',
     unheading: 'var(--text-2)',
     complete: 'var(--logbook)',
+    celebrate: 'var(--star)',
     delete: 'var(--deadline)',
     // Follows the text color of the button it sits in.
     caret: 'currentColor',
@@ -49,6 +50,9 @@
     <path d="M3 11.5h4l1 2h4l1-2h4" />
   {:else if name === 'today'}
     <path d="M10 2.8l2.1 4.4 4.8.6-3.5 3.3.9 4.8L10 13.6l-4.3 2.3.9-4.8-3.5-3.3 4.8-.6z" fill={color} />
+  {:else if name === 'celebrate'}
+    <circle cx="10" cy="10" r="7" />
+    <path d="M7.2 10.2l1.9 1.9 3.8-4" />
   {:else if name === 'upcoming'}
     <rect x="3" y="4" width="14" height="13" rx="2.5" />
     <path d="M3 8h14M7 2.5v3M13 2.5v3" />

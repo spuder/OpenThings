@@ -264,3 +264,110 @@ export function playReminder() {
     bell(ac, 880, t + 0.22, 0.2, 2.0);
   });
 }
+
+/** A bright brass-like note: two detuned saws through a low-pass that opens on the attack. */
+function brass(ac: AudioContext, freq: number, start: number, dur: number, gain: number) {
+  const out = ac.createGain();
+  out.gain.setValueAtTime(0, start);
+  out.gain.linearRampToValueAtTime(gain, start + 0.02);
+  out.gain.setValueAtTime(gain * 0.8, start + dur * 0.6);
+  out.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  out.connect(ac.destination);
+  out.connect(room(ac));
+  const lp = ac.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.Q.value = 1.2;
+  lp.frequency.setValueAtTime(freq * 1.5, start);
+  lp.frequency.linearRampToValueAtTime(freq * 5, start + 0.05);
+  lp.frequency.exponentialRampToValueAtTime(freq * 2.2, start + dur);
+  lp.connect(out);
+  for (const cents of [-7, 7]) {
+    const osc = ac.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    osc.detune.value = cents;
+    osc.connect(lp);
+    track(ac, osc);
+    osc.start(start);
+    osc.stop(start + dur + 0.05);
+  }
+}
+
+/**
+ * One cartoon "woo" syllable: a buzzy source whose pitch glides up, shaped by two vowel formants
+ * (an "oo" that opens a little), with an optional breathy "h" in front.
+ */
+function hoot(ac: AudioContext, start: number, from: number, to: number, dur: number, breath: boolean) {
+  const out = ac.createGain();
+  out.gain.setValueAtTime(0, start);
+  out.gain.linearRampToValueAtTime(0.5, start + 0.04);
+  out.gain.setValueAtTime(0.5, start + dur * 0.7);
+  out.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  out.connect(ac.destination);
+  out.connect(room(ac));
+  const formants: [number, number, number, number][] = [
+    // [start Hz, end Hz, Q, level]
+    [320, 420, 5, 1],
+    [760, 950, 7, 0.45],
+  ];
+  const osc = ac.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(from, start);
+  osc.frequency.exponentialRampToValueAtTime(to, start + dur * 0.65);
+  osc.frequency.exponentialRampToValueAtTime(to * 0.94, start + dur);
+  const vib = ac.createOscillator();
+  const vibDepth = ac.createGain();
+  vib.frequency.value = 6;
+  vibDepth.gain.value = 12;
+  vib.connect(vibDepth).connect(osc.frequency);
+  for (const [f0, f1, q, level] of formants) {
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = q;
+    bp.frequency.setValueAtTime(f0, start);
+    bp.frequency.linearRampToValueAtTime(f1, start + dur * 0.5);
+    const g = ac.createGain();
+    g.gain.value = level;
+    osc.connect(bp).connect(g).connect(out);
+  }
+  for (const src of [osc, vib]) {
+    track(ac, src);
+    src.start(start);
+    src.stop(start + dur + 0.05);
+  }
+  if (breath) {
+    const len = 0.07;
+    const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const noise = ac.createBufferSource();
+    noise.buffer = buf;
+    const hp = ac.createBiquadFilter();
+    hp.type = 'bandpass';
+    hp.frequency.value = 1400;
+    hp.Q.value = 0.7;
+    const g = ac.createGain();
+    g.gain.value = 0.12;
+    noise.connect(hp).connect(g).connect(ac.destination);
+    track(ac, noise);
+    noise.start(start - len * 0.6);
+  }
+}
+
+/**
+ * Project complete: a quick rising brass arpeggio into a held major chord with bells on top,
+ * then a cartoon "woo-hoo!". Original phrase, synthesized here like every other sound.
+ */
+export function playFanfare() {
+  play((ac) => {
+    const t = ac.currentTime + 0.02;
+    // C5 E5 G5, then C6 held over E5 and G5.
+    [523.25, 659.25, 783.99].forEach((f, i) => brass(ac, f, t + i * 0.085, 0.16, 0.05));
+    const hold = t + 0.27;
+    for (const f of [659.25, 783.99, 1046.5]) brass(ac, f, hold, 0.95, 0.045);
+    bell(ac, 1046.5, hold, 0.1, 1.8);
+    bell(ac, 1567.98, hold + 0.06, 0.06, 1.6);
+    hoot(ac, hold + 0.55, 300, 430, 0.26, false);
+    hoot(ac, hold + 0.86, 400, 640, 0.42, true);
+  });
+}

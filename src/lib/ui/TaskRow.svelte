@@ -221,9 +221,10 @@
           {#if task.when_date || task.someday}
             <span class="chip">
               {#if task.someday}Someday{:else if task.evening}<Icon name="evening" size={12} /> This Evening{:else if task.when_date && task.when_date <= store.day}<Icon name="today" size={12} /> Today{:else if task.when_date}{relLabel(task.when_date, store.day)}{/if}
+              <button class="x" onclick={() => store.setWhen(task.id, { date: null, evening: false, someday: false, inbox: false })} aria-label="Clear when" title="Clear (Anytime)">×</button>
             </span>
           {/if}
-          {#if task.deadline}<span class="chip deadline-chip"><Icon name="flag" size={12} /> {relLabel(task.deadline, store.day)}</span>{/if}
+          {#if task.deadline}<span class="chip deadline-chip"><Icon name="flag" size={12} /> {relLabel(task.deadline, store.day)}<button class="x" onclick={() => store.update(task.id, { deadline: null }, 'deadline change')} aria-label="Clear deadline" title="Clear deadline">×</button></span>{/if}
           {#if task.rrule}<button class="chip chip-btn" onclick={() => run('task.repeat')} title="Change repeat ({key('task.repeat')})"><Icon name="repeat" size={12} /> {repeatLabel}</button>{/if}
           {#if task.reminder_at}
             <span class="chip" class:sent={!!task.reminder_sent_at}><Icon name="bell" size={12} /> {reminderLabel(task.reminder_at, store.day)}<button class="x" onclick={() => store.setReminder(task.id, null)} aria-label="Remove reminder">×</button></span>
@@ -546,8 +547,11 @@
     display: none;
   }
   li:hover .x,
-  .chip:hover .x {
+  .chip .x {
     display: inline;
+  }
+  .chip .x:hover {
+    color: var(--text);
   }
   .bar {
     display: flex;

@@ -16,6 +16,8 @@
     bell: 'var(--habits)',
     area: 'var(--text-2)',
     evening: 'var(--evening)',
+    flag: 'var(--deadline)',
+    tag: 'var(--text-2)',
     // Menu actions (area and project menus)
     rename: 'var(--inbox)',
     add: 'var(--anytime)',

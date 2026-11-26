@@ -8,6 +8,7 @@
   import { addDays, longLabel, nextWeekday, relLabel } from '../dates';
   import { optionForKey, splitMnemonic } from '../menu';
   import Icon, { iconColor } from './Icon.svelte';
+  import ProgressPie from './ProgressPie.svelte';
 
   interface Item {
     label: string;
@@ -16,6 +17,8 @@
     /** Menu letter (choose mode): underlined in the label. */
     key?: string;
     icon?: string;
+    /** Project id: shows its progress pie in place of an icon. */
+    project?: string;
     danger?: boolean;
     run: () => void;
   }
@@ -58,15 +61,17 @@
   function dateItems(apply: (date: string | null, extra?: 'evening' | 'someday') => void, allowSomeday: boolean): Item[] {
     const d = store.day;
     const typed = q.trim() ? parseDateWord(q.trim().replace(/\s+/g, '-'), d) : null;
+    // When uses each list's icon; Deadline flags every date.
+    const dated = (icon: string) => (allowSomeday ? icon : 'flag');
     const base: Item[] = [];
-    if (typed) base.push({ label: `${relLabel(typed, d)}`, hint: longLabel(typed), run: () => apply(typed) });
+    if (typed) base.push({ label: `${relLabel(typed, d)}`, hint: longLabel(typed), icon: dated(typed <= d ? 'today' : 'upcoming'), run: () => apply(typed) });
     base.push(
-      { label: 'Today', hint: longLabel(d), run: () => apply(d) },
-      ...(allowSomeday ? [{ label: 'This Evening', hint: longLabel(d), run: () => apply(d, 'evening' as const) }] : []),
-      { label: 'Tomorrow', hint: longLabel(addDays(d, 1)), run: () => apply(addDays(d, 1)) },
-      { label: 'Next week', hint: longLabel(nextWeekday(d, 1)), run: () => apply(nextWeekday(d, 1)) },
-      ...(allowSomeday ? [{ label: 'Someday', run: () => apply(null, 'someday' as const) }] : []),
-      { label: allowSomeday ? 'Clear (Anytime)' : 'Clear deadline', run: () => apply(null) },
+      { label: 'Today', hint: longLabel(d), icon: dated('today'), run: () => apply(d) },
+      ...(allowSomeday ? [{ label: 'This Evening', hint: longLabel(d), icon: 'evening', run: () => apply(d, 'evening' as const) }] : []),
+      { label: 'Tomorrow', hint: longLabel(addDays(d, 1)), icon: dated('upcoming'), run: () => apply(addDays(d, 1)) },
+      { label: 'Next week', hint: longLabel(nextWeekday(d, 1)), icon: dated('upcoming'), run: () => apply(nextWeekday(d, 1)) },
+      ...(allowSomeday ? [{ label: 'Someday', icon: 'someday', run: () => apply(null, 'someday' as const) }] : []),
+      allowSomeday ? { label: 'Clear (Anytime)', icon: 'anytime', run: () => apply(null) } : { label: 'Clear deadline', icon: 'delete', run: () => apply(null) },
     );
     return typed ? base : base.filter((i) => fuzzy(i.label, q));
   }
@@ -101,26 +106,26 @@
           store.overlay = 'palette';
         };
         const out: Item[] = [
-          { label: 'Inbox', hint: 'List', run: () => store.moveToList(targets, 'inbox') },
-          { label: 'Today', hint: 'List', run: () => store.moveToList(targets, 'today') },
-          ...(viewEnabled('week') ? [{ label: 'This Week', hint: 'List · pick a day', run: toWhen }] : []),
-          { label: 'Upcoming', hint: 'List · pick a day', run: toWhen },
-          { label: 'Anytime', hint: 'List', run: () => store.moveToList(targets, 'anytime') },
-          { label: 'Someday', hint: 'List', run: () => store.moveToList(targets, 'someday') },
-          ...(viewEnabled('dump') && !first.dump ? [{ label: 'Brain Dump', hint: 'List · deleted after 48h unless kept', run: () => store.moveToList(targets, 'dump') }] : []),
+          { label: 'Inbox', hint: 'List', icon: 'inbox', run: () => store.moveToList(targets, 'inbox') },
+          { label: 'Today', hint: 'List', icon: 'today', run: () => store.moveToList(targets, 'today') },
+          ...(viewEnabled('week') ? [{ label: 'This Week', hint: 'List · pick a day', icon: 'week', run: toWhen }] : []),
+          { label: 'Upcoming', hint: 'List · pick a day', icon: 'upcoming', run: toWhen },
+          { label: 'Anytime', hint: 'List', icon: 'anytime', run: () => store.moveToList(targets, 'anytime') },
+          { label: 'Someday', hint: 'List', icon: 'someday', run: () => store.moveToList(targets, 'someday') },
+          ...(viewEnabled('dump') && !first.dump ? [{ label: 'Brain Dump', hint: 'List · deleted after 48h unless kept', icon: 'dump', run: () => store.moveToList(targets, 'dump') }] : []),
         ];
         for (const a of store.areas) {
-          out.push({ label: a.name, hint: 'Area', run: () => moveTo(a.name, { area_id: a.id }) });
+          out.push({ label: a.name, hint: 'Area', icon: 'area', run: () => moveTo(a.name, { area_id: a.id }) });
           for (const p of store.projects.filter((p) => p.area_id === a.id && !p.completed_at)) {
-            out.push({ label: p.name, hint: `Project in ${a.name}`, run: () => moveTo(p.name, { project_id: p.id }) });
+            out.push({ label: p.name, hint: `Project in ${a.name}`, project: p.id, run: () => moveTo(p.name, { project_id: p.id }) });
           }
         }
         for (const p of store.projects.filter((p) => !p.area_id && !p.completed_at)) {
-          out.push({ label: p.name, hint: 'Project', run: () => moveTo(p.name, { project_id: p.id }) });
+          out.push({ label: p.name, hint: 'Project', project: p.id, run: () => moveTo(p.name, { project_id: p.id }) });
         }
         if (first.dump && viewEnabled('dump')) {
-          out.push({ label: 'Brain Dump', hint: 'No section', run: () => toDump('Brain Dump', null) });
-          for (const s of store.dumpSections) out.push({ label: `Brain Dump / ${s.name}`, hint: 'Section', run: () => toDump(`Brain Dump / ${s.name}`, s.id) });
+          out.push({ label: 'Brain Dump', hint: 'No section', icon: 'dump', run: () => toDump('Brain Dump', null) });
+          for (const s of store.dumpSections) out.push({ label: `Brain Dump / ${s.name}`, hint: 'Section', icon: 'dump', run: () => toDump(`Brain Dump / ${s.name}`, s.id) });
         }
         return out.filter((i) => fuzzy(`${i.label} ${i.hint ?? ''}`, q));
       }
@@ -146,9 +151,9 @@
         const name = q.trim().replace(/^#/, '');
         const out: Item[] = store.tags
           .filter((t) => !have.has(t.id) && fuzzy(t.name, name))
-          .map((t) => ({ label: `#${t.name}`, run: () => store.addTag(task.id, t.name) }));
+          .map((t) => ({ label: `#${t.name}`, icon: 'tag', run: () => store.addTag(task.id, t.name) }));
         if (name && !store.tags.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
-          out.push({ label: `Create #${name}`, run: () => store.addTag(task.id, name) });
+          out.push({ label: `Create #${name}`, icon: 'add', run: () => store.addTag(task.id, name) });
         }
         return out;
       }
@@ -207,16 +212,16 @@
           return new Date(y, mo - 1, d, h, m).toISOString();
         };
         const out: Item[] = [];
-        if (typed) out.push({ label: reminderLabel(typed, store.day), hint: 'Set reminder', run: set(typed) });
+        if (typed) out.push({ label: reminderLabel(typed, store.day), hint: 'Set reminder', icon: 'bell', run: set(typed) });
         if (!q.trim()) {
-          out.push({ label: 'In 1 hour', hint: reminderLabel(new Date(now.getTime() + 3_600_000).toISOString(), store.day), run: set(new Date(now.getTime() + 3_600_000).toISOString()) });
-          if (base !== store.day) out.push({ label: 'That morning', hint: reminderLabel(at(base, 9), store.day), run: set(at(base, 9)) });
-          if (now.getHours() < 18) out.push({ label: 'This evening', hint: reminderLabel(at(store.day, 18), store.day), run: set(at(store.day, 18)) });
-          out.push({ label: 'Tomorrow morning', hint: reminderLabel(at(addDays(store.day, 1), 9), store.day), run: set(at(addDays(store.day, 1), 9)) });
+          out.push({ label: 'In 1 hour', icon: 'bell', hint: reminderLabel(new Date(now.getTime() + 3_600_000).toISOString(), store.day), run: set(new Date(now.getTime() + 3_600_000).toISOString()) });
+          if (base !== store.day) out.push({ label: 'That morning', icon: 'bell', hint: reminderLabel(at(base, 9), store.day), run: set(at(base, 9)) });
+          if (now.getHours() < 18) out.push({ label: 'This evening', icon: 'bell', hint: reminderLabel(at(store.day, 18), store.day), run: set(at(store.day, 18)) });
+          out.push({ label: 'Tomorrow morning', icon: 'bell', hint: reminderLabel(at(addDays(store.day, 1), 9), store.day), run: set(at(addDays(store.day, 1), 9)) });
           const monday = nextWeekday(store.day, 1) === addDays(store.day, 1) ? addDays(store.day, 8) : nextWeekday(store.day, 1);
-          out.push({ label: 'Next week', hint: reminderLabel(at(monday, 9), store.day), run: set(at(monday, 9)) });
+          out.push({ label: 'Next week', icon: 'bell', hint: reminderLabel(at(monday, 9), store.day), run: set(at(monday, 9)) });
         }
-        if (task.reminder_at) out.push({ label: 'Remove reminder', run: set(null) });
+        if (task.reminder_at) out.push({ label: 'Remove reminder', icon: 'delete', run: set(null) });
         return out;
       }
       case 'choose':
@@ -306,7 +311,7 @@
         {@const parts = splitMnemonic(item.label, item.key)}
         <li role="option" aria-selected={i === index}>
           <button class:active={i === index} style:--c={item.icon ? iconColor(item.icon) : null} onmouseenter={() => (index = i)} onclick={() => choose(i)}>
-            {#if item.icon}<Icon name={item.icon} />{/if}
+            {#if item.project}<ProgressPie value={store.projectProgress(item.project)} size={18} />{:else if item.icon}<Icon name={item.icon} />{/if}
             <span class="l" class:danger={item.danger}>
               {#if parts}{parts[0]}<u>{parts[1]}</u>{parts[2]}{:else}{item.label}{/if}
             </span>

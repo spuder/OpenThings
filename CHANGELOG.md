@@ -2,6 +2,14 @@
 
 Release notes for OpenThings. Each release is also published on [GitHub Releases](https://github.com/spuder/OpenThings/releases).
 
+## [v0.17.3](https://github.com/spuder/OpenThings/releases/tag/v0.17.3) - 2026-11-26
+
+### What's Changed
+
+* Every picker now shows colored icons, like the sidebar: When, Deadline, Move (including areas and project progress), Reminder and Tag. The When and Deadline chips in an open to-do get an × to clear them, and chip × buttons are always visible instead of only on hover. By @spuder in https://github.com/spuder/OpenThings/pull/161
+
+**Full Changelog**: https://github.com/spuder/OpenThings/compare/v0.17.2...v0.17.3
+
 ## [v0.17.2](https://github.com/spuder/OpenThings/releases/tag/v0.17.2) - 2026-11-24
 
 ### What's Changed
